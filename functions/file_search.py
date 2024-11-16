@@ -47,6 +47,9 @@ class FileSearchManager:
         self.client = azure_client
         self.config = config or FileSearchConfig()
         self.config.model_name = self.config.model_name or os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
+        print("Assistant name: ", self.config.assistant_name)
+        print(f"Using model: {self.config.model_name}")
+
         
     def is_valid_file_type(self, file_path: Path) -> Tuple[bool, str]:
         """Validates if the file type is supported."""
@@ -81,12 +84,14 @@ class FileSearchManager:
         """Creates an assistant if it doesn't exist."""
         try:
             assistant = self.client.beta.assistants.create(
-                name=self.config.assistant_name,
-                instructions=self.config.assistant_instructions,
-                model=self.config.model_name,
+                name=context_variables.get("assistant_name", self.config.assistant_name),
+                instructions=context_variables.get("assistant_instructions", self.config.assistant_instructions),
+                model=context_variables.get("model_name", self.config.model_name),
                 tools=[{"type": "file_search"}]
             )
             context_variables["assistant_id"] = assistant.id
+            print(f"Created assistant: {assistant.id}")
+
         except Exception as e:
             raise AssistantError(f"Failed to create assistant: {str(e)}")
 
@@ -101,6 +106,9 @@ class FileSearchManager:
                 }
             )
             context_variables["vector_store_id"] = vector_store.id
+
+            print("Created vector store: ", vector_store.id)
+
         except Exception as e:
             raise VectorStoreError(f"Failed to create vector store: {str(e)}")
 
@@ -108,6 +116,7 @@ class FileSearchManager:
         """Waits for a run to complete with configured retries."""
         attempts = 0
         while attempts < self.config.max_retries:
+            print("Waiting for run to complete...")
             run = self.client.beta.threads.runs.retrieve(
                 thread_id=thread_id,
                 run_id=run_id
@@ -125,43 +134,43 @@ class FileSearchManager:
     def upload_file(self, file_path: Path, context_variables: ContextVariables) -> str:
         """Uploads a file and prepares it for searching."""
         try:
+            # Convert Path to string if needed
+            file_path = Path(file_path) if isinstance(file_path, str) else file_path
+            
             if not file_path.exists():
                 raise FileValidationError(Errors.FILE_NOT_FOUND.format(path=file_path))
 
-            # Validate file type
-            self.is_valid_file_type(file_path)
-
-            # Check file size
-            file_size = file_path.stat().st_size
-            if file_size > MAX_FILE_SIZE_BYTES:
-                raise FileValidationError(Errors.FILE_SIZE_EXCEEDED.format(max_size=MAX_FILE_SIZE_MB))
-
-            # Create assistant if needed
+            # Create assistant and vector store if needed
             if "assistant_id" not in context_variables:
                 self._create_assistant(context_variables)
 
-            # Create vector store
-            self._create_vector_store(file_path, context_variables)
+            if "vector_store_id" not in context_variables:
+                vector_store = self.client.beta.vector_stores.create(
+                    name=context_variables.get("vector_store_name", "default-store"),
+                    expires_after={
+                        "anchor": "last_active_at",
+                        "days": self.config.vector_store_expiration_days
+                    }
+                )
+                context_variables["vector_store_id"] = vector_store.id
 
-            try:
-                # Upload file to vector store
-                with open(file_path, "rb") as file:
-                    file_batch = self.client.beta.vector_stores.file_batches.upload_and_poll(
-                        vector_store_id=context_variables["vector_store_id"],
-                        files=[file]
-                    )
-            except Exception as e:
-                raise VectorStoreError(f"Failed to upload file to vector store: {str(e)}")
-
-            try:
                 # Update assistant with vector store
                 self.client.beta.assistants.update(
                     assistant_id=context_variables["assistant_id"],
-                    tool_resources={"file_search": {"vector_store_ids": [context_variables["vector_store_id"]]}}
+                    tool_resources={
+                        "file_search": {
+                            "vector_store_ids": [vector_store.id]
+                        }
+                    }
                 )
-            except Exception as e:
-                raise AssistantError(f"Failed to update assistant: {str(e)}")
 
+            # Upload and process file
+            with open(file_path, "rb") as file:
+                file_batch = self.client.beta.vector_stores.file_batches.upload_and_poll(
+                    vector_store_id=context_variables["vector_store_id"],
+                    files=[file]
+                )
+                
             return Messages.FILE_UPLOAD_SUCCESS
 
         except FileSearchError as e:

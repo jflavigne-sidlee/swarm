@@ -1,3 +1,3 @@
-class ContextVariables:
-    # Implementation of ContextVariables class
-    pass
+from typing import Dict, Any
+
+ContextVariables = Dict[str, Any]

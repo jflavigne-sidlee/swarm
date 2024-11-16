@@ -88,8 +88,15 @@ def test_file_search_agent(azure_client, file_manager, setup_test_environment):
         )
         print("✓ File search agent created")
 
+        # Initialize context variables with vector store and assistant information
+        context_variables = {
+            "vector_store_name": "Test Vector Store",
+            "assistant_name": TEST_CONFIG.assistant_name,
+            "assistant_instructions": TEST_CONFIG.assistant_instructions,
+            "model_name": os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
+        }
+
         # Step 1: Upload file
-        context_variables = {}
         print(f"\nAttempting to upload file: {TEST_FILE_PATH}")
         print(f"File exists: {TEST_FILE_PATH.exists()}")
         print(f"File path type: {type(TEST_FILE_PATH)}")
@@ -101,6 +108,10 @@ def test_file_search_agent(azure_client, file_manager, setup_test_environment):
             ],
             context_variables=context_variables
         )
+
+        # Save the updated context variables which should now include vector_store_id and assistant_id
+        context_variables = response.context_variables
+        print(f"Updated context variables: {context_variables}")
         print(f"Response content: {response.messages[-1]['content']}")
         assert "success" in response.messages[-1]["content"].lower(), "File upload failed"
         print("✓ File uploaded successfully")
