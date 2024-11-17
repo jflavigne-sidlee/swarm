@@ -6,6 +6,18 @@ from .config import FileSearchConfig
 from .errors import FileSearchErrors as Errors
 from .exceptions import AssistantError
 from .azure_client import AzureClientWrapper, MessageRole, RunStatus
+from enum import Enum
+from .handlers import FileSearchEventHandler
+
+class RunStatus(str, Enum):
+    QUEUED = "queued"
+    IN_PROGRESS = "in_progress"
+    REQUIRES_ACTION = "requires_action"
+    CANCELLING = "cancelling"
+    CANCELLED = "cancelled"
+    FAILED = "failed"
+    COMPLETED = "completed"
+    EXPIRED = "expired"
 
 class AssistantManager:
     """Manages Azure OpenAI Assistants for file-based Q&A."""
@@ -125,96 +137,38 @@ class AssistantManager:
             if not self.verify_vector_store_ready(context_variables["vector_store_id"]):
                 raise AssistantError("Vector store not ready or expired")
 
-            # Create thread
-            print("\nCreating new thread...")
-            thread = self.client.create_thread()
-            print(f"Thread created with ID: {thread.id}")
+            # Create thread and run with streaming enabled
+            print("\nCreating thread and run...")
+            handler = FileSearchEventHandler()
             
-            # Add initialization delay
-            print("Waiting for thread initialization (5s)...")
-            time.sleep(5)
+            try:
+                with self.client.create_thread_and_run(
+                    assistant_id=context_variables["assistant_id"],
+                    thread={
+                        "messages": [
+                            {"role": MessageRole.USER, "content": question}
+                        ]
+                    },
+                    stream=True,
+                    event_handler=handler
+                ) as stream:
+                    stream.until_done()
+            except Exception as e:
+                print(f"\nStream error: {str(e)}")
+                if "rate_limit_exceeded" in str(e).lower():
+                    print("Rate limit exceeded, falling back to polling...")
+                    # Implement fallback to polling here if needed
+                raise AssistantError(f"Stream failed: {str(e)}")
+
+            if handler.has_error:
+                raise AssistantError(f"Run failed: {handler.error}")
             
-            # Create message
-            print("\nCreating message in thread...")
-            message = self.client.threads.messages.create(
-                thread_id=thread.id,
-                role=MessageRole.USER,
-                content=question
-            )
-            print(f"Message created with ID: {message.id}")
+            if not handler.has_response:
+                raise AssistantError("No response received from assistant")
 
-            # Create run
-            print("\nCreating run...")
-            run = self.client.threads.runs.create(
-                thread_id=thread.id,
-                assistant_id=context_variables["assistant_id"]
-            )
-            print(f"Run created with ID: {run.id}")
-
-            # Monitor run status
-            print("\nMonitoring run status...")
-            start_time = time.time()
-            status = run.status
-            max_wait_time = 600
-            polling_interval = 60
-            max_retries = 10
-
-            while status not in [RunStatus.COMPLETED, RunStatus.CANCELLED, RunStatus.EXPIRED, RunStatus.FAILED]:
-                elapsed_time = time.time() - start_time
-                print(f"\nTime elapsed: {int(elapsed_time)}s / {max_wait_time}s")
-                
-                if elapsed_time > max_wait_time:
-                    raise AssistantError("Run timed out after 10 minutes")
-
-                try:
-                    time.sleep(polling_interval)
-                    polling_interval = min(polling_interval * 1.5, 5)
-                    
-                    print(f"Checking run status (polling interval: {polling_interval}s)...")
-                    run = self.client.retrieve_run(
-                        thread_id=thread.id,
-                        run_id=run.id
-                    )
-                    status = run.status
-                    print(f"Current status: {status}")
-
-                except Exception as e:
-                    print(f"\nError during status check: {str(e)}")
-                    if "rate_limit_exceeded" in str(e).lower() and max_retries > 0:
-                        retry_after = int(str(e).split("in ")[-1].split(" ")[0])
-                        print(f"Rate limit hit. Waiting {retry_after} seconds...")
-                        time.sleep(retry_after + random.uniform(1, 5))
-                        max_retries -= 1
-                        print(f"Retries remaining: {max_retries}")
-                        continue
-                    raise
-
-            print(f"\nRun completed with status: {status}")
-
-            if status == RunStatus.COMPLETED:
-                print("\nRetrieving messages...")
-                messages = self.client.threads.messages.list(thread_id=thread.id)
-                if not messages.data:
-                    raise AssistantError("No response received from assistant")
-                
-                response = messages.data[0].content[0].text.value
-                print(f"Response received: {response[:100]}...")
-                return response
-                
-            elif status == RunStatus.FAILED:
-                run_details = self.client.retrieve_run(
-                    thread_id=thread.id,
-                    run_id=run.id
-                )
-                error_message = getattr(run_details, 'last_error', 'Unknown error')
-                print(f"\nRun failed with error: {error_message}")
-                raise AssistantError(f"Run failed: {error_message}")
-                
-            elif status == RunStatus.EXPIRED:
-                raise AssistantError("Run expired - exceeded time limit")
-            elif status == RunStatus.CANCELLED:
-                raise AssistantError("Run was cancelled")
+            print(f"\nResponse received: {handler.response[:100]}...")
+            return handler.response
 
         except Exception as e:
             print(f"\nERROR processing question: {str(e)}")
-            raise AssistantError(f"Failed to process question: {str(e)}") 
+            raise AssistantError(f"Failed to process question: {str(e)}")

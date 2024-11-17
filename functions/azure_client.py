@@ -661,6 +661,10 @@ class AzureClientWrapper:
                   event_handler: AssistantEventHandler,
                   **run_params) -> Any:
         """Stream the result of executing a Run."""
+        # Remove run_id from run_params if present as it's not needed
+        if 'run_id' in run_params:
+            del run_params['run_id']
+        
         return self._client.beta.threads.runs.stream(
             thread_id=thread_id,
             assistant_id=assistant_id,
