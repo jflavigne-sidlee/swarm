@@ -5,6 +5,7 @@ class FileSearchEventHandler(AssistantEventHandler):
     """Event handler for file search operations with Azure OpenAI Assistant."""
     
     def __init__(self):
+        super().__init__()
         self.response: Optional[str] = None
         self.error: Optional[str] = None
         self.is_complete: bool = False

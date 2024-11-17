@@ -137,37 +137,47 @@ class AssistantManager:
             if not self.verify_vector_store_ready(context_variables["vector_store_id"]):
                 raise AssistantError("Vector store not ready or expired")
 
-            # Create thread and run with streaming enabled
-            print("\nCreating thread and run...")
+            # Create thread and run in one operation
+            message_content = {
+                "role": MessageRole.USER.value,
+                "content": question
+            }
+            print(f"\nSending message to assistant: {message_content}")  # Print the message content
+
+            run = self.client.threads.runs.create_thread_and_run(
+                assistant_id=context_variables["assistant_id"],
+                thread={
+                    "messages": [message_content]
+                }
+            )
+
+            # Wait a moment for the run to be properly created
+            time.sleep(1)
+
+            # Create handler and wait for completion
             handler = FileSearchEventHandler()
             
-            try:
-                with self.client.create_thread_and_run(
-                    assistant_id=context_variables["assistant_id"],
-                    thread={
-                        "messages": [
-                            {"role": MessageRole.USER, "content": question}
-                        ]
-                    },
-                    stream=True,
-                    event_handler=handler
-                ) as stream:
-                    stream.until_done()
-            except Exception as e:
-                print(f"\nStream error: {str(e)}")
-                if "rate_limit_exceeded" in str(e).lower():
-                    print("Rate limit exceeded, falling back to polling...")
-                    # Implement fallback to polling here if needed
-                raise AssistantError(f"Stream failed: {str(e)}")
+            # Get the run status and wait for completion
+            while True:
+                run_status = self.client.threads.runs.retrieve(
+                    thread_id=run.thread_id,
+                    run_id=run.id
+                )
+                
+                if run_status.status == RunStatus.COMPLETED.value:
+                    # Get messages after completion
+                    messages = self.client.threads.messages.list(run.thread_id)
+                    if messages.data:
+                        response = messages.data[0].content[0].text.value
+                        print(f"\nResponse received: {response[:100]}...")
+                        return response
+                    break
+                elif run_status.status in [RunStatus.FAILED.value, RunStatus.CANCELLED.value, RunStatus.EXPIRED.value]:
+                    raise AssistantError(f"Run failed with status: {run_status.status}")
+                    
+                time.sleep(1)  # Wait before checking again
 
-            if handler.has_error:
-                raise AssistantError(f"Run failed: {handler.error}")
-            
-            if not handler.has_response:
-                raise AssistantError("No response received from assistant")
-
-            print(f"\nResponse received: {handler.response[:100]}...")
-            return handler.response
+            raise AssistantError("No response received from assistant")
 
         except Exception as e:
             print(f"\nERROR processing question: {str(e)}")

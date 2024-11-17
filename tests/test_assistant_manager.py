@@ -43,8 +43,16 @@ def test_assistant_qa(assistant_manager, setup_test_environment):
 
         context_variables = {
             "assistant_name": "Test Assistant",
-            "assistant_instructions": "You are a test assistant analyzing documents. Answer in JSON format.",
-            "model_name": "gpt-4",
+            "assistant_instructions": (
+                "You are a test assistant analyzing documents. "
+                "Provide your answer in the following JSON format without any markdown before or after:\n\n"
+                "{\n"
+                '  "answer": [Your answer here],\n'
+                '  "source": [Source information]\n'
+                "}\n"
+                "Ensure that the key 'answer' is used for your response. The source key is optional."
+            ),
+            "model_name": "gpt-4o",
             "vector_store_id": vector_store_id
         }
         

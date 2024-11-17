@@ -199,13 +199,30 @@ class Runs:
             run_id=run_id
         )
 
-    def stream(self, thread_id: str, assistant_id: str, event_handler: AssistantEventHandler, **kwargs) -> Any:
-        """Streams a run"""
+    def stream(self, thread_id: str, assistant_id: str, event_handler: AssistantEventHandler, **run_params) -> Any:
+        """Stream the result of executing a Run."""
+        # Remove run_id from run_params if present as it's not needed
+        if 'run_id' in run_params:
+            del run_params['run_id']
+        
         return self._client.beta.threads.runs.stream(
             thread_id=thread_id,
             assistant_id=assistant_id,
             event_handler=event_handler,
-            **kwargs
+            **run_params
+        )
+
+    def create_thread_and_run(self, assistant_id: str, thread: Dict[str, Any]) -> Any:
+        """Creates a thread and run in one operation."""
+        # First create the thread
+        created_thread = self._client.beta.threads.create(
+            messages=thread.get("messages", [])
+        )
+        
+        # Then create the run
+        return self._client.beta.threads.runs.create(
+            thread_id=created_thread.id,
+            assistant_id=assistant_id
         )
 
 class Threads:
@@ -653,23 +670,6 @@ class AzureClientWrapper:
         return self._client.beta.threads.runs.cancel(
             thread_id=thread_id,
             run_id=run_id
-        )
-
-    def stream_run(self,
-                  thread_id: str,
-                  assistant_id: str,
-                  event_handler: AssistantEventHandler,
-                  **run_params) -> Any:
-        """Stream the result of executing a Run."""
-        # Remove run_id from run_params if present as it's not needed
-        if 'run_id' in run_params:
-            del run_params['run_id']
-        
-        return self._client.beta.threads.runs.stream(
-            thread_id=thread_id,
-            assistant_id=assistant_id,
-            event_handler=event_handler,
-            **run_params
         )
 
     def create_vector_store(self, name: str, expires_after: dict) -> Any:
