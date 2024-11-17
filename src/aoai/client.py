@@ -14,6 +14,7 @@ from .types import (
     TruncationStrategy
 )
 from .messages import Messages
+from .runs import Runs
 
 class AOAIClient:
     """Azure OpenAI Client wrapper for managing assistants, threads, and vector stores."""
@@ -26,6 +27,7 @@ class AOAIClient:
         self.threads = Threads(client)
         self.chat = Chat(client)
         self.messages = Messages(client)
+        self.runs = Runs(client)
     
     @classmethod
     def create(cls,

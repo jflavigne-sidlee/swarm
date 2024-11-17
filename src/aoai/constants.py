@@ -22,8 +22,6 @@ API_PATH_CHAT_COMPLETIONS = f"{API_PATH_BETA}/{API_PATH_CHAT}/{API_PATH_COMPLETI
 API_PATH_VECTOR_STORES = f"{API_PATH_BETA}/{VECTOR_STORES_API_PATH}"
 API_PATH_THREADS = f"{API_PATH_BETA}/{THREADS_API_PATH}"
 
-
-
 # Default list values
 DEFAULT_LIST_AFTER = None
 DEFAULT_LIST_BEFORE = None
@@ -32,22 +30,6 @@ DEFAULT_LIST_ORDER = "desc"
 LIST_LIMIT_MIN = 1
 LIST_LIMIT_MAX = 100
 LIST_LIMIT_RANGE = range(LIST_LIMIT_MIN, LIST_LIMIT_MAX + 1)
-
-# Base list operation defaults
-DEFAULT_LIST_PARAMS = {
-    LIST_PARAM_LIMIT: DEFAULT_LIST_LIMIT,
-    LIST_PARAM_ORDER: DEFAULT_LIST_ORDER,
-    LIST_PARAM_AFTER: None,
-    LIST_PARAM_BEFORE: None
-}
-
-# Operation specific list defaults
-DEFAULT_ASSISTANT_LIST_PARAMS = DEFAULT_LIST_PARAMS.copy()
-DEFAULT_MESSAGE_LIST_PARAMS = DEFAULT_LIST_PARAMS.copy()
-DEFAULT_RUN_LIST_PARAMS = DEFAULT_LIST_PARAMS.copy()
-DEFAULT_RUN_STEP_LIST_PARAMS = DEFAULT_LIST_PARAMS.copy()
-DEFAULT_THREAD_LIST_PARAMS = DEFAULT_LIST_PARAMS.copy()
-DEFAULT_VECTOR_STORE_LIST_PARAMS = DEFAULT_LIST_PARAMS.copy()
 
 # Message roles
 MESSAGE_ROLE_ASSISTANT = "assistant"
@@ -83,9 +65,11 @@ ERROR_INVALID_ASSISTANT_ID = "Error: Invalid assistant ID provided."
 ERROR_INVALID_LIMIT = "Error: Invalid limit value. Must be between 1 and 100."
 ERROR_INVALID_MESSAGE_ID = "Error: Invalid message ID provided."
 ERROR_INVALID_RUN_ID = "Error: Invalid run ID provided."
+ERROR_INVALID_STEP_ID = "Error: Invalid step ID provided."
 ERROR_INVALID_THREAD_ID = "Error: Invalid thread ID provided."
 ERROR_THREAD_NOT_FOUND = "Error: Thread not found."
 ERROR_VECTOR_STORE_NOT_FOUND = "Error: Vector store not found."
+
 
 # Parameter validation ranges
 VALID_FREQUENCY_PENALTY_RANGE = (-2.0, 2.0)
@@ -243,11 +227,22 @@ TOOL_CHOICE_NONE = "none"
 
 # List operation parameters
 # LIST_PARAM_AFTER = "after"
-#LIST_PARAM_BEFORE = "before"
+# LIST_PARAM_BEFORE = "before"
 # LIST_PARAM_LIMIT = "limit"
-#IST_PARAM_ORDER = "order"
+# LIST_PARAM_ORDER = "order"
+
+# Run parameters
+# RUN_PARAM_ADDITIONAL_INSTRUCTIONS = "additional_instructions"
+# RUN_PARAM_ADDITIONAL_MESSAGES = "additional_messages"
+# RUN_PARAM_MAX_COMPLETION_TOKENS = "max_completion_tokens"
+# RUN_PARAM_MAX_PROMPT_TOKENS = "max_prompt_tokens"
+# RUN_PARAM_TOOL_OUTPUTS = "tool_outputs"
+# RUN_PARAM_TRUNCATION_STRATEGY = "truncation_strategy"
+
 
 # Parameter names
+PARAM_ADDITIONAL_INSTRUCTIONS = "additional_instructions"
+PARAM_ADDITIONAL_MESSAGES = "additional_messages"
 PARAM_AFTER = "after"
 PARAM_ASSISTANT_ID = "assistant_id"
 PARAM_ATTACHMENTS = "attachments"
@@ -261,6 +256,8 @@ PARAM_FILES = "files"
 PARAM_INSTRUCTIONS = "instructions"
 PARAM_LIMIT = "limit"
 PARAM_LOGIT_BIAS = "logit_bias" ### CHAT
+PARAM_MAX_COMPLETION_TOKENS = "max_completion_tokens"
+PARAM_MAX_PROMPT_TOKENS = "max_prompt_tokens"
 PARAM_MAX_TOKENS = "max_tokens" ### CHAT
 PARAM_MESSAGE_ID = "message_id"
 PARAM_MESSAGES = "messages"
@@ -280,12 +277,30 @@ PARAM_STREAM = "stream" ### CHAT
 PARAM_TEMPERATURE = "temperature" ### CHAT
 PARAM_THREAD_ID = "thread_id"
 PARAM_TOOL_CHOICE = "tool_choice" ### CHAT
+PARAM_TOOL_OUTPUTS = "tool_outputs"
 PARAM_TOOL_RESOURCES = "tool_resources"
 PARAM_TOOLS = "tools"
 PARAM_TOP_P = "top_p"
+PARAM_TRUNCATION_STRATEGY = "truncation_strategy"
 PARAM_USER = "user" ### CHAT
 PARAM_VECTOR_STORE_IDS = "vector_store_ids"
 PARAM_VECTOR_STORES = "vector_stores"
+
+# Base list operation defaults
+DEFAULT_LIST_PARAMS = {
+    PARAM_LIMIT: DEFAULT_LIST_LIMIT,
+    PARAM_ORDER: DEFAULT_LIST_ORDER,
+    PARAM_AFTER: None,
+    PARAM_BEFORE: None
+}
+
+# Operation specific list defaults
+DEFAULT_ASSISTANT_LIST_PARAMS = DEFAULT_LIST_PARAMS.copy()
+DEFAULT_MESSAGE_LIST_PARAMS = DEFAULT_LIST_PARAMS.copy()
+DEFAULT_RUN_LIST_PARAMS = DEFAULT_LIST_PARAMS.copy()
+DEFAULT_RUN_STEP_LIST_PARAMS = DEFAULT_LIST_PARAMS.copy()
+DEFAULT_THREAD_LIST_PARAMS = DEFAULT_LIST_PARAMS.copy()
+DEFAULT_VECTOR_STORE_LIST_PARAMS = DEFAULT_LIST_PARAMS.copy()
 
 # Additional defaults
 DEFAULT_EXPIRES_AFTER = None
@@ -310,14 +325,6 @@ BETA_RUNS_PATH = f"{API_PATH_BETA}.threads.runs"
 BETA_STEPS_PATH = f"{API_PATH_BETA}.threads.runs.steps"
 BETA_THREADS_PATH = f"{API_PATH_BETA}.threads"
 BETA_VECTOR_STORES_PATH = f"{API_PATH_BETA}.vector_stores"
-
-# Run parameters
-RUN_PARAM_ADDITIONAL_INSTRUCTIONS = "additional_instructions"
-RUN_PARAM_ADDITIONAL_MESSAGES = "additional_messages"
-RUN_PARAM_MAX_COMPLETION_TOKENS = "max_completion_tokens"
-RUN_PARAM_MAX_PROMPT_TOKENS = "max_prompt_tokens"
-RUN_PARAM_TOOL_OUTPUTS = "tool_outputs"
-RUN_PARAM_TRUNCATION_STRATEGY = "truncation_strategy"
 
 # Run parameter defaults
 DEFAULT_ADDITIONAL_INSTRUCTIONS = None
