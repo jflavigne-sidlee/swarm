@@ -70,7 +70,9 @@ def test_assistant_qa(assistant_manager, setup_test_environment):
         
         assert "answer" in answer, "Response missing 'answer' field"
         for field in EXPECTED_FIELDS:
-            assert field in answer["answer"].lower(), f"Expected field '{field}' not found in answer"
+            # Convert the list to a string for searching
+            answer_text = ' '.join(str(item).lower() for item in answer["answer"])
+            assert field in answer_text, f"Expected field '{field}' not found in answer"
             print(f"✓ Found expected field: {field}")
             
     finally:
