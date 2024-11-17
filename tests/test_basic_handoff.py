@@ -1,19 +1,19 @@
 from dotenv import load_dotenv
 import os
 from swarm import Swarm, Agent
-from openai import AzureOpenAI
+from functions.azure_client import AzureClientWrapper
 
 # Load environment variables
 load_dotenv()
 
-# Initialize Azure OpenAI client
-azure_client = AzureOpenAI(
+# Initialize Azure OpenAI client with wrapper
+azure_client = AzureClientWrapper.create(
     api_key=os.getenv("AZURE_OPENAI_API_KEY"),
     api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
     azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
 )
 
-# Initialize Swarm
+# Initialize Swarm with wrapped client
 client = Swarm(client=azure_client)
 
 def test_basic_handoff():

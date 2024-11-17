@@ -19,6 +19,7 @@ from .exceptions import (
     VectorStoreError,
     AssistantError
 )
+import json
 
 class FileSearchManager:
     """Manages file uploads and question-answering using Azure OpenAI's file search capability.
@@ -154,14 +155,15 @@ class FileSearchManager:
                 )
                 context_variables["vector_store_id"] = vector_store.id
 
-                # Update assistant with vector store
+                # Update assistant with vector store and JSON mode
                 self.client.beta.assistants.update(
                     assistant_id=context_variables["assistant_id"],
                     tool_resources={
                         "file_search": {
                             "vector_store_ids": [vector_store.id]
                         }
-                    }
+                    },
+                    response_format={"type": "json_object"}
                 )
 
             # Upload and process file
@@ -171,12 +173,25 @@ class FileSearchManager:
                     files=[file]
                 )
                 
-            return Messages.FILE_UPLOAD_SUCCESS
+            return json.dumps({
+                "status": "success",
+                "message": "File uploaded successfully",
+                "file_path": str(file_path),
+                "vector_store_id": context_variables["vector_store_id"]
+            })
 
         except FileSearchError as e:
-            return str(e)
+            return json.dumps({
+                "status": "error",
+                "error_type": e.__class__.__name__,
+                "message": str(e)
+            })
         except Exception as e:
-            return Errors.UPLOAD_ERROR.format(error=str(e))
+            return json.dumps({
+                "status": "error",
+                "error_type": "UnknownError",
+                "message": str(e)
+            })
 
     def ask_question(self, question: str, context_variables: ContextVariables) -> str:
         """Asks a question about the uploaded file."""
@@ -186,36 +201,36 @@ class FileSearchManager:
             if "vector_store_id" not in context_variables:
                 raise VectorStoreError(Errors.NO_VECTOR_STORE)
 
-            try:
-                # Create thread
-                thread = self.client.beta.threads.create()
+            # Create thread and ask question
+            thread = self.client.beta.threads.create()
+            message = self.client.beta.threads.messages.create(
+                thread_id=thread.id,
+                role="user",
+                content=question
+            )
 
-                # Add the question to the thread
-                self.client.beta.threads.messages.create(
-                    thread_id=thread.id,
-                    role="user",
-                    content=question
-                )
+            run = self.client.beta.threads.runs.create(
+                thread_id=thread.id,
+                assistant_id=context_variables["assistant_id"],
+                response_format={"type": "json_object"}
+            )
 
-                # Create a run
-                run = self.client.beta.threads.runs.create(
-                    thread_id=thread.id,
-                    assistant_id=context_variables["assistant_id"]
-                )
-
-                # Wait for the run to complete with retries
-                self._wait_for_run_completion(thread.id, run.id)
-
-                # Get the response
-                messages = self.client.beta.threads.messages.list(
-                    thread_id=thread.id
-                )
-                return messages.data[0].content[0].text.value
-
-            except Exception as e:
-                raise AssistantError(f"Failed to process question: {str(e)}")
+            self._wait_for_run_completion(thread.id, run.id)
+            
+            messages = self.client.beta.threads.messages.list(
+                thread_id=thread.id
+            )
+            return messages.data[0].content[0].text.value
 
         except FileSearchError as e:
-            return str(e)
+            return json.dumps({
+                "status": "error",
+                "error_type": e.__class__.__name__,
+                "message": str(e)
+            })
         except Exception as e:
-            return Errors.QUESTION_ERROR.format(error=str(e))
+            return json.dumps({
+                "status": "error",
+                "error_type": "UnknownError",
+                "message": str(e)
+            })

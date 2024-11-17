@@ -1,22 +1,21 @@
 from dotenv import load_dotenv
 import os
 from swarm import Swarm, Agent
-from openai import AzureOpenAI
+from functions.azure_client import AzureClientWrapper
 
 # Load environment variables
 load_dotenv()
 
-# Initialize Azure OpenAI client
-azure_client = AzureOpenAI(
-    api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-    api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
-    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
-)
-
-# Initialize Swarm
-client = Swarm(client=azure_client)
-
 def test_function_calling():
+    """Test function calling with Azure OpenAI wrapper"""
+    
+    # Initialize Azure OpenAI client with wrapper
+    azure_client = AzureClientWrapper.create(
+        api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+        api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
+        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
+    )
+
     def greet(context_variables, language):
         """Greets the user in the specified language.
         
@@ -28,12 +27,19 @@ def test_function_calling():
         greeting = "Hola" if language.lower() == "spanish" else "Hello"
         return f"{greeting}, {user_name}!"
 
+    # Create agent with deployment name
     agent = Agent(
+        name="Greeting Agent",
         instructions="You are a helpful assistant. When asked to greet, use the greet function with 'spanish' as the language.",
         functions=[greet],
-        model=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
+        model=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")  # Make sure this matches your deployment
     )
 
+    # Initialize Swarm with wrapped client
+    client = Swarm(client=azure_client)
+
+    # Run the test
+    print("\nStarting Function Calling Test...")
     response = client.run(
         agent=agent,
         messages=[{"role": "user", "content": "Please greet me"}],
@@ -44,4 +50,4 @@ def test_function_calling():
     print(f"Response: {response.messages[-1]['content']}")
     
     # More flexible assertion that checks if either the function call or result appears
-    assert any("Hola, John!" in str(msg) for msg in response.messages), "Function not called correctly" 
+    assert any("Hola, John!" in str(msg) for msg in response.messages), "Function not called correctly"

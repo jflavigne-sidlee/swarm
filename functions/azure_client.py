@@ -53,29 +53,295 @@ class TruncationStrategy(TypedDict):
     type: str  # TruncationType
     last_messages: Optional[int]
 
-class AzureClientWrapper:
-    """Wrapper for Azure OpenAI client to abstract API version specifics"""
-    
+class VectorStores:
+    """Vector stores operations"""
     def __init__(self, client: AzureOpenAI):
         self._client = client
+        self.file_batches = self.FileBatches(client)
 
-    def create_vector_store(self, name: str, expires_after: dict) -> Any:
+    def create(self, name: str, expires_after: dict) -> Any:
         """Creates a vector store"""
         return self._client.beta.vector_stores.create(
             name=name,
             expires_after=expires_after
         )
     
-    def retrieve_vector_store(self, vector_store_id: str) -> Any:
+    def retrieve(self, vector_store_id: str) -> Any:
         """Retrieves a vector store by ID"""
         return self._client.beta.vector_stores.retrieve(vector_store_id)
-    
-    def upload_file_batch(self, vector_store_id: str, files: list) -> Any:
-        """Uploads a batch of files to vector store"""
-        return self._client.beta.vector_stores.file_batches.upload_and_poll(
-            vector_store_id=vector_store_id,
-            files=files
+
+    def list(self, **kwargs) -> Any:
+        """Lists vector stores"""
+        return self._client.beta.vector_stores.list(**kwargs)
+
+    def delete(self, vector_store_id: str) -> Any:
+        """Deletes a vector store"""
+        return self._client.beta.vector_stores.delete(vector_store_id)
+
+    class FileBatches:
+        """File batch operations for vector stores"""
+        def __init__(self, client: AzureOpenAI):
+            self._client = client
+
+        def upload_and_poll(self, vector_store_id: str, files: list) -> Any:
+            """Uploads a batch of files to vector store"""
+            return self._client.beta.vector_stores.file_batches.upload_and_poll(
+                vector_store_id=vector_store_id,
+                files=files
+            )
+
+class Messages:
+    """Message operations"""
+    def __init__(self, client: AzureOpenAI):
+        self._client = client
+
+    def create(self, thread_id: str, role: MessageRole, content: str, **kwargs) -> Any:
+        """Creates a message in a thread"""
+        return self._client.beta.threads.messages.create(
+            thread_id=thread_id,
+            role=role,
+            content=content,
+            **kwargs
         )
+
+    def list(self, thread_id: str, **kwargs) -> Any:
+        """Lists messages in a thread"""
+        return self._client.beta.threads.messages.list(thread_id, **kwargs)
+
+    def retrieve(self, thread_id: str, message_id: str) -> Any:
+        """Retrieves a message"""
+        return self._client.beta.threads.messages.retrieve(
+            thread_id=thread_id,
+            message_id=message_id
+        )
+
+    def update(self, thread_id: str, message_id: str, **kwargs) -> Any:
+        """Updates a message"""
+        return self._client.beta.threads.messages.update(
+            thread_id=thread_id,
+            message_id=message_id,
+            **kwargs
+        )
+
+    def delete(self, thread_id: str, message_id: str) -> Any:
+        """Deletes a message"""
+        return self._client.beta.threads.messages.delete(
+            thread_id=thread_id,
+            message_id=message_id
+        )
+
+class RunSteps:
+    """Run steps operations"""
+    def __init__(self, client: AzureOpenAI):
+        self._client = client
+
+    def list(self, thread_id: str, run_id: str, **kwargs) -> Any:
+        """Lists steps in a run"""
+        return self._client.beta.threads.runs.steps.list(
+            thread_id=thread_id,
+            run_id=run_id,
+            **kwargs
+        )
+
+    def retrieve(self, thread_id: str, run_id: str, step_id: str) -> Any:
+        """Retrieves a run step"""
+        return self._client.beta.threads.runs.steps.retrieve(
+            thread_id=thread_id,
+            run_id=run_id,
+            step_id=step_id
+        )
+
+class Runs:
+    """Run operations"""
+    def __init__(self, client: AzureOpenAI):
+        self._client = client
+        self.steps = RunSteps(client)
+
+    def create(self, thread_id: str, assistant_id: str, **kwargs) -> Any:
+        """Creates a run"""
+        return self._client.beta.threads.runs.create(
+            thread_id=thread_id,
+            assistant_id=assistant_id,
+            **kwargs
+        )
+
+    def list(self, thread_id: str, **kwargs) -> Any:
+        """Lists runs in a thread"""
+        return self._client.beta.threads.runs.list(thread_id, **kwargs)
+
+    def retrieve(self, thread_id: str, run_id: str) -> Any:
+        """Retrieves a run"""
+        return self._client.beta.threads.runs.retrieve(
+            thread_id=thread_id,
+            run_id=run_id
+        )
+
+    def update(self, thread_id: str, run_id: str, **kwargs) -> Any:
+        """Updates a run"""
+        return self._client.beta.threads.runs.update(
+            thread_id=thread_id,
+            run_id=run_id,
+            **kwargs
+        )
+
+    def submit_tool_outputs(self, thread_id: str, run_id: str, **kwargs) -> Any:
+        """Submits tool outputs"""
+        return self._client.beta.threads.runs.submit_tool_outputs(
+            thread_id=thread_id,
+            run_id=run_id,
+            **kwargs
+        )
+
+    def cancel(self, thread_id: str, run_id: str) -> Any:
+        """Cancels a run"""
+        return self._client.beta.threads.runs.cancel(
+            thread_id=thread_id,
+            run_id=run_id
+        )
+
+    def stream(self, thread_id: str, assistant_id: str, event_handler: AssistantEventHandler, **kwargs) -> Any:
+        """Streams a run"""
+        return self._client.beta.threads.runs.stream(
+            thread_id=thread_id,
+            assistant_id=assistant_id,
+            event_handler=event_handler,
+            **kwargs
+        )
+
+class Threads:
+    """Thread operations"""
+    def __init__(self, client: AzureOpenAI):
+        self._client = client
+        self.messages = Messages(client)
+        self.runs = Runs(client)
+
+    def create(self, **kwargs) -> Any:
+        """Creates a thread"""
+        return self._client.beta.threads.create(**kwargs)
+
+    def retrieve(self, thread_id: str) -> Any:
+        """Retrieves a thread"""
+        return self._client.beta.threads.retrieve(thread_id)
+
+    def update(self, thread_id: str, **kwargs) -> Any:
+        """Updates a thread"""
+        return self._client.beta.threads.update(thread_id, **kwargs)
+
+    def delete(self, thread_id: str) -> Any:
+        """Deletes a thread"""
+        return self._client.beta.threads.delete(thread_id)
+
+class Assistants:
+    """Assistant operations"""
+    def __init__(self, client: AzureOpenAI):
+        self._client = client
+
+    def create(self, model: str, **kwargs) -> Any:
+        """Creates an assistant"""
+        return self._client.beta.assistants.create(model=model, **kwargs)
+
+    def list(self, **kwargs) -> Any:
+        """Lists assistants"""
+        return self._client.beta.assistants.list(**kwargs)
+
+    def retrieve(self, assistant_id: str) -> Any:
+        """Retrieves an assistant"""
+        return self._client.beta.assistants.retrieve(assistant_id)
+
+    def update(self, assistant_id: str, **kwargs) -> Any:
+        """Updates an assistant"""
+        return self._client.beta.assistants.update(assistant_id, **kwargs)
+
+    def delete(self, assistant_id: str) -> Any:
+        """Deletes an assistant"""
+        return self._client.beta.assistants.delete(assistant_id)
+
+class Chat:
+    """Chat operations"""
+    def __init__(self, client: AzureOpenAI):
+        self._client = client
+        self.completions = self.Completions(client)
+
+    class Completions:
+        """Chat completion operations"""
+        def __init__(self, client: AzureOpenAI):
+            self._client = client
+
+        def create(self, 
+                  model: str,
+                  messages: List[Dict[str, Any]],
+                  tools: Optional[List[Dict[str, Any]]] = None,
+                  tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
+                  temperature: Optional[float] = None,
+                  top_p: Optional[float] = None,
+                  n: Optional[int] = None,
+                  stream: Optional[bool] = None,
+                  stop: Optional[Union[str, List[str]]] = None,
+                  max_tokens: Optional[int] = None,
+                  presence_penalty: Optional[float] = None,
+                  frequency_penalty: Optional[float] = None,
+                  logit_bias: Optional[Dict[str, float]] = None,
+                  user: Optional[str] = None,
+                  response_format: Optional[Dict[str, str]] = None,
+                  seed: Optional[int] = None,
+                  parallel_tool_calls: Optional[bool] = True) -> Any:
+            """Creates a chat completion."""
+            params = {
+                "model": model,
+                "messages": messages,
+                "tools": tools,
+                "tool_choice": tool_choice,
+                "temperature": temperature,
+                "top_p": top_p,
+                "n": n,
+                "stream": stream,
+                "stop": stop,
+                "max_tokens": max_tokens,
+                "presence_penalty": presence_penalty,
+                "frequency_penalty": frequency_penalty,
+                "logit_bias": logit_bias,
+                "user": user,
+                "response_format": response_format,
+                "seed": seed
+            }
+
+            # Only include parallel_tool_calls if tools are present
+            if tools:
+                params["parallel_tool_calls"] = parallel_tool_calls
+
+            # Remove None values
+            params = {k: v for k, v in params.items() if v is not None}
+
+            return self._client.chat.completions.create(**params)
+
+class AzureClientWrapper:
+    """Wrapper for Azure OpenAI client to abstract API version specifics"""
+    
+    @classmethod
+    def create(cls, 
+               api_key: str,
+               api_version: str,
+               azure_endpoint: str) -> 'AzureClientWrapper':
+        """Factory method to create a wrapped client with the given credentials"""
+        client = AzureOpenAI(
+            api_key=api_key,
+            api_version=api_version,
+            azure_endpoint=azure_endpoint
+        )
+        return cls(client)
+    
+    def __init__(self, client: AzureOpenAI):
+        """Initialize the wrapper with component classes"""
+        self._client = client
+        self.vector_stores = VectorStores(client)
+        self.assistants = Assistants(client)
+        self.threads = Threads(client)
+        self.chat = Chat(client)
+    
+    @property
+    def client(self) -> AzureOpenAI:
+        """Access to underlying client if needed"""
+        return self._client
     
     def create_assistant(self, 
                         model: str,
@@ -400,4 +666,28 @@ class AzureClientWrapper:
             assistant_id=assistant_id,
             event_handler=event_handler,
             **run_params
-        ) 
+        )
+
+    def create_vector_store(self, name: str, expires_after: dict) -> Any:
+        """Creates a vector store"""
+        return self.vector_stores.create(name=name, expires_after=expires_after)
+
+    def retrieve_vector_store(self, vector_store_id: str) -> Any:
+        """Retrieves a vector store by ID"""
+        return self.vector_stores.retrieve(vector_store_id)
+
+    def upload_files_to_vector_store(self, vector_store_id: str, files: list) -> Any:
+        """Uploads files to a vector store"""
+        return self.vector_stores.file_batches.upload_and_poll(
+            vector_store_id=vector_store_id,
+            files=files
+        )
+
+    def list_vector_stores(self, **kwargs) -> Any:
+        """Lists vector stores"""
+        return self.vector_stores.list(**kwargs)
+
+    def delete_vector_store(self, vector_store_id: str) -> Any:
+        """Deletes a vector store"""
+        return self.vector_stores.delete(vector_store_id)
+    

@@ -1,4 +1,4 @@
-from openai import AzureOpenAI
+from functions.azure_client import AzureClientWrapper
 import os
 from dotenv import load_dotenv
 from datetime import datetime
@@ -6,15 +6,16 @@ from datetime import datetime
 load_dotenv()
 
 def list_all_assistants():
-    client = AzureOpenAI(
+    """List all assistants with their details"""
+    client = AzureClientWrapper.create(
         api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-        api_version="2024-05-01-preview",
+        api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
         azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
     )
 
     try:
-        # List all assistants
-        assistants = client.beta.assistants.list()
+        # List all assistants using the wrapper
+        assistants = client.list_assistants()
         
         print("\n" + "="*80)
         print(f"Found {len(assistants.data)} assistants:")

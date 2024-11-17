@@ -2,13 +2,13 @@ from dotenv import load_dotenv
 import os
 import base64
 from swarm import Swarm, Agent
-from openai import AzureOpenAI
+from functions.azure_client import AzureClientWrapper
 
 # Load environment variables
 load_dotenv()
 
-# Initialize Azure OpenAI client globally
-azure_client = AzureOpenAI(
+# Initialize Azure OpenAI client with wrapper
+azure_client = AzureClientWrapper.create(
     api_key=os.getenv("AZURE_OPENAI_API_KEY"),
     api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
     azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
@@ -57,8 +57,8 @@ def analyze_image(context_variables, image_path):
             }
         ]
         
-        # Use the global azure_client
-        response = azure_client.chat.completions.create(
+        # Use the wrapped client's underlying client for chat completions
+        response = azure_client.client.chat.completions.create(
             model=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
             messages=messages,
             max_tokens=2000
@@ -72,9 +72,8 @@ def analyze_image(context_variables, image_path):
 def test_vision_agent():
     print("\nInitializing Vision Agent Test...")
 
-    # Initialize Swarm with the global Azure client
+    # Initialize Swarm with the wrapped Azure client
     client = Swarm(client=azure_client)
-
     print("Swarm client initialized")
 
     # Create vision agent
@@ -84,12 +83,10 @@ def test_vision_agent():
         functions=[analyze_image],
         model=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
     )
-
     print("Vision agent created")
 
-    # Test image path (adjust this to your image location)
+    # Test image path
     image_path = "tests/test_images/test_image.png"
-    
     print(f"Attempting to analyze image at: {image_path}")
 
     # Run the vision agent
@@ -99,7 +96,7 @@ def test_vision_agent():
             messages=[
                 {"role": "user", "content": f"Please analyze the image at {image_path}"}
             ],
-            context_variables={}  # Empty context variables since we're using global client
+            context_variables={}
         )
 
         print("\nTest Vision Agent:")
@@ -111,6 +108,6 @@ def test_vision_agent():
         
     except Exception as e:
         print(f"\n✗ Vision agent test failed: {str(e)}")
-    
+
 if __name__ == "__main__":
     test_vision_agent()

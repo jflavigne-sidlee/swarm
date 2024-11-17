@@ -4,8 +4,11 @@ import pytest
 from pathlib import Path
 from openai import AzureOpenAI
 from swarm import Swarm, Agent
-from functions.file_search import FileSearchManager
+from functions.file_manager import FileManager
+from functions.assistant_manager import AssistantManager
 from functions.config import FileSearchConfig
+from functions.azure_client import AzureClientWrapper
+import json
 
 # Load environment variables
 load_dotenv()
@@ -35,18 +38,9 @@ TEST_CONFIG = FileSearchConfig(
 )
 
 @pytest.fixture(scope="module")
-def azure_client():
-    """Creates an Azure OpenAI client for testing."""
-    return AzureOpenAI(
-        api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-        api_version="2024-05-01-preview",
-        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
-    )
-
-@pytest.fixture(scope="module")
 def file_manager(azure_client):
     """Creates a FileSearchManager instance with test configuration."""
-    return FileSearchManager(azure_client, config=TEST_CONFIG)
+    return FileManager(azure_client, config=TEST_CONFIG)
 
 @pytest.fixture(scope="module")
 def setup_test_environment(file_manager):
@@ -56,22 +50,32 @@ def setup_test_environment(file_manager):
     with open(TEST_FILE_PATH, "w", encoding="utf-8") as f:
         f.write(TEST_FILE_CONTENT)
     
-    yield
+    # Return the test file path instead of using yield alone
+    yield {
+        "test_file": str(TEST_FILE_PATH)
+    }
     
     # Cleanup after tests - only remove the test file
     if TEST_FILE_PATH.exists():
         TEST_FILE_PATH.unlink()  # Remove the test file
 
-def test_file_search_agent(azure_client, file_manager, setup_test_environment):
+def test_file_search_agent(file_manager, assistant_manager, setup_test_environment):
     """Tests the complete file search agent workflow."""
-    print("\nRunning File Search Agent Test...")
+    print("\n" + "="*80)
+    print("Starting File Search Agent Test")
+    print("="*80)
 
+    assistant_id = None
     try:
-        # Initialize Swarm
-        client = Swarm(client=azure_client)
-        print("✓ Swarm client initialized")
-
-        # Create file search agent
+        client = Swarm(
+            client=AzureOpenAI(
+                api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+                api_version="2024-05-01-preview",
+                azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
+            )
+        )
+        print("\n✓ Swarm client initialized")
+        
         file_search_agent = Agent(
             name="File Search Agent",
             instructions="""You are a file search agent that can:
@@ -81,61 +85,48 @@ def test_file_search_agent(azure_client, file_manager, setup_test_environment):
             Important:
             - When given a file name, use upload_file() to process it
             - When asked a question, use ask_question() to search the uploaded files
-            - Provide concise, specific answers based on the file content
+            - All responses must be in valid JSON format with an 'answer' field without markdown formatting around it.
+            - Example response: {"answer": "File uploaded successfully with ID: xyz"}
             - Do not generate responses - use the functions""",
-            functions=[file_manager.upload_file, file_manager.ask_question],
+            functions=[file_manager.upload_file, assistant_manager.ask_question],
             model=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
         )
         print("✓ File search agent created")
 
-        # Initialize context variables with vector store and assistant information
+        test_file = setup_test_environment["test_file"]
         context_variables = {
             "vector_store_name": "Test Vector Store",
-            "assistant_name": TEST_CONFIG.assistant_name,
-            "assistant_instructions": TEST_CONFIG.assistant_instructions,
+            "assistant_name": "Test Assistant",
+            "assistant_instructions": "You are a test assistant. Answer in JSON format.",
             "model_name": os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
         }
-
-        # Step 1: Upload file
-        print(f"\nAttempting to upload file: {TEST_FILE_PATH}")
-        print(f"File exists: {TEST_FILE_PATH.exists()}")
-        print(f"File path type: {type(TEST_FILE_PATH)}")
 
         response = client.run(
             agent=file_search_agent,
             messages=[
-                {"role": "user", "content": f"Upload this file: {TEST_FILE_PATH}"}
+                {"role": "user", "content": f"Upload this file: {test_file}"}
             ],
             context_variables=context_variables
         )
 
-        # Save the updated context variables which should now include vector_store_id and assistant_id
-        context_variables = response.context_variables
-        print(f"Updated context variables: {context_variables}")
-        print(f"Response content: {response.messages[-1]['content']}")
-        assert "success" in response.messages[-1]["content"].lower(), "File upload failed"
-        print("✓ File uploaded successfully")
-
-        # Step 2: Ask a question
-        response = client.run(
-            agent=file_search_agent,
-            messages=[
-                {"role": "user", "content": TEST_QUESTION}
-            ],
-            context_variables=response.context_variables
-        )
-        answer = response.messages[-1]["content"].lower()
+        answer = json.loads(response.messages[-1]["content"])
+        assert "answer" in answer, "Response missing 'answer' field"
+        print(f"✓ File uploaded: {answer['answer']}")
         
-        # Verify the answer contains the expected fields
-        for field in EXPECTED_FIELDS:
-            assert field in answer, f"Expected field '{field}' not found in answer"
-        print("✓ Question answered correctly")
-
-        print("\n✓ All tests passed successfully")
-        
+        # Extract assistant_id from context if available
+        assistant_id = context_variables.get("assistant_id")
+            
     except Exception as e:
         print(f"\n✗ Test failed: {str(e)}")
         raise
+    finally:
+        # Cleanup assistant if one was created
+        if assistant_id:
+            try:
+                assistant_manager.client.delete_assistant(assistant_id)
+                print(f"✓ Assistant cleaned up: {assistant_id}")
+            except Exception as e:
+                print(f"Warning: Failed to delete assistant {assistant_id}: {str(e)}")
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"]) 

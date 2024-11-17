@@ -1,4 +1,4 @@
-from openai import AzureOpenAI
+from functions.azure_client import AzureClientWrapper
 import os
 from dotenv import load_dotenv
 from datetime import datetime
@@ -13,15 +13,15 @@ def delete_assistants_by_name(name_pattern: str, dry_run: bool = True):
         name_pattern: String to match against assistant names
         dry_run: If True, only lists matching assistants without deleting them
     """
-    client = AzureOpenAI(
+    client = AzureClientWrapper.create(
         api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-        api_version="2024-05-01-preview",
+        api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
         azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
     )
 
     try:
-        # List all assistants
-        assistants = client.beta.assistants.list()
+        # List all assistants using the wrapper
+        assistants = client.list_assistants()
         matching_assistants = [a for a in assistants.data if name_pattern.lower() in a.name.lower()]
         
         print("\n" + "="*80)
@@ -38,7 +38,7 @@ def delete_assistants_by_name(name_pattern: str, dry_run: bool = True):
             
             if not dry_run:
                 try:
-                    client.beta.assistants.delete(assistant.id)
+                    client.delete_assistant(assistant.id)
                     print("✓ DELETED")
                 except Exception as e:
                     print(f"✗ Failed to delete: {str(e)}")
@@ -55,11 +55,17 @@ def delete_assistants_by_name(name_pattern: str, dry_run: bool = True):
         print(f"Error accessing assistants: {str(e)}")
 
 if __name__ == "__main__":
-    # Example usage
-    name_to_delete = "Test Assistant"  # Change this to match the assistants you want to delete
+    # Example usage - delete test assistants
+    patterns_to_delete = [
+        "Test Assistant",
+        "File Search Assistant",
+        "Test File Analysis Assistant"
+    ]
     
-    # First run in dry-run mode to see what would be deleted
-    delete_assistants_by_name("File Search Assistant", dry_run=False)
-    
-    # Uncomment and run again to actually delete
-    # delete_assistants_by_name(name_to_delete, dry_run=False)
+    for pattern in patterns_to_delete:
+        print(f"\nProcessing pattern: {pattern}")
+        # First run in dry-run mode to see what would be deleted
+        delete_assistants_by_name(pattern, dry_run=True)
+        
+        # Uncomment to actually delete
+        # delete_assistants_by_name(pattern, dry_run=False)
