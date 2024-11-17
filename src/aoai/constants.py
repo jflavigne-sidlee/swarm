@@ -22,11 +22,7 @@ API_PATH_CHAT_COMPLETIONS = f"{API_PATH_BETA}/{API_PATH_CHAT}/{API_PATH_COMPLETI
 API_PATH_VECTOR_STORES = f"{API_PATH_BETA}/{VECTOR_STORES_API_PATH}"
 API_PATH_THREADS = f"{API_PATH_BETA}/{THREADS_API_PATH}"
 
-# List operation parameters
-LIST_PARAM_AFTER = "after"
-LIST_PARAM_BEFORE = "before"
-LIST_PARAM_LIMIT = "limit"
-LIST_PARAM_ORDER = "order"
+
 
 # Default list values
 DEFAULT_LIST_AFTER = None
@@ -234,16 +230,22 @@ TOOL_CHOICE_NONE = "none"
 # Chat completion specific constants
 # CHAT_PARAM_FREQUENCY_PENALTY = "frequency_penalty"
 # CHAT_PARAM_LOGIT_BIAS = "logit_bias"
-#CHAT_PARAM_MAX_TOKENS = "max_tokens"
+# CHAT_PARAM_MAX_TOKENS = "max_tokens"
 # CHAT_PARAM_N = "n"
 # CHAT_PARAM_PRESENCE_PENALTY = "presence_penalty"
 # CHAT_PARAM_RESPONSE_FORMAT = "response_format"
 # CHAT_PARAM_SEED = "seed"
 # CHAT_PARAM_STOP = "stop"
-#CHAT_PARAM_STREAM = "stream"
-#CHAT_PARAM_TEMPERATURE = "temperature"
+# CHAT_PARAM_STREAM = "stream"
+# CHAT_PARAM_TEMPERATURE = "temperature"
 # CHAT_PARAM_TOOL_CHOICE = "tool_choice"
 # CHAT_PARAM_USER = "user"
+
+# List operation parameters
+# LIST_PARAM_AFTER = "after"
+#LIST_PARAM_BEFORE = "before"
+# LIST_PARAM_LIMIT = "limit"
+#IST_PARAM_ORDER = "order"
 
 # Parameter names
 PARAM_AFTER = "after"
