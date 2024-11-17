@@ -2,7 +2,7 @@ from dotenv import load_dotenv
 import os
 import pytest
 from pathlib import Path
-from src.azure_client import AzureClientWrapper
+from src.aoai.client import AOAIClient as AzureClientWrapper
 from src.config import FileSearchConfig
 from src.file_manager import FileManager
 from src.assistant_manager import AssistantManager

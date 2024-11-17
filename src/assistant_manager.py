@@ -5,19 +5,9 @@ from .types import ContextVariables
 from .config import FileSearchConfig
 from .errors import FileSearchErrors as Errors
 from .exceptions import AssistantError
-from .azure_client import AzureClientWrapper, MessageRole, RunStatus
-from enum import Enum
+from .aoai.client import AOAIClient as AzureClientWrapper
+from .aoai.types import RunStatus, MessageRole
 from .handlers import FileSearchEventHandler
-
-class RunStatus(str, Enum):
-    QUEUED = "queued"
-    IN_PROGRESS = "in_progress"
-    REQUIRES_ACTION = "requires_action"
-    CANCELLING = "cancelling"
-    CANCELLED = "cancelled"
-    FAILED = "failed"
-    COMPLETED = "completed"
-    EXPIRED = "expired"
 
 class AssistantManager:
     """Manages Azure OpenAI Assistants for file-based Q&A."""

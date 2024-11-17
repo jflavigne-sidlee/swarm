@@ -152,8 +152,8 @@ PARAM_STREAM = "stream"
 PARAM_TOOL_OUTPUTS = "tool_outputs"
 
 # Response format types
-RESPONSE_FORMAT_JSON = "json"
-RESPONSE_FORMAT_TEXT = "text"
+# RESPONSE_FORMAT_JSON = "json"
+# RESPONSE_FORMAT_TEXT = "text"
 
 # Common field names
 FIELD_ID = "id"
