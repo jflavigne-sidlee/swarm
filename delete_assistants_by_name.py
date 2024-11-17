@@ -1,4 +1,4 @@
-from functions.azure_client import AzureClientWrapper
+from src.azure_client import AzureClientWrapper
 import os
 from dotenv import load_dotenv
 from datetime import datetime

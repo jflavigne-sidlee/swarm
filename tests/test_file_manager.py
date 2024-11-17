@@ -1,8 +1,8 @@
 import pytest
 from pathlib import Path
 import os
-from functions.azure_client import AzureClientWrapper
-from functions.file_manager import FileManager
+from src.azure_client import AzureClientWrapper
+from src.file_manager import FileManager
 
 def test_file_upload(setup_test_environment):
     """Test file upload functionality."""

@@ -2,10 +2,10 @@ from dotenv import load_dotenv
 import os
 import pytest
 from pathlib import Path
-from functions.azure_client import AzureClientWrapper
-from functions.config import FileSearchConfig
-from functions.file_manager import FileManager
-from functions.assistant_manager import AssistantManager
+from src.azure_client import AzureClientWrapper
+from src.config import FileSearchConfig
+from src.file_manager import FileManager
+from src.assistant_manager import AssistantManager
 import tempfile
 
 # Load environment variables

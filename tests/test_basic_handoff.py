@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 import os
 from swarm import Swarm, Agent
-from functions.azure_client import AzureClientWrapper
+from src.azure_client import AzureClientWrapper
 
 # Load environment variables
 load_dotenv()

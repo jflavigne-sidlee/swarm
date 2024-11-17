@@ -4,10 +4,10 @@ import pytest
 from pathlib import Path
 from openai import AzureOpenAI
 from swarm import Swarm, Agent
-from functions.file_manager import FileManager
-from functions.assistant_manager import AssistantManager
-from functions.config import FileSearchConfig
-from functions.azure_client import AzureClientWrapper
+from src.file_manager import FileManager
+from src.assistant_manager import AssistantManager
+from src.config import FileSearchConfig
+from src.azure_client import AzureClientWrapper
 import json
 
 # Load environment variables

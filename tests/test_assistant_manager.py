@@ -1,8 +1,8 @@
 import pytest
 from pathlib import Path
 import json
-from functions.file_manager import FileManager
-from functions.azure_client import AzureClientWrapper
+from src.file_manager import FileManager
+from src.azure_client import AzureClientWrapper
 
 TEST_FILES_DIR = Path(__file__).parent / "test_files"
 TEST_FILE_NAME = "sample.txt"
@@ -70,8 +70,9 @@ def test_assistant_qa(assistant_manager, setup_test_environment):
         
         assert "answer" in answer, "Response missing 'answer' field"
         for field in EXPECTED_FIELDS:
-            # Convert the list to a string for searching
-            answer_text = ' '.join(str(item).lower() for item in answer["answer"])
+            # Convert to lowercase for case-insensitive comparison
+            answer_text = str(answer["answer"]).lower()
+            field = field.lower()
             assert field in answer_text, f"Expected field '{field}' not found in answer"
             print(f"✓ Found expected field: {field}")
             
