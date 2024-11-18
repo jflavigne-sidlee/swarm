@@ -2,12 +2,11 @@ from dotenv import load_dotenv
 import os
 import pytest
 from pathlib import Path
-from openai import AzureOpenAI
 from swarm import Swarm, Agent
 from src.file_manager import FileManager
 from src.assistant_manager import AssistantManager
 from src.config import FileSearchConfig
-from src.azure_client import AzureClientWrapper
+from src.aoai.client import AOAIClient
 import json
 
 # Load environment variables
@@ -34,13 +33,15 @@ TEST_CONFIG = FileSearchConfig(
     assistant_instructions="You are a test assistant analyzing documents. Be concise and specific in your answers.",
     vector_store_expiration_days=1,
     max_retries=5,
-    retry_delay=0.5
+    retry_delay=0.5,
 )
+
 
 @pytest.fixture(scope="module")
 def file_manager(azure_client):
     """Creates a FileSearchManager instance with test configuration."""
     return FileManager(azure_client, config=TEST_CONFIG)
+
 
 @pytest.fixture(scope="module")
 def setup_test_environment(file_manager):
@@ -49,33 +50,33 @@ def setup_test_environment(file_manager):
     TEST_FILES_DIR.mkdir(parents=True, exist_ok=True)
     with open(TEST_FILE_PATH, "w", encoding="utf-8") as f:
         f.write(TEST_FILE_CONTENT)
-    
+
     # Return the test file path instead of using yield alone
-    yield {
-        "test_file": str(TEST_FILE_PATH)
-    }
-    
+    yield {"test_file": str(TEST_FILE_PATH)}
+
     # Cleanup after tests - only remove the test file
     if TEST_FILE_PATH.exists():
         TEST_FILE_PATH.unlink()  # Remove the test file
 
+
 def test_file_search_agent(file_manager, assistant_manager, setup_test_environment):
     """Tests the complete file search agent workflow."""
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("Starting File Search Agent Test")
-    print("="*80)
+    print("=" * 80)
 
     assistant_id = None
     try:
-        client = Swarm(
-            client=AzureOpenAI(
-                api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-                api_version="2024-05-01-preview",
-                azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
-            )
+        # Initialize Azure OpenAI client
+        ai_client = AOAIClient.create(
+            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+            api_version="2024-05-01-preview",
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
         )
+
+        client = Swarm(client=ai_client)
         print("\n✓ Swarm client initialized")
-        
+
         file_search_agent = Agent(
             name="File Search Agent",
             instructions="""You are a file search agent that can:
@@ -89,7 +90,7 @@ def test_file_search_agent(file_manager, assistant_manager, setup_test_environme
             - Example response: {"answer": "File uploaded successfully with ID: xyz"}
             - Do not generate responses - use the functions""",
             functions=[file_manager.upload_file, assistant_manager.ask_question],
-            model=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
+            model=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
         )
         print("✓ File search agent created")
 
@@ -98,24 +99,22 @@ def test_file_search_agent(file_manager, assistant_manager, setup_test_environme
             "vector_store_name": "Test Vector Store",
             "assistant_name": "Test Assistant",
             "assistant_instructions": "You are a test assistant. Answer in JSON format.",
-            "model_name": os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
+            "model_name": os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
         }
 
         response = client.run(
             agent=file_search_agent,
-            messages=[
-                {"role": "user", "content": f"Upload this file: {test_file}"}
-            ],
-            context_variables=context_variables
+            messages=[{"role": "user", "content": f"Upload this file: {test_file}"}],
+            context_variables=context_variables,
         )
 
         answer = json.loads(response.messages[-1]["content"])
         assert "answer" in answer, "Response missing 'answer' field"
         print(f"✓ File uploaded: {answer['answer']}")
-        
+
         # Extract assistant_id from context if available
         assistant_id = context_variables.get("assistant_id")
-            
+
     except Exception as e:
         print(f"\n✗ Test failed: {str(e)}")
         raise
@@ -128,5 +127,6 @@ def test_file_search_agent(file_manager, assistant_manager, setup_test_environme
             except Exception as e:
                 print(f"Warning: Failed to delete assistant {assistant_id}: {str(e)}")
 
+
 if __name__ == "__main__":
-    pytest.main([__file__, "-v"]) 
+    pytest.main([__file__, "-v"])

@@ -2,32 +2,34 @@ from dotenv import load_dotenv
 import os
 import base64
 from swarm import Swarm, Agent
-from src.azure_client import AzureClientWrapper
+from src.aoai.client import AOAIClient
 
 # Load environment variables
 load_dotenv()
 
-# Initialize Azure OpenAI client with wrapper
-azure_client = AzureClientWrapper.create(
+# Initialize Azure OpenAI client
+ai_client = AOAIClient.create(
     api_key=os.getenv("AZURE_OPENAI_API_KEY"),
     api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
-    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
+    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
 )
+
 
 def encode_image_to_base64(image_path):
     """Convert an image file to base64 string.
-    
+
     Args:
         image_path: Path to the image file
     Returns:
         base64 encoded string of the image
     """
     with open(image_path, "rb") as image_file:
-        return base64.b64encode(image_file.read()).decode('utf-8')
+        return base64.b64encode(image_file.read()).decode("utf-8")
+
 
 def analyze_image(context_variables, image_path):
     """Analyzes an image and returns a description.
-    
+
     Args:
         context_variables: Contains any context needed
         image_path: Path to the image to analyze
@@ -37,43 +39,39 @@ def analyze_image(context_variables, image_path):
     try:
         # Get the base64 encoded image
         base64_image = encode_image_to_base64(image_path)
-        
+
         # Create message content with the image
         messages = [
             {
                 "role": "user",
                 "content": [
-                    {
-                        "type": "text",
-                        "text": "Describe this image in detail:"
-                    },
+                    {"type": "text", "text": "Describe this image in detail:"},
                     {
                         "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/jpeg;base64,{base64_image}"
-                        }
-                    }
-                ]
+                        "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
+                    },
+                ],
             }
         ]
-        
-        # Use the wrapped client's underlying client for chat completions
-        response = azure_client.client.chat.completions.create(
+
+        # Use the client's chat completions
+        response = ai_client.chat.completions.create(
             model=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
             messages=messages,
-            max_tokens=2000
+            max_tokens=2000,
         )
-        
+
         return response.choices[0].message.content
-        
+
     except Exception as e:
         return f"Error analyzing image: {str(e)}"
+
 
 def test_vision_agent():
     print("\nInitializing Vision Agent Test...")
 
-    # Initialize Swarm with the wrapped Azure client
-    client = Swarm(client=azure_client)
+    # Initialize Swarm with the Azure client
+    client = Swarm(client=ai_client)
     print("Swarm client initialized")
 
     # Create vision agent
@@ -81,7 +79,7 @@ def test_vision_agent():
         name="Vision Agent",
         instructions="You are a vision analysis agent. You can analyze images and provide detailed descriptions.",
         functions=[analyze_image],
-        model=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
+        model=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
     )
     print("Vision agent created")
 
@@ -96,18 +94,19 @@ def test_vision_agent():
             messages=[
                 {"role": "user", "content": f"Please analyze the image at {image_path}"}
             ],
-            context_variables={}
+            context_variables={},
         )
 
         print("\nTest Vision Agent:")
         print(f"Response: {response.messages[-1]['content']}")
-        
+
         # Basic assertion to ensure we got a response
-        assert len(response.messages[-1]['content']) > 0, "No description generated"
+        assert len(response.messages[-1]["content"]) > 0, "No description generated"
         print("\n✓ Vision agent test passed")
-        
+
     except Exception as e:
         print(f"\n✗ Vision agent test failed: {str(e)}")
+
 
 if __name__ == "__main__":
     test_vision_agent()

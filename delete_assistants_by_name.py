@@ -1,4 +1,4 @@
-from src.azure_client import AzureClientWrapper
+from src.aoai.client import AOAIClient as AzureClientWrapper  # Temporary alias for backward compatibility
 import os
 from dotenv import load_dotenv
 from datetime import datetime

@@ -2,7 +2,8 @@ import pytest
 from pathlib import Path
 import json
 from src.file_manager import FileManager
-from src.azure_client import AzureClientWrapper
+from src.aoai.client import AOAIClient
+
 
 TEST_FILES_DIR = Path(__file__).parent / "test_files"
 TEST_FILE_NAME = "sample.txt"
@@ -13,7 +14,6 @@ The impact of AI continues to grow as technology advances.
 """
 
 TEST_QUESTION = "What fields has AI revolutionized according to the document?"
-
 EXPECTED_FIELDS = ["healthcare", "finance", "transportation"]
 
 def test_assistant_qa(assistant_manager, setup_test_environment):
@@ -25,12 +25,12 @@ def test_assistant_qa(assistant_manager, setup_test_environment):
     assistant_id = None
     try:
         # First create a file and get a real vector store ID
-        if not isinstance(assistant_manager.client, AzureClientWrapper):
-            azure_client = AzureClientWrapper(assistant_manager.client)
+        if not isinstance(assistant_manager.client, AOAIClient):
+            ai_client = AOAIClient(assistant_manager.client)
         else:
-            azure_client = assistant_manager.client
+            ai_client = assistant_manager.client
             
-        file_manager = FileManager(azure_client)
+        file_manager = FileManager(ai_client)
         context_variables = {
             "vector_store_name": "Test Vector Store"
         }
