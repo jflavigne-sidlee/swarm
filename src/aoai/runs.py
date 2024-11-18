@@ -49,17 +49,15 @@ from .constants import (
 )
 from .steps import RunSteps
 
+
 class Runs:
     """Run operations"""
-    
+
     def __init__(self, client: AzureOpenAI):
         self._client = client
         self.steps = RunSteps(client)
 
-    def create(self,
-               thread_id: str,
-               assistant_id: str,
-               **kwargs) -> Any:
+    def create(self, thread_id: str, assistant_id: str, **kwargs) -> Any:
         """Creates a run."""
         if not thread_id:
             raise ValueError(ERROR_INVALID_THREAD_ID)
@@ -68,32 +66,32 @@ class Runs:
 
         default_params = DEFAULT_PARAMS["run"].copy()
         default_params.update(kwargs)
-        
+
         return self._client.beta.threads.runs.create(
-            thread_id=thread_id,
-            assistant_id=assistant_id,
-            **default_params
+            thread_id=thread_id, assistant_id=assistant_id, **default_params
         )
 
-    def list(self,
-             thread_id: str,
-             limit: Optional[int] = DEFAULT_RUN_LIST_PARAMS[PARAM_LIMIT],
-             order: Optional[str] = DEFAULT_RUN_LIST_PARAMS[PARAM_ORDER],
-             after: Optional[str] = DEFAULT_RUN_LIST_PARAMS[PARAM_AFTER],
-             before: Optional[str] = DEFAULT_RUN_LIST_PARAMS[PARAM_BEFORE]) -> Any:
+    def list(
+        self,
+        thread_id: str,
+        limit: Optional[int] = DEFAULT_RUN_LIST_PARAMS[PARAM_LIMIT],
+        order: Optional[str] = DEFAULT_RUN_LIST_PARAMS[PARAM_ORDER],
+        after: Optional[str] = DEFAULT_RUN_LIST_PARAMS[PARAM_AFTER],
+        before: Optional[str] = DEFAULT_RUN_LIST_PARAMS[PARAM_BEFORE],
+    ) -> Any:
         """Returns a list of runs belonging to a thread."""
         if limit and limit not in LIST_LIMIT_RANGE:
             raise ValueError(ERROR_INVALID_LIMIT)
-        
+
         params = {
             PARAM_THREAD_ID: thread_id,
             PARAM_LIMIT: limit,
             PARAM_ORDER: order,
             PARAM_AFTER: after,
-            PARAM_BEFORE: before
+            PARAM_BEFORE: before,
         }
         params = {k: v for k, v in params.items() if v is not None}
-        
+
         return self._client.beta.threads.runs.list(**params)
 
     def retrieve(self, thread_id: str, run_id: str) -> Any:
@@ -102,10 +100,9 @@ class Runs:
             raise ValueError(ERROR_INVALID_THREAD_ID)
         if not run_id:
             raise ValueError(ERROR_INVALID_RUN_ID)
-            
+
         return self._client.beta.threads.runs.retrieve(
-            thread_id=thread_id,
-            run_id=run_id
+            thread_id=thread_id, run_id=run_id
         )
 
     def update(self, thread_id: str, run_id: str, metadata: Dict[str, str]) -> Any:
@@ -114,32 +111,31 @@ class Runs:
             raise ValueError(ERROR_INVALID_THREAD_ID)
         if not run_id:
             raise ValueError(ERROR_INVALID_RUN_ID)
-            
+
         params = {
             PARAM_THREAD_ID: thread_id,
             PARAM_RUN_ID: run_id,
-            PARAM_METADATA: metadata
+            PARAM_METADATA: metadata,
         }
         params = {k: v for k, v in params.items() if v is not None}
-        
+
         return self._client.beta.threads.runs.update(**params)
 
-    def submit_tool_outputs(self,
-                          thread_id: str,
-                          run_id: str,
-                          tool_outputs: List[Dict[str, Any]],
-                          stream: Optional[bool] = None) -> Any:
+    def submit_tool_outputs(
+        self,
+        thread_id: str,
+        run_id: str,
+        tool_outputs: List[Dict[str, Any]],
+        stream: Optional[bool] = None,
+    ) -> Any:
         """Submits outputs for tool calls."""
         if not thread_id:
             raise ValueError(ERROR_INVALID_THREAD_ID)
         if not run_id:
             raise ValueError(ERROR_INVALID_RUN_ID)
-            
+
         return self._client.beta.threads.runs.submit_tool_outputs(
-            thread_id=thread_id,
-            run_id=run_id,
-            tool_outputs=tool_outputs,
-            stream=stream
+            thread_id=thread_id, run_id=run_id, tool_outputs=tool_outputs, stream=stream
         )
 
     def cancel(self, thread_id: str, run_id: str) -> Any:
@@ -148,30 +144,29 @@ class Runs:
             raise ValueError(ERROR_INVALID_THREAD_ID)
         if not run_id:
             raise ValueError(ERROR_INVALID_RUN_ID)
-            
-        return self._client.beta.threads.runs.cancel(
-            thread_id=thread_id,
-            run_id=run_id
-        )
 
-    def stream(self, 
-              thread_id: str, 
-              assistant_id: str, 
-              event_handler: AssistantEventHandler, 
-              **run_params) -> Any:
+        return self._client.beta.threads.runs.cancel(thread_id=thread_id, run_id=run_id)
+
+    def stream(
+        self,
+        thread_id: str,
+        assistant_id: str,
+        event_handler: AssistantEventHandler,
+        **run_params
+    ) -> Any:
         """Stream the result of executing a Run."""
         if not thread_id:
             raise ValueError(ERROR_INVALID_THREAD_ID)
         if not assistant_id:
             raise ValueError(ERROR_INVALID_ASSISTANT_ID)
-            
+
         # Remove run_id from run_params if present as it's not needed
         run_params.pop(PARAM_RUN_ID, None)
-        
+
         # Apply default run parameters
         default_params = DEFAULT_PARAMS["run"].copy()
         default_params.update(run_params)
-        
+
         return self._client.beta.threads.runs.stream(
             thread_id=thread_id,
             assistant_id=assistant_id,
@@ -179,27 +174,26 @@ class Runs:
             **default_params
         )
 
-    def create_thread_and_run(self,
-                            assistant_id: str,
-                            thread: Optional[Dict[str, Any]] = None,
-                            **run_params) -> Any:
+    def create_thread_and_run(
+        self, assistant_id: str, thread: Optional[Dict[str, Any]] = None, **run_params
+    ) -> Any:
         """Creates a thread and run in one operation."""
         if not assistant_id:
             raise ValueError(ERROR_INVALID_ASSISTANT_ID)
-            
+
         # Create thread parameters, only including messages
-        thread_params = {
-            PARAM_MESSAGES: thread.get(PARAM_MESSAGES, DEFAULT_THREAD_MESSAGES)
-        } if thread else None
-        
+        thread_params = (
+            {PARAM_MESSAGES: thread.get(PARAM_MESSAGES, DEFAULT_THREAD_MESSAGES)}
+            if thread
+            else None
+        )
+
         # Apply default run parameters
         default_params = DEFAULT_PARAMS["run"].copy()
         default_params.update(run_params)
-        
+
         return self._client.beta.threads.create_and_run(
-            assistant_id=assistant_id,
-            thread=thread_params,
-            **default_params
+            assistant_id=assistant_id, thread=thread_params, **default_params
         )
 
     # Compatibility methods
@@ -233,4 +227,4 @@ class Runs:
 
     def retrieve_run_step(self, *args, **kwargs) -> Any:
         """Compatibility method for steps.retrieve()"""
-        return self.steps.retrieve(*args, **kwargs) 
+        return self.steps.retrieve(*args, **kwargs)

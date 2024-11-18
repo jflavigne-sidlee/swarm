@@ -44,6 +44,10 @@ ORDER_DESC = "desc"
 TRUNCATION_TYPE_AUTO = "auto"
 TRUNCATION_TYPE_LAST_MESSAGES = "last_messages"
 
+# remember to remove other versions of these
+TOOL_CODE_INTERPRETER = "code_interpreter"
+TOOL_FILE_SEARCH = "file_search"
+
 # Tool types
 TOOL_TYPE_CODE_INTERPRETER = "code_interpreter"
 TOOL_TYPE_FILE_SEARCH = "file_search"
@@ -131,9 +135,15 @@ MAX_THREAD_METADATA_VALUE_LENGTH = 512
 
 # Thread error messages
 ERROR_INVALID_THREAD_CODE_INTERPRETER_FILES = f"Thread can have maximum {MAX_THREAD_CODE_INTERPRETER_FILES} files for code interpreter"
-ERROR_INVALID_THREAD_FILE_SEARCH_STORES = f"Thread can have maximum {MAX_THREAD_FILE_SEARCH_STORES} vector store"
-ERROR_INVALID_THREAD_METADATA_KEY_LENGTH = f"Thread metadata keys must not exceed {MAX_THREAD_METADATA_KEY_LENGTH} characters"
-ERROR_INVALID_THREAD_METADATA_PAIRS = f"Thread can have maximum {MAX_THREAD_METADATA_PAIRS} metadata pairs"
+ERROR_INVALID_THREAD_FILE_SEARCH_STORES = (
+    f"Thread can have maximum {MAX_THREAD_FILE_SEARCH_STORES} vector store"
+)
+ERROR_INVALID_THREAD_METADATA_KEY_LENGTH = (
+    f"Thread metadata keys must not exceed {MAX_THREAD_METADATA_KEY_LENGTH} characters"
+)
+ERROR_INVALID_THREAD_METADATA_PAIRS = (
+    f"Thread can have maximum {MAX_THREAD_METADATA_PAIRS} metadata pairs"
+)
 ERROR_INVALID_THREAD_METADATA_VALUE_LENGTH = f"Thread metadata values must not exceed {MAX_THREAD_METADATA_VALUE_LENGTH} characters"
 
 # Run event types
@@ -250,39 +260,39 @@ PARAM_BEFORE = "before"
 PARAM_CONTENT = "content"
 PARAM_DESCRIPTION = "description"
 PARAM_EXPIRES_AFTER = "expires_after"
-PARAM_FREQUENCY_PENALTY = "frequency_penalty" ### CHAT
+PARAM_FREQUENCY_PENALTY = "frequency_penalty"  ### CHAT
 PARAM_FILE_IDS = "file_ids"
 PARAM_FILES = "files"
 PARAM_INSTRUCTIONS = "instructions"
 PARAM_LIMIT = "limit"
-PARAM_LOGIT_BIAS = "logit_bias" ### CHAT
+PARAM_LOGIT_BIAS = "logit_bias"  ### CHAT
 PARAM_MAX_COMPLETION_TOKENS = "max_completion_tokens"
 PARAM_MAX_PROMPT_TOKENS = "max_prompt_tokens"
-PARAM_MAX_TOKENS = "max_tokens" ### CHAT
+PARAM_MAX_TOKENS = "max_tokens"  ### CHAT
 PARAM_MESSAGE_ID = "message_id"
 PARAM_MESSAGES = "messages"
 PARAM_METADATA = "metadata"
 PARAM_MODEL = "model"
-PARAM_N = "n" ### CHAT
+PARAM_N = "n"  ### CHAT
 PARAM_NAME = "name"
 PARAM_ORDER = "order"
 PARAM_PARALLEL_TOOL_CALLS = "parallel_tool_calls"
-PARAM_PRESENCE_PENALTY = "presence_penalty" ### CHAT
-PARAM_RESPONSE_FORMAT = "response_format" ### CHAT and others
+PARAM_PRESENCE_PENALTY = "presence_penalty"  ### CHAT
+PARAM_RESPONSE_FORMAT = "response_format"  ### CHAT and others
 PARAM_ROLE = "role"
 PARAM_RUN_ID = "run_id"
-PARAM_SEED = "seed" ### CHAT
-PARAM_STOP = "stop" ### CHAT
-PARAM_STREAM = "stream" ### CHAT
-PARAM_TEMPERATURE = "temperature" ### CHAT
+PARAM_SEED = "seed"  ### CHAT
+PARAM_STOP = "stop"  ### CHAT
+PARAM_STREAM = "stream"  ### CHAT
+PARAM_TEMPERATURE = "temperature"  ### CHAT
 PARAM_THREAD_ID = "thread_id"
-PARAM_TOOL_CHOICE = "tool_choice" ### CHAT
+PARAM_TOOL_CHOICE = "tool_choice"  ### CHAT
 PARAM_TOOL_OUTPUTS = "tool_outputs"
 PARAM_TOOL_RESOURCES = "tool_resources"
 PARAM_TOOLS = "tools"
 PARAM_TOP_P = "top_p"
 PARAM_TRUNCATION_STRATEGY = "truncation_strategy"
-PARAM_USER = "user" ### CHAT
+PARAM_USER = "user"  ### CHAT
 PARAM_VECTOR_STORE_IDS = "vector_store_ids"
 PARAM_VECTOR_STORES = "vector_stores"
 
@@ -291,7 +301,7 @@ DEFAULT_LIST_PARAMS = {
     PARAM_LIMIT: DEFAULT_LIST_LIMIT,
     PARAM_ORDER: DEFAULT_LIST_ORDER,
     PARAM_AFTER: None,
-    PARAM_BEFORE: None
+    PARAM_BEFORE: None,
 }
 
 # Operation specific list defaults
@@ -338,17 +348,14 @@ DEFAULT_TOOL_OUTPUTS = None
 DEFAULT_TRUNCATION_STRATEGY = None
 DEFAULT_THREAD_TOOL_RESOURCES = {
     TOOL_TYPE_CODE_INTERPRETER: {PARAM_FILE_IDS: []},
-    TOOL_TYPE_FILE_SEARCH: {
-        PARAM_VECTOR_STORE_IDS: [],
-        PARAM_VECTOR_STORES: []
-    }
+    TOOL_TYPE_FILE_SEARCH: {PARAM_VECTOR_STORE_IDS: [], PARAM_VECTOR_STORES: []},
 }
 # Default parameters structure
 DEFAULT_PARAMS = {
     "thread": {
         "messages": DEFAULT_THREAD_MESSAGES,
         "metadata": DEFAULT_THREAD_METADATA,
-        "tool_resources": DEFAULT_THREAD_TOOL_RESOURCES
+        "tool_resources": DEFAULT_THREAD_TOOL_RESOURCES,
     },
     "run": {
         "model": DEFAULT_RUN_MODEL,
@@ -362,9 +369,9 @@ DEFAULT_PARAMS = {
         "max_prompt_tokens": DEFAULT_MAX_PROMPT_TOKENS,
         "max_completion_tokens": DEFAULT_MAX_COMPLETION_TOKENS,
         "truncation_strategy": DEFAULT_TRUNCATION_STRATEGY,
-        "tool_choice": DEFAULT_TOOL_CHOICE
-    }
-} 
+        "tool_choice": DEFAULT_TOOL_CHOICE,
+    },
+}
 
 # Operation specific defaults
 DEFAULT_STEP_AFTER = None
@@ -382,8 +389,8 @@ LIST_OPERATION_DEFAULTS = {
     "run": DEFAULT_RUN_LIST_PARAMS,
     "assistant": DEFAULT_ASSISTANT_LIST_PARAMS,
     "vector_store": DEFAULT_VECTOR_STORE_LIST_PARAMS,
-    "run_step": DEFAULT_RUN_STEP_LIST_PARAMS
-} 
+    "run_step": DEFAULT_RUN_STEP_LIST_PARAMS,
+}
 
 # Operation-specific default values
 DEFAULT_THREAD_AFTER = None
@@ -413,7 +420,7 @@ DEFAULT_VECTOR_STORE_ORDER = DEFAULT_LIST_ORDER
 
 # File-related constants
 ALLOWED_FILE_TYPES = ["pdf", "doc", "docx", "txt"]
-DEFAULT_FILE_BATCH_SIZE = 10 
+DEFAULT_FILE_BATCH_SIZE = 10
 MAX_FILE_SIZE = 1024 * 1024 * 100  # 100MB
 
 # Tool resource types
@@ -442,9 +449,15 @@ ASSISTANT_RESPONSE_FORMAT_TEXT = {"type": "text"}
 # Assistant error messages
 ERROR_INVALID_ASSISTANT_DESCRIPTION_LENGTH = f"Assistant description must not exceed {MAX_ASSISTANT_DESCRIPTION_LENGTH} characters"
 ERROR_INVALID_ASSISTANT_INSTRUCTIONS_LENGTH = f"Assistant instructions must not exceed {MAX_ASSISTANT_INSTRUCTIONS_LENGTH} characters"
-ERROR_INVALID_ASSISTANT_NAME_LENGTH = f"Assistant name must not exceed {MAX_ASSISTANT_NAME_LENGTH} characters"
-ERROR_INVALID_ASSISTANT_TOOLS_COUNT = f"Assistant can have maximum {MAX_ASSISTANT_TOOLS_COUNT} tools"
-ERROR_INVALID_FUNCTION_DESCRIPTION_LENGTH = f"Function description must not exceed {MAX_FUNCTION_DESCRIPTION_LENGTH} characters"
+ERROR_INVALID_ASSISTANT_NAME_LENGTH = (
+    f"Assistant name must not exceed {MAX_ASSISTANT_NAME_LENGTH} characters"
+)
+ERROR_INVALID_ASSISTANT_TOOLS_COUNT = (
+    f"Assistant can have maximum {MAX_ASSISTANT_TOOLS_COUNT} tools"
+)
+ERROR_INVALID_FUNCTION_DESCRIPTION_LENGTH = (
+    f"Function description must not exceed {MAX_FUNCTION_DESCRIPTION_LENGTH} characters"
+)
 
 # Assistant defaults
 DEFAULT_ASSISTANT_METADATA = {}
@@ -471,4 +484,6 @@ ERROR_INVALID_MAX_TOKENS = "Invalid max_tokens value"
 ERROR_INVALID_N = "Invalid n value"
 ERROR_INVALID_PRESENCE_PENALTY = f"Presence penalty must be between {VALID_PRESENCE_PENALTY_RANGE[0]} and {VALID_PRESENCE_PENALTY_RANGE[1]}"
 ERROR_INVALID_TEMPERATURE = f"Temperature must be between {VALID_TEMPERATURE_RANGE[0]} and {VALID_TEMPERATURE_RANGE[1]}"
-ERROR_INVALID_TOP_P = f"Top P must be between {VALID_TOP_P_RANGE[0]} and {VALID_TOP_P_RANGE[1]}"
+ERROR_INVALID_TOP_P = (
+    f"Top P must be between {VALID_TOP_P_RANGE[0]} and {VALID_TOP_P_RANGE[1]}"
+)

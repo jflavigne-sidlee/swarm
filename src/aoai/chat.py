@@ -40,62 +40,87 @@ from .constants import (
     PARAM_TOOL_CHOICE,
     PARAM_RESPONSE_FORMAT,
     PARAM_MODEL,
-    PARAM_MESSAGES
+    PARAM_MESSAGES,
 )
+
 
 class Chat:
     """Chat operations"""
+
     def __init__(self, client: AzureOpenAI):
         self._client = client
         self.completions = self.Completions(client)
 
     class Completions:
         """Chat completion operations"""
+
         def __init__(self, client: AzureOpenAI):
             self._client = client
 
-        def create(self,
-                  model: str,
-                  messages: List[Dict[str, str]],
-                  temperature: Optional[float] = DEFAULT_TEMPERATURE,
-                  top_p: Optional[float] = DEFAULT_TOP_P,
-                  n: Optional[int] = DEFAULT_N,
-                  stream: Optional[bool] = DEFAULT_STREAM,
-                  stop: Optional[Union[str, List[str]]] = DEFAULT_STOP,
-                  max_tokens: Optional[int] = DEFAULT_CHAT_MAX_TOKENS,
-                  presence_penalty: Optional[float] = DEFAULT_PRESENCE_PENALTY,
-                  frequency_penalty: Optional[float] = DEFAULT_FREQUENCY_PENALTY,
-                  logit_bias: Optional[Dict[str, float]] = DEFAULT_LOGIT_BIAS,
-                  user: Optional[str] = DEFAULT_USER,
-                  seed: Optional[int] = DEFAULT_SEED,
-                  tools: Optional[List[Dict[str, Any]]] = DEFAULT_CHAT_TOOLS,
-                  tool_choice: Optional[Union[str, Dict[str, Any]]] = DEFAULT_CHAT_TOOL_CHOICE,
-                  response_format: Optional[Dict[str, str]] = DEFAULT_CHAT_RESPONSE_FORMAT,
-                  **kwargs) -> Any:
+        def create(
+            self,
+            model: str,
+            messages: List[Dict[str, str]],
+            temperature: Optional[float] = DEFAULT_TEMPERATURE,
+            top_p: Optional[float] = DEFAULT_TOP_P,
+            n: Optional[int] = DEFAULT_N,
+            stream: Optional[bool] = DEFAULT_STREAM,
+            stop: Optional[Union[str, List[str]]] = DEFAULT_STOP,
+            max_tokens: Optional[int] = DEFAULT_CHAT_MAX_TOKENS,
+            presence_penalty: Optional[float] = DEFAULT_PRESENCE_PENALTY,
+            frequency_penalty: Optional[float] = DEFAULT_FREQUENCY_PENALTY,
+            logit_bias: Optional[Dict[str, float]] = DEFAULT_LOGIT_BIAS,
+            user: Optional[str] = DEFAULT_USER,
+            seed: Optional[int] = DEFAULT_SEED,
+            tools: Optional[List[Dict[str, Any]]] = DEFAULT_CHAT_TOOLS,
+            tool_choice: Optional[
+                Union[str, Dict[str, Any]]
+            ] = DEFAULT_CHAT_TOOL_CHOICE,
+            response_format: Optional[Dict[str, str]] = DEFAULT_CHAT_RESPONSE_FORMAT,
+            **kwargs
+        ) -> Any:
             """Creates a chat completion with validation."""
-            
+
             # Validate temperature
-            if temperature is not None and not VALID_TEMPERATURE_RANGE[0] <= temperature <= VALID_TEMPERATURE_RANGE[1]:
+            if (
+                temperature is not None
+                and not VALID_TEMPERATURE_RANGE[0]
+                <= temperature
+                <= VALID_TEMPERATURE_RANGE[1]
+            ):
                 raise ValueError(ERROR_INVALID_TEMPERATURE)
-            
+
             # Validate top_p
-            if top_p is not None and not VALID_TOP_P_RANGE[0] <= top_p <= VALID_TOP_P_RANGE[1]:
+            if (
+                top_p is not None
+                and not VALID_TOP_P_RANGE[0] <= top_p <= VALID_TOP_P_RANGE[1]
+            ):
                 raise ValueError(ERROR_INVALID_TOP_P)
-            
+
             # Validate n
             if n is not None and n < 1:
                 raise ValueError(ERROR_INVALID_N)
-            
+
             # Validate max_tokens
             if max_tokens is not None and max_tokens < 1:
                 raise ValueError(ERROR_INVALID_MAX_TOKENS)
-            
+
             # Validate presence_penalty
-            if presence_penalty is not None and not VALID_PRESENCE_PENALTY_RANGE[0] <= presence_penalty <= VALID_PRESENCE_PENALTY_RANGE[1]:
+            if (
+                presence_penalty is not None
+                and not VALID_PRESENCE_PENALTY_RANGE[0]
+                <= presence_penalty
+                <= VALID_PRESENCE_PENALTY_RANGE[1]
+            ):
                 raise ValueError(ERROR_INVALID_PRESENCE_PENALTY)
-            
+
             # Validate frequency_penalty
-            if frequency_penalty is not None and not VALID_FREQUENCY_PENALTY_RANGE[0] <= frequency_penalty <= VALID_FREQUENCY_PENALTY_RANGE[1]:
+            if (
+                frequency_penalty is not None
+                and not VALID_FREQUENCY_PENALTY_RANGE[0]
+                <= frequency_penalty
+                <= VALID_FREQUENCY_PENALTY_RANGE[1]
+            ):
                 raise ValueError(ERROR_INVALID_FREQUENCY_PENALTY)
 
             # Combine all parameters using the correct parameter names
@@ -115,7 +140,7 @@ class Chat:
                 PARAM_SEED: seed,
                 PARAM_TOOL_CHOICE: tool_choice,
                 PARAM_RESPONSE_FORMAT: response_format,
-                **kwargs
+                **kwargs,
             }
 
             # Remove None values

@@ -11,14 +11,15 @@ from .types import (
     ToolType,
     RunStatus,
     ToolResources,
-    TruncationStrategy
+    TruncationStrategy,
 )
 from .messages import Messages
 from .runs import Runs
 
+
 class AOAIClient:
     """Azure OpenAI Client wrapper for managing assistants, threads, and vector stores."""
-    
+
     def __init__(self, client: AzureOpenAI):
         """Initialize with component classes."""
         self._client = client
@@ -28,20 +29,17 @@ class AOAIClient:
         self.chat = Chat(client)
         self.messages = Messages(client)
         self.runs = Runs(client)
-    
+
     @classmethod
-    def create(cls,
-               api_key: str,
-               api_version: str,
-               azure_endpoint: str) -> 'AOAIClient':
+    def create(
+        cls, api_key: str, api_version: str, azure_endpoint: str
+    ) -> "AOAIClient":
         """Create a new AOAIClient instance with the given credentials."""
         client = AzureOpenAI(
-            api_key=api_key,
-            api_version=api_version,
-            azure_endpoint=azure_endpoint
+            api_key=api_key, api_version=api_version, azure_endpoint=azure_endpoint
         )
         return cls(client)
-    
+
     @property
     def client(self) -> AzureOpenAI:
         """Access to underlying client if needed."""
