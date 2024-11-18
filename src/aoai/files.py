@@ -1,13 +1,14 @@
 from typing import Optional, List, Dict, Any
 from openai import AzureOpenAI
+from .utils import clean_params, validate_vector_store_id, validate_files
 from .constants import (
     DEFAULT_VECTOR_STORE_NAME,
     DEFAULT_EXPIRES_AFTER,
     DEFAULT_VECTOR_STORE_LIST_PARAMS,
-    LIST_PARAM_LIMIT,
-    LIST_PARAM_ORDER,
-    LIST_PARAM_AFTER,
-    LIST_PARAM_BEFORE,
+    PARAM_LIMIT,
+    PARAM_ORDER,
+    PARAM_AFTER,
+    PARAM_BEFORE,
     LIST_LIMIT_RANGE,
     ERROR_INVALID_LIMIT,
 )
@@ -28,35 +29,35 @@ class VectorStores:
     ) -> Any:
         """Creates a vector store"""
         params = {"name": name, "expires_after": expires_after, **kwargs}
-        params = {k: v for k, v in params.items() if v is not None}
-        return self._client.beta.vector_stores.create(**params)
+        return self._client.beta.vector_stores.create(**clean_params(params))
 
     def retrieve(self, vector_store_id: str) -> Any:
         """Retrieves a vector store by ID"""
+        validate_vector_store_id(vector_store_id)
         return self._client.beta.vector_stores.retrieve(vector_store_id)
 
     def list(
         self,
-        limit: Optional[int] = DEFAULT_VECTOR_STORE_LIST_PARAMS[LIST_PARAM_LIMIT],
-        order: Optional[str] = DEFAULT_VECTOR_STORE_LIST_PARAMS[LIST_PARAM_ORDER],
-        after: Optional[str] = DEFAULT_VECTOR_STORE_LIST_PARAMS[LIST_PARAM_AFTER],
-        before: Optional[str] = DEFAULT_VECTOR_STORE_LIST_PARAMS[LIST_PARAM_BEFORE],
+        limit: Optional[int] = DEFAULT_VECTOR_STORE_LIST_PARAMS[PARAM_LIMIT],
+        order: Optional[str] = DEFAULT_VECTOR_STORE_LIST_PARAMS[PARAM_ORDER],
+        after: Optional[str] = DEFAULT_VECTOR_STORE_LIST_PARAMS[PARAM_AFTER],
+        before: Optional[str] = DEFAULT_VECTOR_STORE_LIST_PARAMS[PARAM_BEFORE],
     ) -> Any:
         """Lists vector stores"""
         if limit and limit not in LIST_LIMIT_RANGE:
             raise ValueError(ERROR_INVALID_LIMIT)
 
         params = {
-            LIST_PARAM_LIMIT: limit,
-            LIST_PARAM_ORDER: order,
-            LIST_PARAM_AFTER: after,
-            LIST_PARAM_BEFORE: before,
+            PARAM_LIMIT: limit,
+            PARAM_ORDER: order,
+            PARAM_AFTER: after,
+            PARAM_BEFORE: before,
         }
-        params = {k: v for k, v in params.items() if v is not None}
-        return self._client.beta.vector_stores.list(**params)
+        return self._client.beta.vector_stores.list(**clean_params(params))
 
     def delete(self, vector_store_id: str) -> Any:
         """Deletes a vector store"""
+        validate_vector_store_id(vector_store_id)
         return self._client.beta.vector_stores.delete(vector_store_id)
 
     class FileBatches:
@@ -67,6 +68,8 @@ class VectorStores:
 
         def upload_and_poll(self, vector_store_id: str, files: list) -> Any:
             """Uploads files to a vector store"""
+            validate_vector_store_id(vector_store_id)
+            validate_files(files)
             return self._client.beta.vector_stores.file_batches.upload_and_poll(
                 vector_store_id=vector_store_id, files=files
             )

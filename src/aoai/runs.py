@@ -1,51 +1,33 @@
 from typing import Optional, List, Dict, Any, Union
 from openai import AzureOpenAI, AssistantEventHandler
 from .types import TruncationStrategy
+from .utils import (
+    clean_params,
+    validate_thread_id,
+    validate_run_id,
+    validate_metadata,
+    validate_temperature,
+    validate_top_p,
+)
 from .constants import (
-    DEFAULT_INSTRUCTIONS,
+    DEFAULT_PARAMS,
     DEFAULT_RUN_LIST_PARAMS,
-    DEFAULT_RUN_STEP_LIST_PARAMS,
-    DEFAULT_TEMPERATURE,
-    DEFAULT_TOP_P,
-    DEFAULT_STREAM,
-    DEFAULT_MAX_PROMPT_TOKENS,
-    DEFAULT_MAX_COMPLETION_TOKENS,
-    DEFAULT_TRUNCATION_STRATEGY,
-    DEFAULT_TOOL_CHOICE,
-    DEFAULT_RUN_RESPONSE_FORMAT,
+    DEFAULT_THREAD_MESSAGES,
+    ERROR_INVALID_ASSISTANT_ID,
     ERROR_INVALID_LIMIT,
-    ERROR_INVALID_TEMPERATURE,
-    ERROR_INVALID_TOP_P,
-    ERROR_INVALID_THREAD_ID,
     ERROR_INVALID_RUN_ID,
+    ERROR_INVALID_THREAD_ID,
     LIST_LIMIT_RANGE,
-    PARAM_LIMIT,
-    PARAM_ORDER,
     PARAM_AFTER,
     PARAM_BEFORE,
-    VALID_TEMPERATURE_RANGE,
-    VALID_TOP_P_RANGE,
-    PARAM_THREAD_ID,
-    PARAM_ASSISTANT_ID,
-    PARAM_MODEL,
-    PARAM_INSTRUCTIONS,
-    PARAM_ADDITIONAL_INSTRUCTIONS,
-    PARAM_ADDITIONAL_MESSAGES,
-    PARAM_TOOLS,
+    PARAM_LIMIT,
+    PARAM_MESSAGES,
     PARAM_METADATA,
+    PARAM_ORDER,
     PARAM_RUN_ID,
     PARAM_TEMPERATURE,
+    PARAM_THREAD_ID,
     PARAM_TOP_P,
-    PARAM_STREAM,
-    PARAM_MAX_PROMPT_TOKENS,
-    PARAM_MAX_COMPLETION_TOKENS,
-    PARAM_TRUNCATION_STRATEGY,
-    PARAM_TOOL_CHOICE,
-    PARAM_RESPONSE_FORMAT,
-    DEFAULT_THREAD_MESSAGES,
-    DEFAULT_PARAMS,
-    ERROR_INVALID_ASSISTANT_ID,
-    PARAM_MESSAGES,
 )
 from .steps import RunSteps
 
@@ -59,16 +41,21 @@ class Runs:
 
     def create(self, thread_id: str, assistant_id: str, **kwargs) -> Any:
         """Creates a run."""
-        if not thread_id:
-            raise ValueError(ERROR_INVALID_THREAD_ID)
+        validate_thread_id(thread_id, ERROR_INVALID_THREAD_ID)
         if not assistant_id:
             raise ValueError(ERROR_INVALID_ASSISTANT_ID)
+
+        # Validate temperature and top_p if provided
+        if PARAM_TEMPERATURE in kwargs:
+            validate_temperature(kwargs[PARAM_TEMPERATURE])
+        if PARAM_TOP_P in kwargs:
+            validate_top_p(kwargs[PARAM_TOP_P])
 
         default_params = DEFAULT_PARAMS["run"].copy()
         default_params.update(kwargs)
 
         return self._client.beta.threads.runs.create(
-            thread_id=thread_id, assistant_id=assistant_id, **default_params
+            thread_id=thread_id, assistant_id=assistant_id, **clean_params(default_params)
         )
 
     def list(
@@ -80,6 +67,7 @@ class Runs:
         before: Optional[str] = DEFAULT_RUN_LIST_PARAMS[PARAM_BEFORE],
     ) -> Any:
         """Returns a list of runs belonging to a thread."""
+        validate_thread_id(thread_id, ERROR_INVALID_THREAD_ID)
         if limit and limit not in LIST_LIMIT_RANGE:
             raise ValueError(ERROR_INVALID_LIMIT)
 
@@ -90,16 +78,13 @@ class Runs:
             PARAM_AFTER: after,
             PARAM_BEFORE: before,
         }
-        params = {k: v for k, v in params.items() if v is not None}
 
-        return self._client.beta.threads.runs.list(**params)
+        return self._client.beta.threads.runs.list(**clean_params(params))
 
     def retrieve(self, thread_id: str, run_id: str) -> Any:
         """Retrieves a run."""
-        if not thread_id:
-            raise ValueError(ERROR_INVALID_THREAD_ID)
-        if not run_id:
-            raise ValueError(ERROR_INVALID_RUN_ID)
+        validate_thread_id(thread_id, ERROR_INVALID_THREAD_ID)
+        validate_run_id(run_id, ERROR_INVALID_RUN_ID)
 
         return self._client.beta.threads.runs.retrieve(
             thread_id=thread_id, run_id=run_id
@@ -107,19 +92,18 @@ class Runs:
 
     def update(self, thread_id: str, run_id: str, metadata: Dict[str, str]) -> Any:
         """Modifies a run."""
-        if not thread_id:
-            raise ValueError(ERROR_INVALID_THREAD_ID)
-        if not run_id:
-            raise ValueError(ERROR_INVALID_RUN_ID)
+        validate_thread_id(thread_id, ERROR_INVALID_THREAD_ID)
+        validate_run_id(run_id, ERROR_INVALID_RUN_ID)
+        if metadata:
+            validate_metadata(metadata)
 
         params = {
             PARAM_THREAD_ID: thread_id,
             PARAM_RUN_ID: run_id,
             PARAM_METADATA: metadata,
         }
-        params = {k: v for k, v in params.items() if v is not None}
 
-        return self._client.beta.threads.runs.update(**params)
+        return self._client.beta.threads.runs.update(**clean_params(params))
 
     def submit_tool_outputs(
         self,
@@ -129,10 +113,8 @@ class Runs:
         stream: Optional[bool] = None,
     ) -> Any:
         """Submits outputs for tool calls."""
-        if not thread_id:
-            raise ValueError(ERROR_INVALID_THREAD_ID)
-        if not run_id:
-            raise ValueError(ERROR_INVALID_RUN_ID)
+        validate_thread_id(thread_id, ERROR_INVALID_THREAD_ID)
+        validate_run_id(run_id, ERROR_INVALID_RUN_ID)
 
         return self._client.beta.threads.runs.submit_tool_outputs(
             thread_id=thread_id, run_id=run_id, tool_outputs=tool_outputs, stream=stream
@@ -140,10 +122,8 @@ class Runs:
 
     def cancel(self, thread_id: str, run_id: str) -> Any:
         """Cancels a run that is in_progress."""
-        if not thread_id:
-            raise ValueError(ERROR_INVALID_THREAD_ID)
-        if not run_id:
-            raise ValueError(ERROR_INVALID_RUN_ID)
+        validate_thread_id(thread_id, ERROR_INVALID_THREAD_ID)
+        validate_run_id(run_id, ERROR_INVALID_RUN_ID)
 
         return self._client.beta.threads.runs.cancel(thread_id=thread_id, run_id=run_id)
 

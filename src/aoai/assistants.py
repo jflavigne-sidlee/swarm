@@ -1,35 +1,43 @@
 from typing import Optional, List, Dict, Any
 from openai import AzureOpenAI
+from .utils import (
+    validate_temperature,
+    validate_top_p,
+    validate_metadata,
+    clean_params,
+    validate_assistant_name,
+    validate_assistant_description,
+    validate_assistant_instructions,
+    validate_assistant_tools,
+    validate_assistant_id,
+)
 from .constants import (
-    DEFAULT_ASSISTANT_NAME,
     DEFAULT_ASSISTANT_DESCRIPTION,
-    DEFAULT_INSTRUCTIONS,
-    DEFAULT_ASSISTANT_TOOLS,
-    DEFAULT_METADATA,
+    DEFAULT_ASSISTANT_LIST_PARAMS,
+    DEFAULT_ASSISTANT_NAME,
     DEFAULT_ASSISTANT_TEMPERATURE,
+    DEFAULT_ASSISTANT_TOOLS,
     DEFAULT_ASSISTANT_TOP_P,
+    DEFAULT_INSTRUCTIONS,
+    DEFAULT_METADATA,
     DEFAULT_RESPONSE_FORMAT,
     DEFAULT_TOOL_RESOURCES,
-    MAX_ASSISTANT_NAME_LENGTH,
-    MAX_ASSISTANT_DESCRIPTION_LENGTH,
-    MAX_ASSISTANT_INSTRUCTIONS_LENGTH,
-    MAX_ASSISTANT_TOOLS_COUNT,
-    ERROR_INVALID_ASSISTANT_ID,
-    ERROR_INVALID_ASSISTANT_NAME_LENGTH,
-    ERROR_INVALID_ASSISTANT_DESCRIPTION_LENGTH,
-    ERROR_INVALID_ASSISTANT_INSTRUCTIONS_LENGTH,
-    ERROR_INVALID_ASSISTANT_TOOLS_COUNT,
-    ERROR_INVALID_TEMPERATURE,
-    ERROR_INVALID_TOP_P,
-    VALID_TEMPERATURE_RANGE,
-    VALID_TOP_P_RANGE,
-    LIST_LIMIT_RANGE,
     ERROR_INVALID_LIMIT,
-    DEFAULT_ASSISTANT_LIST_PARAMS,
-    LIST_PARAM_LIMIT,
-    LIST_PARAM_ORDER,
-    LIST_PARAM_AFTER,
-    LIST_PARAM_BEFORE,
+    LIST_LIMIT_RANGE,
+    PARAM_AFTER,
+    PARAM_BEFORE,
+    PARAM_DESCRIPTION,
+    PARAM_INSTRUCTIONS,
+    PARAM_LIMIT,
+    PARAM_METADATA,
+    PARAM_MODEL,
+    PARAM_NAME,
+    PARAM_ORDER,
+    PARAM_RESPONSE_FORMAT,
+    PARAM_TEMPERATURE,
+    PARAM_TOOLS,
+    PARAM_TOOL_RESOURCES,
+    PARAM_TOP_P,
 )
 
 
@@ -53,83 +61,50 @@ class Assistants:
         tool_resources: Optional[Dict[str, Any]] = DEFAULT_TOOL_RESOURCES,
         **kwargs
     ) -> Any:
-        """Creates an assistant with validation."""
-        # Validate parameters
-        if name and len(name) > MAX_ASSISTANT_NAME_LENGTH:
-            raise ValueError(ERROR_INVALID_ASSISTANT_NAME_LENGTH)
+        """Creates an assistant with specified configuration"""
+        validate_assistant_name(name)
+        validate_assistant_description(description)
+        validate_assistant_instructions(instructions)
+        validate_assistant_tools(tools)
+        validate_temperature(temperature)
+        validate_top_p(top_p)
+        validate_metadata(metadata)
 
-        if description and len(description) > MAX_ASSISTANT_DESCRIPTION_LENGTH:
-            raise ValueError(ERROR_INVALID_ASSISTANT_DESCRIPTION_LENGTH)
-
-        if instructions and len(instructions) > MAX_ASSISTANT_INSTRUCTIONS_LENGTH:
-            raise ValueError(ERROR_INVALID_ASSISTANT_INSTRUCTIONS_LENGTH)
-
-        if tools and len(tools) > MAX_ASSISTANT_TOOLS_COUNT:
-            raise ValueError(ERROR_INVALID_ASSISTANT_TOOLS_COUNT)
-
-        if (
-            temperature is not None
-            and not VALID_TEMPERATURE_RANGE[0]
-            <= temperature
-            <= VALID_TEMPERATURE_RANGE[1]
-        ):
-            raise ValueError(ERROR_INVALID_TEMPERATURE)
-
-        if (
-            top_p is not None
-            and not VALID_TOP_P_RANGE[0] <= top_p <= VALID_TOP_P_RANGE[1]
-        ):
-            raise ValueError(ERROR_INVALID_TOP_P)
-
-        # Combine all parameters
         params = {
-            "model": model,
-            "name": name,
-            "description": description,
-            "instructions": instructions,
-            "tools": tools,
-            "metadata": metadata,
-            "temperature": temperature,
-            "top_p": top_p,
-            "response_format": response_format,
-            "tool_resources": tool_resources,
+            PARAM_MODEL: model,
+            PARAM_NAME: name,
+            PARAM_DESCRIPTION: description,
+            PARAM_INSTRUCTIONS: instructions,
+            PARAM_TOOLS: tools,
+            PARAM_METADATA: metadata,
+            PARAM_TEMPERATURE: temperature,
+            PARAM_TOP_P: top_p,
+            PARAM_RESPONSE_FORMAT: response_format,
+            PARAM_TOOL_RESOURCES: tool_resources,
             **kwargs,
         }
 
-        # Remove None values
-        params = {k: v for k, v in params.items() if v is not None}
-
-        return self._client.beta.assistants.create(**params)
+        return self._client.beta.assistants.create(**clean_params(params))
 
     def list(
         self,
-        limit: Optional[int] = DEFAULT_ASSISTANT_LIST_PARAMS[LIST_PARAM_LIMIT],
-        order: Optional[str] = DEFAULT_ASSISTANT_LIST_PARAMS[LIST_PARAM_ORDER],
-        after: Optional[str] = DEFAULT_ASSISTANT_LIST_PARAMS[LIST_PARAM_AFTER],
-        before: Optional[str] = DEFAULT_ASSISTANT_LIST_PARAMS[LIST_PARAM_BEFORE],
+        limit: Optional[int] = DEFAULT_ASSISTANT_LIST_PARAMS[PARAM_LIMIT],
+        order: Optional[str] = DEFAULT_ASSISTANT_LIST_PARAMS[PARAM_ORDER],
+        after: Optional[str] = DEFAULT_ASSISTANT_LIST_PARAMS[PARAM_AFTER],
+        before: Optional[str] = DEFAULT_ASSISTANT_LIST_PARAMS[PARAM_BEFORE],
     ) -> Any:
-        """Lists assistants.
-
-        Args:
-            limit: Maximum number of assistants to return
-            order: Sort order ('asc' or 'desc')
-            after: Return results after this ID
-            before: Return results before this ID
-        """
+        """Lists assistants."""
         if limit and limit not in LIST_LIMIT_RANGE:
             raise ValueError(ERROR_INVALID_LIMIT)
 
         params = {
-            LIST_PARAM_LIMIT: limit,
-            LIST_PARAM_ORDER: order,
-            LIST_PARAM_AFTER: after,
-            LIST_PARAM_BEFORE: before,
+            PARAM_LIMIT: limit,
+            PARAM_ORDER: order,
+            PARAM_AFTER: after,
+            PARAM_BEFORE: before,
         }
 
-        # Remove None values
-        params = {k: v for k, v in params.items() if v is not None}
-
-        return self._client.beta.assistants.list(**params)
+        return self._client.beta.assistants.list(**clean_params(params))
 
     def retrieve(self, assistant_id: str) -> Any:
         """Retrieves an assistant by ID"""
@@ -151,55 +126,30 @@ class Assistants:
         **kwargs
     ) -> Any:
         """Updates an existing assistant with validation"""
-        if not assistant_id:
-            raise ValueError(ERROR_INVALID_ASSISTANT_ID)
+        validate_assistant_id(assistant_id)
+        validate_assistant_name(name)
+        validate_assistant_description(description)
+        validate_assistant_instructions(instructions)
+        validate_assistant_tools(tools)
+        validate_temperature(temperature)
+        validate_top_p(top_p)
+        validate_metadata(metadata)
 
-        # Validate parameters if present
-        if name and len(name) > MAX_ASSISTANT_NAME_LENGTH:
-            raise ValueError(ERROR_INVALID_ASSISTANT_NAME_LENGTH)
-
-        if description and len(description) > MAX_ASSISTANT_DESCRIPTION_LENGTH:
-            raise ValueError(ERROR_INVALID_ASSISTANT_DESCRIPTION_LENGTH)
-
-        if instructions and len(instructions) > MAX_ASSISTANT_INSTRUCTIONS_LENGTH:
-            raise ValueError(ERROR_INVALID_ASSISTANT_INSTRUCTIONS_LENGTH)
-
-        if tools and len(tools) > MAX_ASSISTANT_TOOLS_COUNT:
-            raise ValueError(ERROR_INVALID_ASSISTANT_TOOLS_COUNT)
-
-        if (
-            temperature is not None
-            and not VALID_TEMPERATURE_RANGE[0]
-            <= temperature
-            <= VALID_TEMPERATURE_RANGE[1]
-        ):
-            raise ValueError(ERROR_INVALID_TEMPERATURE)
-
-        if (
-            top_p is not None
-            and not VALID_TOP_P_RANGE[0] <= top_p <= VALID_TOP_P_RANGE[1]
-        ):
-            raise ValueError(ERROR_INVALID_TOP_P)
-
-        # Combine all parameters
         params = {
-            "model": model,
-            "name": name,
-            "description": description,
-            "instructions": instructions,
-            "tools": tools,
-            "metadata": metadata,
-            "temperature": temperature,
-            "top_p": top_p,
-            "response_format": response_format,
-            "tool_resources": tool_resources,
+            PARAM_MODEL: model,
+            PARAM_NAME: name,
+            PARAM_DESCRIPTION: description,
+            PARAM_INSTRUCTIONS: instructions,
+            PARAM_TOOLS: tools,
+            PARAM_METADATA: metadata,
+            PARAM_TEMPERATURE: temperature,
+            PARAM_TOP_P: top_p,
+            PARAM_RESPONSE_FORMAT: response_format,
+            PARAM_TOOL_RESOURCES: tool_resources,
             **kwargs,
         }
 
-        # Remove None values
-        params = {k: v for k, v in params.items() if v is not None}
-
-        return self._client.beta.assistants.update(assistant_id, **params)
+        return self._client.beta.assistants.update(assistant_id, **clean_params(params))
 
     def delete(self, assistant_id: str) -> Any:
         """Deletes an assistant"""

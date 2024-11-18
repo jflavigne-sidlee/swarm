@@ -15,6 +15,11 @@ from .types import (
 )
 from .messages import Messages
 from .runs import Runs
+from .utils import (
+    validate_api_key,
+    validate_api_version,
+    validate_azure_endpoint,
+)
 
 
 class AOAIClient:
@@ -35,6 +40,10 @@ class AOAIClient:
         cls, api_key: str, api_version: str, azure_endpoint: str
     ) -> "AOAIClient":
         """Create a new AOAIClient instance with the given credentials."""
+        validate_api_key(api_key)
+        validate_api_version(api_version)
+        validate_azure_endpoint(azure_endpoint)
+
         client = AzureOpenAI(
             api_key=api_key, api_version=api_version, azure_endpoint=azure_endpoint
         )

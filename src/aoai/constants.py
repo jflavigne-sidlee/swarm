@@ -66,6 +66,7 @@ RUN_STATUS_REQUIRES_ACTION = "requires_action"
 # Error messages
 ERROR_ASSISTANT_NOT_FOUND = "Error: Assistant not found."
 ERROR_INVALID_ASSISTANT_ID = "Error: Invalid assistant ID provided."
+ERROR_INVALID_ASSISTANT_ID_TYPE = "Assistant ID must be a string"
 ERROR_INVALID_LIMIT = "Error: Invalid limit value. Must be between 1 and 100."
 ERROR_INVALID_MESSAGE_ID = "Error: Invalid message ID provided."
 ERROR_INVALID_RUN_ID = "Error: Invalid run ID provided."
@@ -221,35 +222,6 @@ RUN_STEP_STATUS_IN_PROGRESS = "in_progress"
 TOOL_CHOICE_AUTO = "auto"
 TOOL_CHOICE_NONE = "none"
 
-# Chat completion specific constants
-# CHAT_PARAM_FREQUENCY_PENALTY = "frequency_penalty"
-# CHAT_PARAM_LOGIT_BIAS = "logit_bias"
-# CHAT_PARAM_MAX_TOKENS = "max_tokens"
-# CHAT_PARAM_N = "n"
-# CHAT_PARAM_PRESENCE_PENALTY = "presence_penalty"
-# CHAT_PARAM_RESPONSE_FORMAT = "response_format"
-# CHAT_PARAM_SEED = "seed"
-# CHAT_PARAM_STOP = "stop"
-# CHAT_PARAM_STREAM = "stream"
-# CHAT_PARAM_TEMPERATURE = "temperature"
-# CHAT_PARAM_TOOL_CHOICE = "tool_choice"
-# CHAT_PARAM_USER = "user"
-
-# List operation parameters
-# LIST_PARAM_AFTER = "after"
-# LIST_PARAM_BEFORE = "before"
-# LIST_PARAM_LIMIT = "limit"
-# LIST_PARAM_ORDER = "order"
-
-# Run parameters
-# RUN_PARAM_ADDITIONAL_INSTRUCTIONS = "additional_instructions"
-# RUN_PARAM_ADDITIONAL_MESSAGES = "additional_messages"
-# RUN_PARAM_MAX_COMPLETION_TOKENS = "max_completion_tokens"
-# RUN_PARAM_MAX_PROMPT_TOKENS = "max_prompt_tokens"
-# RUN_PARAM_TOOL_OUTPUTS = "tool_outputs"
-# RUN_PARAM_TRUNCATION_STRATEGY = "truncation_strategy"
-
-
 # Parameter names
 PARAM_ADDITIONAL_INSTRUCTIONS = "additional_instructions"
 PARAM_ADDITIONAL_MESSAGES = "additional_messages"
@@ -260,39 +232,39 @@ PARAM_BEFORE = "before"
 PARAM_CONTENT = "content"
 PARAM_DESCRIPTION = "description"
 PARAM_EXPIRES_AFTER = "expires_after"
-PARAM_FREQUENCY_PENALTY = "frequency_penalty"  ### CHAT
+PARAM_FREQUENCY_PENALTY = "frequency_penalty"
 PARAM_FILE_IDS = "file_ids"
 PARAM_FILES = "files"
 PARAM_INSTRUCTIONS = "instructions"
 PARAM_LIMIT = "limit"
-PARAM_LOGIT_BIAS = "logit_bias"  ### CHAT
+PARAM_LOGIT_BIAS = "logit_bias"
 PARAM_MAX_COMPLETION_TOKENS = "max_completion_tokens"
 PARAM_MAX_PROMPT_TOKENS = "max_prompt_tokens"
-PARAM_MAX_TOKENS = "max_tokens"  ### CHAT
+PARAM_MAX_TOKENS = "max_tokens"
 PARAM_MESSAGE_ID = "message_id"
 PARAM_MESSAGES = "messages"
 PARAM_METADATA = "metadata"
 PARAM_MODEL = "model"
-PARAM_N = "n"  ### CHAT
+PARAM_N = "n"
 PARAM_NAME = "name"
 PARAM_ORDER = "order"
 PARAM_PARALLEL_TOOL_CALLS = "parallel_tool_calls"
-PARAM_PRESENCE_PENALTY = "presence_penalty"  ### CHAT
-PARAM_RESPONSE_FORMAT = "response_format"  ### CHAT and others
+PARAM_PRESENCE_PENALTY = "presence_penalty"  
+PARAM_RESPONSE_FORMAT = "response_format"  
 PARAM_ROLE = "role"
 PARAM_RUN_ID = "run_id"
-PARAM_SEED = "seed"  ### CHAT
-PARAM_STOP = "stop"  ### CHAT
-PARAM_STREAM = "stream"  ### CHAT
-PARAM_TEMPERATURE = "temperature"  ### CHAT
+PARAM_SEED = "seed"     
+PARAM_STOP = "stop" 
+PARAM_STREAM = "stream"  
+PARAM_TEMPERATURE = "temperature"  
 PARAM_THREAD_ID = "thread_id"
-PARAM_TOOL_CHOICE = "tool_choice"  ### CHAT
+PARAM_TOOL_CHOICE = "tool_choice"  
 PARAM_TOOL_OUTPUTS = "tool_outputs"
 PARAM_TOOL_RESOURCES = "tool_resources"
 PARAM_TOOLS = "tools"
 PARAM_TOP_P = "top_p"
 PARAM_TRUNCATION_STRATEGY = "truncation_strategy"
-PARAM_USER = "user"  ### CHAT
+PARAM_USER = "user"  
 PARAM_VECTOR_STORE_IDS = "vector_store_ids"
 PARAM_VECTOR_STORES = "vector_stores"
 
@@ -487,3 +459,11 @@ ERROR_INVALID_TEMPERATURE = f"Temperature must be between {VALID_TEMPERATURE_RAN
 ERROR_INVALID_TOP_P = (
     f"Top P must be between {VALID_TOP_P_RANGE[0]} and {VALID_TOP_P_RANGE[1]}"
 )
+
+# API validation error messages
+ERROR_API_KEY_REQUIRED = "API key is required"
+ERROR_API_KEY_TYPE = "API key must be a string"
+ERROR_API_VERSION_REQUIRED = "API version is required"
+ERROR_API_VERSION_TYPE = "API version must be a string"
+ERROR_AZURE_ENDPOINT_REQUIRED = "Azure endpoint is required"
+ERROR_AZURE_ENDPOINT_TYPE = "Azure endpoint must be a string"

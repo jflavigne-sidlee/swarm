@@ -9,30 +9,26 @@ from .constants import (
     ERROR_INVALID_THREAD_CODE_INTERPRETER_FILES,
     ERROR_INVALID_THREAD_FILE_SEARCH_STORES,
     ERROR_INVALID_THREAD_ID,
-    ERROR_INVALID_THREAD_METADATA_KEY_LENGTH,
-    ERROR_INVALID_THREAD_METADATA_PAIRS,
-    ERROR_INVALID_THREAD_METADATA_VALUE_LENGTH,
     LIST_LIMIT_RANGE,
     MAX_THREAD_CODE_INTERPRETER_FILES,
     MAX_THREAD_FILE_SEARCH_STORES,
-    MAX_THREAD_METADATA_KEY_LENGTH,
     MAX_THREAD_METADATA_PAIRS,
-    MAX_THREAD_METADATA_VALUE_LENGTH,
     PARAM_AFTER,
     PARAM_BEFORE,
-    PARAM_FILE_IDS,
     PARAM_LIMIT,
     PARAM_MESSAGES,
     PARAM_METADATA,
     PARAM_ORDER,
     PARAM_TOOL_RESOURCES,
-    PARAM_VECTOR_STORE_IDS,
-    PARAM_VECTOR_STORES,
-    TOOL_CODE_INTERPRETER,
-    TOOL_FILE_SEARCH,
 )
 from .messages import Messages
 from .runs import Runs
+from .utils import (
+    clean_params,
+    validate_metadata,
+    validate_thread_id,
+    validate_thread_tool_resources,
+)
 
 
 class Threads:
@@ -53,34 +49,17 @@ class Threads:
         """Creates a thread."""
         # Validate metadata if provided
         if metadata:
-            if len(metadata) > MAX_THREAD_METADATA_PAIRS:
-                raise ValueError(ERROR_INVALID_THREAD_METADATA_PAIRS)
-
-            for key, value in metadata.items():
-                if len(key) > MAX_THREAD_METADATA_KEY_LENGTH:
-                    raise ValueError(ERROR_INVALID_THREAD_METADATA_KEY_LENGTH)
-                if len(str(value)) > MAX_THREAD_METADATA_VALUE_LENGTH:
-                    raise ValueError(ERROR_INVALID_THREAD_METADATA_VALUE_LENGTH)
+            validate_metadata(metadata, 
+                            max_pairs=MAX_THREAD_METADATA_PAIRS)
 
         # Validate tool resources if provided
-        if tool_resources:
-            if TOOL_CODE_INTERPRETER in tool_resources:
-                file_ids = tool_resources[TOOL_CODE_INTERPRETER].get(PARAM_FILE_IDS, [])
-                if len(file_ids) > MAX_THREAD_CODE_INTERPRETER_FILES:
-                    raise ValueError(ERROR_INVALID_THREAD_CODE_INTERPRETER_FILES)
-
-            if TOOL_FILE_SEARCH in tool_resources:
-                vector_store_ids = tool_resources[TOOL_FILE_SEARCH].get(
-                    PARAM_VECTOR_STORE_IDS, []
-                )
-                vector_stores = tool_resources[TOOL_FILE_SEARCH].get(
-                    PARAM_VECTOR_STORES, []
-                )
-                if (
-                    len(vector_store_ids) + len(vector_stores)
-                    > MAX_THREAD_FILE_SEARCH_STORES
-                ):
-                    raise ValueError(ERROR_INVALID_THREAD_FILE_SEARCH_STORES)
+        validate_thread_tool_resources(
+            tool_resources,
+            max_code_interpreter_files=MAX_THREAD_CODE_INTERPRETER_FILES,
+            max_file_search_stores=MAX_THREAD_FILE_SEARCH_STORES,
+            error_code_interpreter=ERROR_INVALID_THREAD_CODE_INTERPRETER_FILES,
+            error_file_search=ERROR_INVALID_THREAD_FILE_SEARCH_STORES
+        )
 
         params = {
             PARAM_MESSAGES: messages,
@@ -88,14 +67,11 @@ class Threads:
             PARAM_TOOL_RESOURCES: tool_resources,
             **kwargs,
         }
-        params = {k: v for k, v in params.items() if v is not None}
-
-        return self._client.beta.threads.create(**params)
+        return self._client.beta.threads.create(**clean_params(params))
 
     def retrieve(self, thread_id: str) -> Any:
         """Retrieves a thread."""
-        if not thread_id:
-            raise ValueError(ERROR_INVALID_THREAD_ID)
+        validate_thread_id(thread_id, ERROR_INVALID_THREAD_ID)
         return self._client.beta.threads.retrieve(thread_id)
 
     def update(
@@ -106,53 +82,32 @@ class Threads:
         **kwargs
     ) -> Any:
         """Modifies a thread."""
-        if not thread_id:
-            raise ValueError(ERROR_INVALID_THREAD_ID)
+        validate_thread_id(thread_id, ERROR_INVALID_THREAD_ID)
 
         # Validate metadata if provided
         if metadata:
-            if len(metadata) > MAX_THREAD_METADATA_PAIRS:
-                raise ValueError(ERROR_INVALID_THREAD_METADATA_PAIRS)
-
-            for key, value in metadata.items():
-                if len(key) > MAX_THREAD_METADATA_KEY_LENGTH:
-                    raise ValueError(ERROR_INVALID_THREAD_METADATA_KEY_LENGTH)
-                if len(str(value)) > MAX_THREAD_METADATA_VALUE_LENGTH:
-                    raise ValueError(ERROR_INVALID_THREAD_METADATA_VALUE_LENGTH)
+            validate_metadata(metadata, 
+                            max_pairs=MAX_THREAD_METADATA_PAIRS)
 
         # Validate tool resources if provided
-        if tool_resources:
-            if TOOL_CODE_INTERPRETER in tool_resources:
-                file_ids = tool_resources[TOOL_CODE_INTERPRETER].get(PARAM_FILE_IDS, [])
-                if len(file_ids) > MAX_THREAD_CODE_INTERPRETER_FILES:
-                    raise ValueError(ERROR_INVALID_THREAD_CODE_INTERPRETER_FILES)
-
-            if TOOL_FILE_SEARCH in tool_resources:
-                vector_store_ids = tool_resources[TOOL_FILE_SEARCH].get(
-                    PARAM_VECTOR_STORE_IDS, []
-                )
-                vector_stores = tool_resources[TOOL_FILE_SEARCH].get(
-                    PARAM_VECTOR_STORES, []
-                )
-                if (
-                    len(vector_store_ids) + len(vector_stores)
-                    > MAX_THREAD_FILE_SEARCH_STORES
-                ):
-                    raise ValueError(ERROR_INVALID_THREAD_FILE_SEARCH_STORES)
+        validate_thread_tool_resources(
+            tool_resources,
+            max_code_interpreter_files=MAX_THREAD_CODE_INTERPRETER_FILES,
+            max_file_search_stores=MAX_THREAD_FILE_SEARCH_STORES,
+            error_code_interpreter=ERROR_INVALID_THREAD_CODE_INTERPRETER_FILES,
+            error_file_search=ERROR_INVALID_THREAD_FILE_SEARCH_STORES
+        )
 
         params = {
             PARAM_METADATA: metadata,
             PARAM_TOOL_RESOURCES: tool_resources,
             **kwargs,
         }
-        params = {k: v for k, v in params.items() if v is not None}
-
-        return self._client.beta.threads.update(thread_id, **params)
+        return self._client.beta.threads.update(thread_id, **clean_params(params))
 
     def delete(self, thread_id: str) -> Any:
         """Deletes a thread."""
-        if not thread_id:
-            raise ValueError(ERROR_INVALID_THREAD_ID)
+        validate_thread_id(thread_id, ERROR_INVALID_THREAD_ID)
         return self._client.beta.threads.delete(thread_id)
 
     def list(

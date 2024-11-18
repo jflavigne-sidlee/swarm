@@ -1,46 +1,46 @@
 from typing import Optional, List, Dict, Any, Union
 from openai import AzureOpenAI
+from .utils import (
+    validate_temperature,
+    validate_top_p,
+    validate_presence_penalty,
+    validate_frequency_penalty,
+    validate_n,
+    validate_max_tokens,
+    clean_params,
+)
 from .constants import (
     # DEFAULT_CHAT_MODEL,
     DEFAULT_CHAT_MAX_TOKENS,
-    DEFAULT_TEMPERATURE,
-    DEFAULT_TOP_P,
-    DEFAULT_N,
-    DEFAULT_STREAM,
-    DEFAULT_STOP,
-    DEFAULT_PRESENCE_PENALTY,
+    DEFAULT_CHAT_RESPONSE_FORMAT,
+    DEFAULT_CHAT_TOOL_CHOICE,
+    DEFAULT_CHAT_TOOLS,
     DEFAULT_FREQUENCY_PENALTY,
     DEFAULT_LOGIT_BIAS,
-    DEFAULT_USER,
+    DEFAULT_N,
+    DEFAULT_PRESENCE_PENALTY,
     DEFAULT_SEED,
-    DEFAULT_CHAT_TOOLS,
-    DEFAULT_CHAT_TOOL_CHOICE,
-    DEFAULT_CHAT_RESPONSE_FORMAT,
-    VALID_TEMPERATURE_RANGE,
-    VALID_TOP_P_RANGE,
-    VALID_PRESENCE_PENALTY_RANGE,
-    VALID_FREQUENCY_PENALTY_RANGE,
-    ERROR_INVALID_TEMPERATURE,
-    ERROR_INVALID_TOP_P,
-    ERROR_INVALID_PRESENCE_PENALTY,
-    ERROR_INVALID_FREQUENCY_PENALTY,
-    ERROR_INVALID_N,
-    ERROR_INVALID_MAX_TOKENS,
-    PARAM_TEMPERATURE,
-    PARAM_TOP_P,
-    PARAM_N,
-    PARAM_STREAM,
-    PARAM_STOP,
-    PARAM_MAX_TOKENS,
-    PARAM_PRESENCE_PENALTY,
+    DEFAULT_STOP,
+    DEFAULT_STREAM,
+    DEFAULT_TEMPERATURE,
+    DEFAULT_TOP_P,
+    DEFAULT_USER,
     PARAM_FREQUENCY_PENALTY,
     PARAM_LOGIT_BIAS,
-    PARAM_USER,
-    PARAM_SEED,
-    PARAM_TOOL_CHOICE,
-    PARAM_RESPONSE_FORMAT,
-    PARAM_MODEL,
+    PARAM_MAX_TOKENS,
     PARAM_MESSAGES,
+    PARAM_MODEL,
+    PARAM_N,
+    PARAM_PRESENCE_PENALTY,
+    PARAM_RESPONSE_FORMAT,
+    PARAM_SEED,
+    PARAM_STOP,
+    PARAM_STREAM,
+    PARAM_TEMPERATURE,
+    PARAM_TOOL_CHOICE,
+    PARAM_TOOLS,
+    PARAM_TOP_P,
+    PARAM_USER,
 )
 
 
@@ -81,47 +81,13 @@ class Chat:
         ) -> Any:
             """Creates a chat completion with validation."""
 
-            # Validate temperature
-            if (
-                temperature is not None
-                and not VALID_TEMPERATURE_RANGE[0]
-                <= temperature
-                <= VALID_TEMPERATURE_RANGE[1]
-            ):
-                raise ValueError(ERROR_INVALID_TEMPERATURE)
-
-            # Validate top_p
-            if (
-                top_p is not None
-                and not VALID_TOP_P_RANGE[0] <= top_p <= VALID_TOP_P_RANGE[1]
-            ):
-                raise ValueError(ERROR_INVALID_TOP_P)
-
-            # Validate n
-            if n is not None and n < 1:
-                raise ValueError(ERROR_INVALID_N)
-
-            # Validate max_tokens
-            if max_tokens is not None and max_tokens < 1:
-                raise ValueError(ERROR_INVALID_MAX_TOKENS)
-
-            # Validate presence_penalty
-            if (
-                presence_penalty is not None
-                and not VALID_PRESENCE_PENALTY_RANGE[0]
-                <= presence_penalty
-                <= VALID_PRESENCE_PENALTY_RANGE[1]
-            ):
-                raise ValueError(ERROR_INVALID_PRESENCE_PENALTY)
-
-            # Validate frequency_penalty
-            if (
-                frequency_penalty is not None
-                and not VALID_FREQUENCY_PENALTY_RANGE[0]
-                <= frequency_penalty
-                <= VALID_FREQUENCY_PENALTY_RANGE[1]
-            ):
-                raise ValueError(ERROR_INVALID_FREQUENCY_PENALTY)
+            # Validate parameters using utility functions
+            validate_temperature(temperature)
+            validate_top_p(top_p)
+            validate_presence_penalty(presence_penalty)
+            validate_frequency_penalty(frequency_penalty)
+            validate_n(n)
+            validate_max_tokens(max_tokens)
 
             # Combine all parameters using the correct parameter names
             params = {
@@ -138,15 +104,13 @@ class Chat:
                 PARAM_LOGIT_BIAS: logit_bias,
                 PARAM_USER: user,
                 PARAM_SEED: seed,
+                PARAM_TOOLS: tools,
                 PARAM_TOOL_CHOICE: tool_choice,
                 PARAM_RESPONSE_FORMAT: response_format,
                 **kwargs,
             }
 
-            # Remove None values
-            params = {k: v for k, v in params.items() if v is not None}
-
-            return self._client.chat.completions.create(**params)
+            return self._client.chat.completions.create(**clean_params(params))
 
         # Compatibility method
         def create_chat_completion(self, *args, **kwargs) -> Any:

@@ -1,6 +1,12 @@
 from typing import Optional, Dict, Any, List, Union
 from openai import AzureOpenAI
 from .types import MessageRole
+from .utils import (
+    clean_params, 
+    validate_metadata, 
+    validate_thread_id, 
+    validate_message_id
+)
 from .constants import (
     DEFAULT_MESSAGE_LIST_PARAMS,
     ERROR_INVALID_LIMIT,
@@ -9,10 +15,13 @@ from .constants import (
     LIST_LIMIT_RANGE,
     PARAM_AFTER,
     PARAM_BEFORE,
+    PARAM_CONTENT,
     PARAM_LIMIT,
     PARAM_MESSAGE_ID,
     PARAM_METADATA,
     PARAM_ORDER,
+    PARAM_ROLE,
+    PARAM_RUN_ID,
     PARAM_THREAD_ID,
 )
 
@@ -23,14 +32,30 @@ class Messages:
     def __init__(self, client: AzureOpenAI):
         self._client = client
 
-    def create(self, thread_id: str, role: MessageRole, content: str, **kwargs) -> Any:
+    def create(
+        self, 
+        thread_id: str, 
+        role: MessageRole, 
+        content: str, 
+        metadata: Optional[Dict[str, str]] = None,
+        **kwargs
+    ) -> Any:
         """Creates a message in a thread."""
-        if not thread_id:
-            raise ValueError(ERROR_INVALID_THREAD_ID)
+        validate_thread_id(thread_id, ERROR_INVALID_THREAD_ID)
 
-        return self._client.beta.threads.messages.create(
-            thread_id=thread_id, role=role, content=content, **kwargs
-        )
+        # Validate metadata if provided
+        if metadata:
+            validate_metadata(metadata)
+
+        params = {
+            PARAM_THREAD_ID: thread_id,
+            PARAM_ROLE: role,
+            PARAM_CONTENT: content,
+            PARAM_METADATA: metadata,
+            **kwargs
+        }
+
+        return self._client.beta.threads.messages.create(**clean_params(params))
 
     def list(
         self,
@@ -43,36 +68,35 @@ class Messages:
         **kwargs
     ) -> Any:
         """Returns a list of messages for a given thread."""
-        if not thread_id:
-            raise ValueError(ERROR_INVALID_THREAD_ID)
+        validate_thread_id(thread_id, ERROR_INVALID_THREAD_ID)
 
         if limit and limit not in LIST_LIMIT_RANGE:
             raise ValueError(ERROR_INVALID_LIMIT)
 
         params = {
-            "thread_id": thread_id,
+            PARAM_THREAD_ID: thread_id,
             PARAM_LIMIT: limit,
             PARAM_ORDER: order,
             PARAM_AFTER: after,
             PARAM_BEFORE: before,
-            "run_id": run_id,
+            PARAM_RUN_ID: run_id,
             **kwargs,
         }
-        params = {k: v for k, v in params.items() if v is not None}
 
-        return self._client.beta.threads.messages.list(**params)
+        return self._client.beta.threads.messages.list(**clean_params(params))
 
     def retrieve(self, thread_id: str, message_id: str, **kwargs) -> Any:
         """Retrieves a specific message from a thread."""
-        if not thread_id:
-            raise ValueError(ERROR_INVALID_THREAD_ID)
+        validate_thread_id(thread_id, ERROR_INVALID_THREAD_ID)
+        validate_message_id(message_id, ERROR_INVALID_MESSAGE_ID)
 
-        if not message_id:
-            raise ValueError(ERROR_INVALID_MESSAGE_ID)
+        params = {
+            PARAM_MESSAGE_ID: message_id,
+            PARAM_THREAD_ID: thread_id,
+            **kwargs
+        }
 
-        return self._client.beta.threads.messages.retrieve(
-            message_id=message_id, thread_id=thread_id, **kwargs
-        )
+        return self._client.beta.threads.messages.retrieve(**clean_params(params))
 
     def update(
         self,
@@ -82,11 +106,12 @@ class Messages:
         **kwargs
     ) -> Any:
         """Modifies a message."""
-        if not thread_id:
-            raise ValueError(ERROR_INVALID_THREAD_ID)
+        validate_thread_id(thread_id, ERROR_INVALID_THREAD_ID)
+        validate_message_id(message_id, ERROR_INVALID_MESSAGE_ID)
 
-        if not message_id:
-            raise ValueError(ERROR_INVALID_MESSAGE_ID)
+        # Validate metadata if provided
+        if metadata:
+            validate_metadata(metadata)
 
         params = {
             PARAM_MESSAGE_ID: message_id,
@@ -94,18 +119,21 @@ class Messages:
             PARAM_METADATA: metadata,
             **kwargs,
         }
-        params = {k: v for k, v in params.items() if v is not None}
 
-        return self._client.beta.threads.messages.update(**params)
+        return self._client.beta.threads.messages.update(**clean_params(params))
 
     def delete(self, thread_id: str, message_id: str, **kwargs) -> Any:
         """Deletes a message."""
-        if not message_id:
-            raise ValueError(ERROR_INVALID_MESSAGE_ID)
+        validate_thread_id(thread_id, ERROR_INVALID_THREAD_ID)
+        validate_message_id(message_id, ERROR_INVALID_MESSAGE_ID)
 
-        return self._client.beta.threads.messages.delete(
-            message_id=message_id, thread_id=thread_id, **kwargs
-        )
+        params = {
+            PARAM_MESSAGE_ID: message_id,
+            PARAM_THREAD_ID: thread_id,
+            **kwargs
+        }
+
+        return self._client.beta.threads.messages.delete(**clean_params(params))
 
     # Compatibility methods
     def create_message(self, *args, **kwargs) -> Any:
