@@ -1,3 +1,18 @@
+"""Azure OpenAI Assistants API wrapper.
+
+This module provides a wrapper for the Azure OpenAI Assistants API, offering methods
+to create, list, retrieve, update, and delete assistants.
+
+Typical usage example:
+    client = AOAIClient.create(...)
+    assistants = Assistants(client)
+    assistant = assistants.create(
+        model="gpt-4",
+        name="My Assistant",
+        instructions="You are a helpful assistant."
+    )
+"""
+
 from typing import Optional, List, Dict, Any
 from openai import AzureOpenAI
 from .utils import (
@@ -42,9 +57,21 @@ from .constants import (
 
 
 class Assistants:
-    """Assistant operations"""
+    """Manages Azure OpenAI Assistant operations.
+    
+    This class provides methods for creating, listing, retrieving, updating,
+    and deleting assistants in Azure OpenAI.
 
-    def __init__(self, client: AzureOpenAI):
+    Attributes:
+        _client: An instance of AzureOpenAI client.
+    """
+
+    def __init__(self, client: AzureOpenAI) -> None:
+        """Initializes the Assistants manager.
+
+        Args:
+            client: An instance of AzureOpenAI client.
+        """
         self._client = client
 
     def create(
@@ -61,7 +88,27 @@ class Assistants:
         tool_resources: Optional[Dict[str, Any]] = DEFAULT_TOOL_RESOURCES,
         **kwargs
     ) -> Any:
-        """Creates an assistant with specified configuration"""
+        """Creates an assistant with the specified configuration.
+
+        Args:
+            model: The model to use for the assistant.
+            name: The name of the assistant.
+            description: A description of the assistant's purpose.
+            instructions: Instructions for the assistant's behavior.
+            tools: List of tools available to the assistant.
+            metadata: Additional metadata for the assistant.
+            temperature: Sampling temperature between 0 and 2.
+            top_p: Nucleus sampling parameter between 0 and 1.
+            response_format: Format specification for responses.
+            tool_resources: Additional resources for tools.
+            **kwargs: Additional parameters to pass to the API.
+
+        Returns:
+            The created assistant object.
+
+        Raises:
+            ValueError: If any of the parameters fail validation.
+        """
         validate_assistant_name(name)
         validate_assistant_description(description)
         validate_assistant_instructions(instructions)
@@ -93,7 +140,20 @@ class Assistants:
         after: Optional[str] = DEFAULT_ASSISTANT_LIST_PARAMS[PARAM_AFTER],
         before: Optional[str] = DEFAULT_ASSISTANT_LIST_PARAMS[PARAM_BEFORE],
     ) -> Any:
-        """Lists assistants."""
+        """Lists available assistants.
+
+        Args:
+            limit: Maximum number of assistants to return.
+            order: Sort order for the results ('asc' or 'desc').
+            after: Return results after this assistant ID.
+            before: Return results before this assistant ID.
+
+        Returns:
+            A list of assistant objects.
+
+        Raises:
+            ValueError: If limit is outside the valid range.
+        """
         if limit and limit not in LIST_LIMIT_RANGE:
             raise ValueError(ERROR_INVALID_LIMIT)
 
@@ -107,7 +167,17 @@ class Assistants:
         return self._client.beta.assistants.list(**clean_params(params))
 
     def retrieve(self, assistant_id: str) -> Any:
-        """Retrieves an assistant by ID"""
+        """Retrieves an assistant by ID.
+
+        Args:
+            assistant_id: The ID of the assistant to retrieve.
+
+        Returns:
+            The assistant object.
+
+        Raises:
+            NotFoundError: If the assistant ID doesn't exist.
+        """
         return self._client.beta.assistants.retrieve(assistant_id)
 
     def update(
@@ -125,7 +195,29 @@ class Assistants:
         tool_resources: Optional[Dict[str, Any]] = None,
         **kwargs
     ) -> Any:
-        """Updates an existing assistant with validation"""
+        """Updates an existing assistant.
+
+        Args:
+            assistant_id: The ID of the assistant to update.
+            model: The model to use for the assistant.
+            name: The name of the assistant.
+            description: A description of the assistant's purpose.
+            instructions: Instructions for the assistant's behavior.
+            tools: List of tools available to the assistant.
+            metadata: Additional metadata for the assistant.
+            temperature: Sampling temperature between 0 and 2.
+            top_p: Nucleus sampling parameter between 0 and 1.
+            response_format: Format specification for responses.
+            tool_resources: Additional resources for tools.
+            **kwargs: Additional parameters to pass to the API.
+
+        Returns:
+            The updated assistant object.
+
+        Raises:
+            ValueError: If any of the parameters fail validation.
+            NotFoundError: If the assistant ID doesn't exist.
+        """
         validate_assistant_id(assistant_id)
         validate_assistant_name(name)
         validate_assistant_description(description)
@@ -152,26 +244,81 @@ class Assistants:
         return self._client.beta.assistants.update(assistant_id, **clean_params(params))
 
     def delete(self, assistant_id: str) -> Any:
-        """Deletes an assistant"""
+        """Deletes an assistant.
+
+        Args:
+            assistant_id: The ID of the assistant to delete.
+
+        Returns:
+            A deletion status object.
+
+        Raises:
+            NotFoundError: If the assistant ID doesn't exist.
+        """
         return self._client.beta.assistants.delete(assistant_id)
 
     # Compatibility methods
     def create_assistant(self, *args, **kwargs) -> Any:
-        """Compatibility method for create()"""
+        """Compatibility alias for create().
+
+        This method exists for backward compatibility.
+        See create() for full documentation.
+
+        Returns:
+            The created assistant object.
+        """
         return self.create(*args, **kwargs)
 
     def list_assistants(self, *args, **kwargs) -> Any:
-        """Compatibility method for list()"""
+        """Compatibility alias for list().
+
+        This method exists for backward compatibility.
+        See list() for full documentation.
+
+        Returns:
+            A list of assistant objects.
+        """
         return self.list(*args, **kwargs)
 
     def retrieve_assistant(self, assistant_id: str) -> Any:
-        """Compatibility method for retrieve()"""
+        """Compatibility alias for retrieve().
+
+        This method exists for backward compatibility.
+        See retrieve() for full documentation.
+
+        Args:
+            assistant_id: The ID of the assistant to retrieve.
+
+        Returns:
+            The assistant object.
+        """
         return self.retrieve(assistant_id)
 
     def update_assistant(self, assistant_id: str, **kwargs) -> Any:
-        """Compatibility method for update()"""
+        """Compatibility alias for update().
+
+        This method exists for backward compatibility.
+        See update() for full documentation.
+
+        Args:
+            assistant_id: The ID of the assistant to update.
+            **kwargs: Additional parameters to pass to update().
+
+        Returns:
+            The updated assistant object.
+        """
         return self.update(assistant_id, **kwargs)
 
     def delete_assistant(self, assistant_id: str) -> Any:
-        """Compatibility method for delete()"""
+        """Compatibility alias for delete().
+
+        This method exists for backward compatibility.
+        See delete() for full documentation.
+
+        Args:
+            assistant_id: The ID of the assistant to delete.
+
+        Returns:
+            A deletion status object.
+        """
         return self.delete(assistant_id)

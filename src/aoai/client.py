@@ -1,3 +1,22 @@
+"""Azure OpenAI Client wrapper for managing various API services.
+
+This module provides a unified client interface for Azure OpenAI services including
+assistants, chat, vector stores, threads, messages, and runs.
+
+Typical usage example:
+    client = AOAIClient.create(
+        api_key="your-api-key",
+        api_version="2024-02-15-preview",
+        azure_endpoint="https://your-resource.openai.azure.com"
+    )
+    
+    # Use various services
+    response = client.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": "Hello!"}]
+    )
+"""
+
 from openai import AzureOpenAI
 from typing import Optional, List, Dict, Any, Union
 from .assistants import Assistants
@@ -23,10 +42,27 @@ from .utils import (
 
 
 class AOAIClient:
-    """Azure OpenAI Client wrapper for managing assistants, threads, and vector stores."""
+    """Azure OpenAI Client wrapper for managing assistants, threads, and vector stores.
+    
+    This class provides a unified interface to various Azure OpenAI services and maintains
+    backward compatibility with the previous client implementation.
+
+    Attributes:
+        vector_stores: Interface for vector store operations.
+        assistants: Interface for assistant operations.
+        threads: Interface for thread operations.
+        chat: Interface for chat completion operations.
+        messages: Interface for message operations.
+        runs: Interface for run operations.
+        _client: The underlying AzureOpenAI client instance.
+    """
 
     def __init__(self, client: AzureOpenAI):
-        """Initialize with component classes."""
+        """Initialize the client with component services.
+
+        Args:
+            client: An instance of AzureOpenAI client.
+        """
         self._client = client
         self.vector_stores = VectorStores(client)
         self.assistants = Assistants(client)
@@ -37,30 +73,59 @@ class AOAIClient:
 
     @classmethod
     def create(
-        cls, api_key: str, api_version: str, azure_endpoint: str
+        cls, 
+        api_key: str, 
+        api_version: str, 
+        azure_endpoint: str
     ) -> "AOAIClient":
-        """Create a new AOAIClient instance with the given credentials."""
+        """Create a new AOAIClient instance with the given credentials.
+
+        Args:
+            api_key: Azure OpenAI API key.
+            api_version: API version to use.
+            azure_endpoint: Azure OpenAI endpoint URL.
+
+        Returns:
+            A new instance of AOAIClient.
+
+        Raises:
+            ValueError: If any of the credentials are invalid.
+        """
         validate_api_key(api_key)
         validate_api_version(api_version)
         validate_azure_endpoint(azure_endpoint)
 
         client = AzureOpenAI(
-            api_key=api_key, api_version=api_version, azure_endpoint=azure_endpoint
+            api_key=api_key,
+            api_version=api_version,
+            azure_endpoint=azure_endpoint
         )
         return cls(client)
 
     @property
     def client(self) -> AzureOpenAI:
-        """Access to underlying client if needed."""
+        """Access to underlying AzureOpenAI client if needed.
+
+        Returns:
+            The underlying AzureOpenAI client instance.
+        """
         return self._client
 
-    # Compatibility methods for the original AzureClientWrapper interface
+    # Vector Store compatibility methods
     def create_vector_store(self, *args, **kwargs) -> Any:
-        """Compatibility method for vector_stores.create()"""
+        """Create a new vector store.
+        
+        Compatibility method for vector_stores.create().
+        See VectorStores.create() for full documentation.
+        """
         return self.vector_stores.create(*args, **kwargs)
 
     def retrieve_vector_store(self, *args, **kwargs) -> Any:
-        """Compatibility method for vector_stores.retrieve()"""
+        """Retrieve a vector store by ID.
+        
+        Compatibility method for vector_stores.retrieve().
+        See VectorStores.retrieve() for full documentation.
+        """
         return self.vector_stores.retrieve(*args, **kwargs)
 
     def upload_files_to_vector_store(self, *args, **kwargs) -> Any:
@@ -160,19 +225,37 @@ class AOAIClient:
         return self.runs.cancel(*args, **kwargs)
 
     def submit_tool_outputs(self, *args, **kwargs) -> Any:
-        """Compatibility method for runs.submit_tool_outputs()"""
+        """Submit tool outputs for a run.
+        
+        Compatibility method for runs.submit_tool_outputs().
+        See Runs.submit_tool_outputs() for full documentation.
+        """
         return self.runs.submit_tool_outputs(*args, **kwargs)
 
     def create_thread_and_run(self, *args, **kwargs) -> Any:
-        """Compatibility method for threads.create_and_run()"""
+        """Create a thread and start a run.
+        
+        Compatibility method for threads.create_and_run().
+        See Threads.create_and_run() for full documentation.
+        """
         return self.threads.create_and_run(*args, **kwargs)
 
     def list_run_steps(self, *args, **kwargs) -> Any:
-        """Compatibility method for runs.steps.list()"""
+        """List steps for a run.
+        
+        Compatibility method for runs.steps.list().
+        See Runs.Steps.list() for full documentation.
+        """
         return self.runs.steps.list(*args, **kwargs)
 
     def retrieve_run_step(self, *args, **kwargs) -> Any:
-        """Compatibility method for runs.steps.retrieve()"""
+        """Retrieve a specific run step.
+        
+        Compatibility method for runs.steps.retrieve().
+        See Runs.Steps.retrieve() for full documentation.
+        """
         return self.runs.steps.retrieve(*args, **kwargs)
 
-AzureClientWrapper = AOAIClient  # Backward compatibility alias
+
+# Backward compatibility alias
+AzureClientWrapper = AOAIClient

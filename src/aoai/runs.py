@@ -1,3 +1,18 @@
+"""Azure OpenAI Run operations.
+
+This module provides functionality for managing runs within threads, including
+creation, retrieval, listing, updating, and streaming of runs. Runs represent
+the execution of an assistant's instructions within a thread.
+
+Typical usage example:
+    client = AOAIClient.create(...)
+    runs = Runs(client)
+    run = runs.create(
+        thread_id="thread_123",
+        assistant_id="asst_abc"
+    )
+"""
+
 from typing import Optional, List, Dict, Any, Union
 from openai import AzureOpenAI, AssistantEventHandler
 from .types import TruncationStrategy
@@ -33,19 +48,44 @@ from .steps import RunSteps
 
 
 class Runs:
-    """Run operations"""
+    """Manages run operations in Azure OpenAI.
+    
+    This class provides methods for creating, listing, retrieving, updating,
+    and managing runs within threads. Runs represent the execution of an
+    assistant's instructions.
+
+    Attributes:
+        _client: An instance of AzureOpenAI client.
+        steps: An instance of RunSteps for managing run steps.
+    """
 
     def __init__(self, client: AzureOpenAI):
+        """Initialize the Runs manager.
+
+        Args:
+            client: An instance of AzureOpenAI client.
+        """
         self._client = client
         self.steps = RunSteps(client)
 
     def create(self, thread_id: str, assistant_id: str, **kwargs) -> Any:
-        """Creates a run."""
+        """Creates a new run in a thread.
+
+        Args:
+            thread_id: The ID of the thread to create the run in.
+            assistant_id: The ID of the assistant to use for the run.
+            **kwargs: Additional parameters including temperature and top_p.
+
+        Returns:
+            The created run object.
+
+        Raises:
+            ValueError: If thread_id or assistant_id is invalid, or if temperature/top_p are out of range.
+        """
         validate_thread_id(thread_id, ERROR_INVALID_THREAD_ID)
         if not assistant_id:
             raise ValueError(ERROR_INVALID_ASSISTANT_ID)
 
-        # Validate temperature and top_p if provided
         if PARAM_TEMPERATURE in kwargs:
             validate_temperature(kwargs[PARAM_TEMPERATURE])
         if PARAM_TOP_P in kwargs:
@@ -66,7 +106,21 @@ class Runs:
         after: Optional[str] = DEFAULT_RUN_LIST_PARAMS[PARAM_AFTER],
         before: Optional[str] = DEFAULT_RUN_LIST_PARAMS[PARAM_BEFORE],
     ) -> Any:
-        """Returns a list of runs belonging to a thread."""
+        """Lists runs in a thread with pagination support.
+
+        Args:
+            thread_id: The ID of the thread to list runs from.
+            limit: Maximum number of runs to return.
+            order: Sort order for results.
+            after: Return results after this ID.
+            before: Return results before this ID.
+
+        Returns:
+            A list of run objects.
+
+        Raises:
+            ValueError: If thread_id is invalid or limit is outside valid range.
+        """
         validate_thread_id(thread_id, ERROR_INVALID_THREAD_ID)
         if limit and limit not in LIST_LIMIT_RANGE:
             raise ValueError(ERROR_INVALID_LIMIT)
@@ -82,7 +136,18 @@ class Runs:
         return self._client.beta.threads.runs.list(**clean_params(params))
 
     def retrieve(self, thread_id: str, run_id: str) -> Any:
-        """Retrieves a run."""
+        """Retrieves a specific run from a thread.
+
+        Args:
+            thread_id: The ID of the thread containing the run.
+            run_id: The ID of the run to retrieve.
+
+        Returns:
+            The run object.
+
+        Raises:
+            ValueError: If thread_id or run_id is invalid.
+        """
         validate_thread_id(thread_id, ERROR_INVALID_THREAD_ID)
         validate_run_id(run_id, ERROR_INVALID_RUN_ID)
 
@@ -91,7 +156,19 @@ class Runs:
         )
 
     def update(self, thread_id: str, run_id: str, metadata: Dict[str, str]) -> Any:
-        """Modifies a run."""
+        """Updates a run's metadata.
+
+        Args:
+            thread_id: The ID of the thread containing the run.
+            run_id: The ID of the run to update.
+            metadata: New metadata for the run.
+
+        Returns:
+            The updated run object.
+
+        Raises:
+            ValueError: If thread_id, run_id is invalid or metadata format is incorrect.
+        """
         validate_thread_id(thread_id, ERROR_INVALID_THREAD_ID)
         validate_run_id(run_id, ERROR_INVALID_RUN_ID)
         if metadata:
@@ -112,7 +189,20 @@ class Runs:
         tool_outputs: List[Dict[str, Any]],
         stream: Optional[bool] = None,
     ) -> Any:
-        """Submits outputs for tool calls."""
+        """Submits outputs for tool calls during a run.
+
+        Args:
+            thread_id: The ID of the thread containing the run.
+            run_id: The ID of the run.
+            tool_outputs: List of tool outputs to submit.
+            stream: Whether to stream the response.
+
+        Returns:
+            The updated run object.
+
+        Raises:
+            ValueError: If thread_id or run_id is invalid.
+        """
         validate_thread_id(thread_id, ERROR_INVALID_THREAD_ID)
         validate_run_id(run_id, ERROR_INVALID_RUN_ID)
 
@@ -121,7 +211,18 @@ class Runs:
         )
 
     def cancel(self, thread_id: str, run_id: str) -> Any:
-        """Cancels a run that is in_progress."""
+        """Cancels an in-progress run.
+
+        Args:
+            thread_id: The ID of the thread containing the run.
+            run_id: The ID of the run to cancel.
+
+        Returns:
+            The cancelled run object.
+
+        Raises:
+            ValueError: If thread_id or run_id is invalid.
+        """
         validate_thread_id(thread_id, ERROR_INVALID_THREAD_ID)
         validate_run_id(run_id, ERROR_INVALID_RUN_ID)
 
@@ -134,16 +235,26 @@ class Runs:
         event_handler: AssistantEventHandler,
         **run_params
     ) -> Any:
-        """Stream the result of executing a Run."""
+        """Streams the execution of a run.
+
+        Args:
+            thread_id: The ID of the thread.
+            assistant_id: The ID of the assistant.
+            event_handler: Handler for streaming events.
+            **run_params: Additional parameters for the run.
+
+        Returns:
+            The streaming response.
+
+        Raises:
+            ValueError: If thread_id or assistant_id is invalid.
+        """
         if not thread_id:
             raise ValueError(ERROR_INVALID_THREAD_ID)
         if not assistant_id:
             raise ValueError(ERROR_INVALID_ASSISTANT_ID)
 
-        # Remove run_id from run_params if present as it's not needed
         run_params.pop(PARAM_RUN_ID, None)
-
-        # Apply default run parameters
         default_params = DEFAULT_PARAMS["run"].copy()
         default_params.update(run_params)
 
@@ -157,18 +268,28 @@ class Runs:
     def create_thread_and_run(
         self, assistant_id: str, thread: Optional[Dict[str, Any]] = None, **run_params
     ) -> Any:
-        """Creates a thread and run in one operation."""
+        """Creates a thread and starts a run in one operation.
+
+        Args:
+            assistant_id: The ID of the assistant to use.
+            thread: Optional thread configuration.
+            **run_params: Additional parameters for the run.
+
+        Returns:
+            A tuple of (thread, run) objects.
+
+        Raises:
+            ValueError: If assistant_id is invalid.
+        """
         if not assistant_id:
             raise ValueError(ERROR_INVALID_ASSISTANT_ID)
 
-        # Create thread parameters, only including messages
         thread_params = (
             {PARAM_MESSAGES: thread.get(PARAM_MESSAGES, DEFAULT_THREAD_MESSAGES)}
             if thread
             else None
         )
 
-        # Apply default run parameters
         default_params = DEFAULT_PARAMS["run"].copy()
         default_params.update(run_params)
 
@@ -178,33 +299,81 @@ class Runs:
 
     # Compatibility methods
     def create_run(self, *args, **kwargs) -> Any:
-        """Compatibility method for create()"""
+        """Compatibility method for create().
+
+        See create() for full documentation.
+
+        Returns:
+            The created run object.
+        """
         return self.create(*args, **kwargs)
 
     def list_runs(self, *args, **kwargs) -> Any:
-        """Compatibility method for list()"""
+        """Compatibility method for list().
+
+        See list() for full documentation.
+
+        Returns:
+            A list of run objects.
+        """
         return self.list(*args, **kwargs)
 
     def retrieve_run(self, *args, **kwargs) -> Any:
-        """Compatibility method for retrieve()"""
+        """Compatibility method for retrieve().
+
+        See retrieve() for full documentation.
+
+        Returns:
+            The run object.
+        """
         return self.retrieve(*args, **kwargs)
 
     def update_run(self, *args, **kwargs) -> Any:
-        """Compatibility method for update()"""
+        """Compatibility method for update().
+
+        See update() for full documentation.
+
+        Returns:
+            The updated run object.
+        """
         return self.update(*args, **kwargs)
 
     def submit_tool_outputs_to_run(self, *args, **kwargs) -> Any:
-        """Compatibility method for submit_tool_outputs()"""
+        """Compatibility method for submit_tool_outputs().
+
+        See submit_tool_outputs() for full documentation.
+
+        Returns:
+            The updated run object.
+        """
         return self.submit_tool_outputs(*args, **kwargs)
 
     def cancel_run(self, *args, **kwargs) -> Any:
-        """Compatibility method for cancel()"""
+        """Compatibility method for cancel().
+
+        See cancel() for full documentation.
+
+        Returns:
+            The cancelled run object.
+        """
         return self.cancel(*args, **kwargs)
 
     def list_run_steps(self, *args, **kwargs) -> Any:
-        """Compatibility method for steps.list()"""
+        """Compatibility method for steps.list().
+
+        See RunSteps.list() for full documentation.
+
+        Returns:
+            A list of run step objects.
+        """
         return self.steps.list(*args, **kwargs)
 
     def retrieve_run_step(self, *args, **kwargs) -> Any:
-        """Compatibility method for steps.retrieve()"""
+        """Compatibility method for steps.retrieve().
+
+        See RunSteps.retrieve() for full documentation.
+
+        Returns:
+            The run step object.
+        """
         return self.steps.retrieve(*args, **kwargs)

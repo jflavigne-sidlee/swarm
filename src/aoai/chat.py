@@ -1,3 +1,17 @@
+"""Azure OpenAI Chat API wrapper.
+
+This module provides a wrapper for the Azure OpenAI Chat API, offering methods
+to create chat completions with various parameters and validation.
+
+Typical usage example:
+    client = AOAIClient.create(...)
+    chat = Chat(client)
+    response = chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": "Hello!"}]
+    )
+"""
+
 from typing import Optional, List, Dict, Any, Union
 from openai import AzureOpenAI
 from .utils import (
@@ -45,16 +59,41 @@ from .constants import (
 
 
 class Chat:
-    """Chat operations"""
+    """Manages Azure OpenAI Chat operations.
+    
+    This class provides access to chat completion functionality through
+    its nested Completions class.
+
+    Attributes:
+        _client: An instance of AzureOpenAI client.
+        completions: An instance of the Completions class for chat operations.
+    """
 
     def __init__(self, client: AzureOpenAI):
+        """Initializes the Chat manager.
+
+        Args:
+            client: An instance of AzureOpenAI client.
+        """
         self._client = client
         self.completions = self.Completions(client)
 
     class Completions:
-        """Chat completion operations"""
+        """Manages chat completion operations.
+
+        This nested class handles the creation of chat completions with
+        parameter validation and processing.
+
+        Attributes:
+            _client: An instance of AzureOpenAI client.
+        """
 
         def __init__(self, client: AzureOpenAI):
+            """Initializes the Completions manager.
+
+            Args:
+                client: An instance of AzureOpenAI client.
+            """
             self._client = client
 
         def create(
@@ -73,14 +112,37 @@ class Chat:
             user: Optional[str] = DEFAULT_USER,
             seed: Optional[int] = DEFAULT_SEED,
             tools: Optional[List[Dict[str, Any]]] = DEFAULT_CHAT_TOOLS,
-            tool_choice: Optional[
-                Union[str, Dict[str, Any]]
-            ] = DEFAULT_CHAT_TOOL_CHOICE,
+            tool_choice: Optional[Union[str, Dict[str, Any]]] = DEFAULT_CHAT_TOOL_CHOICE,
             response_format: Optional[Dict[str, str]] = DEFAULT_CHAT_RESPONSE_FORMAT,
             **kwargs
         ) -> Any:
-            """Creates a chat completion with validation."""
+            """Creates a chat completion with parameter validation.
 
+            Args:
+                model: The model to use for completion.
+                messages: List of message objects in the conversation.
+                temperature: Controls randomness in responses (0-2).
+                top_p: Controls diversity via nucleus sampling (0-1).
+                n: Number of completions to generate.
+                stream: Whether to stream responses.
+                stop: Sequences where the API will stop generating.
+                max_tokens: Maximum number of tokens to generate.
+                presence_penalty: Penalty for new token presence (-2 to 2).
+                frequency_penalty: Penalty for token frequency (-2 to 2).
+                logit_bias: Modifies likelihood of specific tokens appearing.
+                user: Unique identifier for the end-user.
+                seed: Random seed for deterministic results.
+                tools: List of tools available to the model.
+                tool_choice: Controls tool selection behavior.
+                response_format: Specifies the response format.
+                **kwargs: Additional parameters to pass to the API.
+
+            Returns:
+                The chat completion response from the API.
+
+            Raises:
+                ValueError: If any parameters fail validation.
+            """
             # Validate parameters using utility functions
             validate_temperature(temperature)
             validate_top_p(top_p)
@@ -89,7 +151,6 @@ class Chat:
             validate_n(n)
             validate_max_tokens(max_tokens)
 
-            # Combine all parameters using the correct parameter names
             params = {
                 PARAM_MODEL: model,
                 PARAM_MESSAGES: messages,
@@ -112,7 +173,13 @@ class Chat:
 
             return self._client.chat.completions.create(**clean_params(params))
 
-        # Compatibility method
         def create_chat_completion(self, *args, **kwargs) -> Any:
-            """Compatibility method for create()"""
+            """Compatibility alias for create().
+
+            This method exists for backward compatibility.
+            See create() for full documentation.
+
+            Returns:
+                The chat completion response from the API.
+            """
             return self.create(*args, **kwargs)

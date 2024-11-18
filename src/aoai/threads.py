@@ -1,3 +1,18 @@
+"""Azure OpenAI Thread operations.
+
+This module provides functionality for managing threads, including creation,
+retrieval, updating, deletion, and listing of threads. Threads serve as
+containers for messages and runs in conversations with assistants.
+
+Typical usage example:
+    client = AOAIClient.create(...)
+    threads = Threads(client)
+    thread = threads.create(
+        messages=[{"role": "user", "content": "Hello!"}],
+        metadata={"user_id": "123"}
+    )
+"""
+
 from typing import Optional, Dict, Any, List, Union
 from openai import AzureOpenAI
 from .constants import (
@@ -32,9 +47,23 @@ from .utils import (
 
 
 class Threads:
-    """Thread operations"""
+    """Manages thread operations in Azure OpenAI.
+    
+    This class provides methods for creating, retrieving, updating, and deleting
+    threads, as well as managing messages and runs within threads.
+
+    Attributes:
+        _client: An instance of AzureOpenAI client.
+        messages: Interface for message operations within threads.
+        runs: Interface for run operations within threads.
+    """
 
     def __init__(self, client: AzureOpenAI):
+        """Initialize the Threads manager.
+
+        Args:
+            client: An instance of AzureOpenAI client.
+        """
         self._client = client
         self.messages = Messages(client)
         self.runs = Runs(client)
@@ -46,13 +75,23 @@ class Threads:
         tool_resources: Optional[Dict[str, Any]] = DEFAULT_THREAD_TOOL_RESOURCES,
         **kwargs
     ) -> Any:
-        """Creates a thread."""
-        # Validate metadata if provided
-        if metadata:
-            validate_metadata(metadata, 
-                            max_pairs=MAX_THREAD_METADATA_PAIRS)
+        """Creates a new thread.
 
-        # Validate tool resources if provided
+        Args:
+            messages: Initial messages for the thread (default: DEFAULT_THREAD_MESSAGES).
+            metadata: Optional metadata for the thread (default: DEFAULT_THREAD_METADATA).
+            tool_resources: Optional tool configurations (default: DEFAULT_THREAD_TOOL_RESOURCES).
+            **kwargs: Additional parameters to pass to the API.
+
+        Returns:
+            The created thread object.
+
+        Raises:
+            ValueError: If metadata or tool_resources validation fails.
+        """
+        if metadata:
+            validate_metadata(metadata, max_pairs=MAX_THREAD_METADATA_PAIRS)
+
         validate_thread_tool_resources(
             tool_resources,
             max_code_interpreter_files=MAX_THREAD_CODE_INTERPRETER_FILES,
@@ -70,7 +109,17 @@ class Threads:
         return self._client.beta.threads.create(**clean_params(params))
 
     def retrieve(self, thread_id: str) -> Any:
-        """Retrieves a thread."""
+        """Retrieves a specific thread.
+
+        Args:
+            thread_id: The ID of the thread to retrieve.
+
+        Returns:
+            The thread object.
+
+        Raises:
+            ValueError: If thread_id is invalid.
+        """
         validate_thread_id(thread_id, ERROR_INVALID_THREAD_ID)
         return self._client.beta.threads.retrieve(thread_id)
 
@@ -81,15 +130,25 @@ class Threads:
         tool_resources: Optional[Dict[str, Any]] = None,
         **kwargs
     ) -> Any:
-        """Modifies a thread."""
+        """Updates a thread's metadata and tool resources.
+
+        Args:
+            thread_id: The ID of the thread to update.
+            metadata: Optional new metadata for the thread.
+            tool_resources: Optional new tool configurations.
+            **kwargs: Additional parameters to pass to the API.
+
+        Returns:
+            The updated thread object.
+
+        Raises:
+            ValueError: If thread_id is invalid or metadata/tool_resources validation fails.
+        """
         validate_thread_id(thread_id, ERROR_INVALID_THREAD_ID)
 
-        # Validate metadata if provided
         if metadata:
-            validate_metadata(metadata, 
-                            max_pairs=MAX_THREAD_METADATA_PAIRS)
+            validate_metadata(metadata, max_pairs=MAX_THREAD_METADATA_PAIRS)
 
-        # Validate tool resources if provided
         validate_thread_tool_resources(
             tool_resources,
             max_code_interpreter_files=MAX_THREAD_CODE_INTERPRETER_FILES,
@@ -106,7 +165,17 @@ class Threads:
         return self._client.beta.threads.update(thread_id, **clean_params(params))
 
     def delete(self, thread_id: str) -> Any:
-        """Deletes a thread."""
+        """Deletes a thread.
+
+        Args:
+            thread_id: The ID of the thread to delete.
+
+        Returns:
+            A deletion status object.
+
+        Raises:
+            ValueError: If thread_id is invalid.
+        """
         validate_thread_id(thread_id, ERROR_INVALID_THREAD_ID)
         return self._client.beta.threads.delete(thread_id)
 
@@ -117,7 +186,20 @@ class Threads:
         after: Optional[str] = DEFAULT_THREAD_LIST_PARAMS[PARAM_AFTER],
         before: Optional[str] = DEFAULT_THREAD_LIST_PARAMS[PARAM_BEFORE],
     ) -> Any:
-        """Returns a list of threads."""
+        """Lists threads with pagination support.
+
+        Args:
+            limit: Maximum number of threads to return (default: from DEFAULT_THREAD_LIST_PARAMS).
+            order: Sort order for results (default: from DEFAULT_THREAD_LIST_PARAMS).
+            after: Return results after this ID (default: from DEFAULT_THREAD_LIST_PARAMS).
+            before: Return results before this ID (default: from DEFAULT_THREAD_LIST_PARAMS).
+
+        Returns:
+            A list of thread objects.
+
+        Raises:
+            ValueError: If limit is outside valid range.
+        """
         if limit and limit not in LIST_LIMIT_RANGE:
             raise ValueError(ERROR_INVALID_LIMIT)
 
@@ -133,21 +215,51 @@ class Threads:
 
     # Compatibility methods
     def create_thread(self, *args, **kwargs) -> Any:
-        """Compatibility method for create()"""
+        """Compatibility method for create().
+
+        See create() for full documentation.
+
+        Returns:
+            The created thread object.
+        """
         return self.create(*args, **kwargs)
 
     def retrieve_thread(self, thread_id: str) -> Any:
-        """Compatibility method for retrieve()"""
+        """Compatibility method for retrieve().
+
+        See retrieve() for full documentation.
+
+        Returns:
+            The thread object.
+        """
         return self.retrieve(thread_id)
 
     def update_thread(self, thread_id: str, **kwargs) -> Any:
-        """Compatibility method for update()"""
+        """Compatibility method for update().
+
+        See update() for full documentation.
+
+        Returns:
+            The updated thread object.
+        """
         return self.update(thread_id, **kwargs)
 
     def delete_thread(self, thread_id: str) -> Any:
-        """Compatibility method for delete()"""
+        """Compatibility method for delete().
+
+        See delete() for full documentation.
+
+        Returns:
+            A deletion status object.
+        """
         return self.delete(thread_id)
 
     def list_threads(self, *args, **kwargs) -> Any:
-        """Compatibility method for list()"""
+        """Compatibility method for list().
+
+        See list() for full documentation.
+
+        Returns:
+            A list of thread objects.
+        """
         return self.list(*args, **kwargs)

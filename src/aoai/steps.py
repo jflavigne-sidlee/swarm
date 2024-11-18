@@ -1,3 +1,18 @@
+"""Azure OpenAI Run Steps operations.
+
+This module provides functionality for managing run steps within threads and runs,
+including listing and retrieving individual steps. Run steps represent the detailed
+execution stages of an assistant's run.
+
+Typical usage example:
+    client = AOAIClient.create(...)
+    run_steps = RunSteps(client)
+    steps = run_steps.list(
+        thread_id="thread_123",
+        run_id="run_abc"
+    )
+"""
+
 from typing import Optional, Any
 from openai import AzureOpenAI
 from .utils import (
@@ -23,9 +38,21 @@ from .constants import (
 
 
 class RunSteps:
-    """Run step operations"""
+    """Manages run step operations in Azure OpenAI.
+    
+    This class provides methods for listing and retrieving run steps, which represent
+    the individual stages of execution within a run.
+
+    Attributes:
+        _client: An instance of AzureOpenAI client.
+    """
 
     def __init__(self, client: AzureOpenAI):
+        """Initialize the RunSteps manager.
+
+        Args:
+            client: An instance of AzureOpenAI client.
+        """
         self._client = client
 
     def list(
@@ -37,7 +64,22 @@ class RunSteps:
         after: Optional[str] = DEFAULT_RUN_STEP_LIST_PARAMS[PARAM_AFTER],
         before: Optional[str] = DEFAULT_RUN_STEP_LIST_PARAMS[PARAM_BEFORE],
     ) -> Any:
-        """Returns a list of run steps belonging to a run."""
+        """Lists run steps in a run with pagination support.
+
+        Args:
+            thread_id: The ID of the thread containing the run.
+            run_id: The ID of the run to list steps from.
+            limit: Maximum number of steps to return (default: from DEFAULT_RUN_STEP_LIST_PARAMS).
+            order: Sort order for results (default: from DEFAULT_RUN_STEP_LIST_PARAMS).
+            after: Return results after this ID (default: from DEFAULT_RUN_STEP_LIST_PARAMS).
+            before: Return results before this ID (default: from DEFAULT_RUN_STEP_LIST_PARAMS).
+
+        Returns:
+            A list of run step objects.
+
+        Raises:
+            ValueError: If thread_id or run_id is invalid, or if limit is outside valid range.
+        """
         validate_thread_id(thread_id, ERROR_INVALID_THREAD_ID)
         validate_run_id(run_id, ERROR_INVALID_RUN_ID)
         if limit and limit not in LIST_LIMIT_RANGE:
@@ -55,7 +97,19 @@ class RunSteps:
         return self._client.beta.threads.runs.steps.list(**clean_params(params))
 
     def retrieve(self, thread_id: str, run_id: str, step_id: str) -> Any:
-        """Retrieves a run step."""
+        """Retrieves a specific run step.
+
+        Args:
+            thread_id: The ID of the thread containing the run.
+            run_id: The ID of the run containing the step.
+            step_id: The ID of the step to retrieve.
+
+        Returns:
+            The run step object.
+
+        Raises:
+            ValueError: If thread_id, run_id, or step_id is invalid.
+        """
         validate_thread_id(thread_id, ERROR_INVALID_THREAD_ID)
         validate_run_id(run_id, ERROR_INVALID_RUN_ID)
         validate_step_id(step_id, ERROR_INVALID_STEP_ID)
