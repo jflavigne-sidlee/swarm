@@ -6,24 +6,24 @@ from .config import FileSearchConfig
 from .constants import SUPPORTED_MIME_TYPES
 from .errors import FileSearchErrors as Errors
 from .exceptions import FileValidationError, VectorStoreError
-from .azure_client import AzureClientWrapper
+from .aoai.client import AOAIClient
 
 class FileManager:
     """Manages file uploads for Azure OpenAI Assistants."""
     
     def __init__(
         self, 
-        azure_client: AzureClientWrapper, 
+        azure_client: AOAIClient, 
         config: Optional[FileSearchConfig] = None
     ) -> None:
-        """Initialize FileManager with an Azure client wrapper and optional config.
+        """Initialize FileManager with an Azure OpenAI client and optional config.
         
         Args:
-            azure_client: An instance of AzureClientWrapper (not raw AzureOpenAI client)
+            azure_client: An instance of AOAIClient (Azure OpenAI client wrapper)
             config: Optional configuration for file search
         """
-        if not isinstance(azure_client, AzureClientWrapper):
-            raise TypeError("azure_client must be an instance of AzureClientWrapper")
+        if not isinstance(azure_client, AOAIClient):
+            raise TypeError("azure_client must be an instance of AOAIClient")
         self.client = azure_client
         self.config = config or FileSearchConfig()
     

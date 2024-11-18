@@ -1,6 +1,8 @@
 """Utility functions for Azure OpenAI operations."""
 
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, IO
+from typing.io import IO
+from io import BufferedReader, TextIOWrapper
 from .constants import (
     ERROR_API_KEY_REQUIRED,
     ERROR_API_KEY_TYPE,
@@ -116,8 +118,8 @@ def validate_files(files: Optional[list]) -> None:
         raise ValueError("Files list cannot be empty")
     if not isinstance(files, list):
         raise ValueError("Files must be provided as a list")
-    if not all(isinstance(f, (str, bytes, dict)) for f in files):
-        raise ValueError("Each file must be a string path, bytes, or file object")
+    if not all(isinstance(f, (str, bytes, dict, BufferedReader, TextIOWrapper)) for f in files):
+        raise ValueError("Each file must be a string path, bytes, file object, or dict")
 
 
 def validate_thread_id(

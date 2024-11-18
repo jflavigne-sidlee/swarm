@@ -5,7 +5,7 @@ from .types import ContextVariables
 from .config import FileSearchConfig
 from .errors import FileSearchErrors as Errors
 from .exceptions import AssistantError
-from .aoai.client import AOAIClient as AzureClientWrapper
+from .aoai.client import AOAIClient
 from .aoai.types import RunStatus, MessageRole
 from .handlers import FileSearchEventHandler
 
@@ -14,7 +14,7 @@ class AssistantManager:
     
     def __init__(
         self, 
-        azure_client: AzureClientWrapper, 
+        azure_client: AOAIClient, 
         config: Optional[FileSearchConfig] = None
     ) -> None:
         self.client = azure_client
