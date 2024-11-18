@@ -2,7 +2,7 @@ from dotenv import load_dotenv
 import os
 import pytest
 from pathlib import Path
-from src.aoai.client import AOAIClient as AzureClientWrapper
+from src.aoai.client import AOAIClient
 from src.config import FileSearchConfig
 from src.file_manager import FileManager
 from src.assistant_manager import AssistantManager
@@ -29,8 +29,8 @@ TEST_CONFIG = FileSearchConfig(
 
 @pytest.fixture(scope="session")
 def azure_client():
-    """Creates an Azure OpenAI client wrapper for testing."""
-    return AzureClientWrapper.create(
+    """Creates an Azure OpenAI client for testing."""
+    return AOAIClient.create(
         api_key=os.getenv("AZURE_OPENAI_API_KEY"),
         # api_version="2024-05-01-preview",
         api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
@@ -62,7 +62,7 @@ def setup_test_environment():
 
 @pytest.fixture(scope="session")
 def file_manager(azure_client):
-    """Creates a FileManager instance with the wrapped client."""
+    """Creates a FileManager instance."""
     return FileManager(azure_client)
 
 @pytest.fixture

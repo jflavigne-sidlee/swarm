@@ -1,7 +1,6 @@
 """Utility functions for Azure OpenAI operations."""
 
 from typing import Dict, Any, Optional, List, IO
-from typing.io import IO
 from io import BufferedReader, TextIOWrapper
 from .constants import (
     ERROR_API_KEY_REQUIRED,

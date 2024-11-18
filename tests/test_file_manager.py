@@ -1,21 +1,22 @@
 import pytest
 from pathlib import Path
 import os
-from src.azure_client import AzureClientWrapper
+from src.aoai.client import AOAIClient
 from src.file_manager import FileManager
+
 
 def test_file_upload(setup_test_environment):
     """Test file upload functionality."""
-    client = AzureClientWrapper.create(
+    ai_client = AOAIClient.create(
         api_key=os.getenv("AZURE_OPENAI_API_KEY"),
         api_version="2024-05-01-preview",
-        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
+        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
     )
-    
-    file_manager = FileManager(client)
-    print("\n" + "="*80)
+
+    file_manager = FileManager(ai_client)
+    print("\n" + "=" * 80)
     print("Starting File Upload Test")
-    print("="*80)
+    print("=" * 80)
 
     try:
         print("✓ File manager initialized")
@@ -25,8 +26,7 @@ def test_file_upload(setup_test_environment):
         }
 
         vector_store_id = file_manager.upload_file(
-            setup_test_environment["test_file_path"], 
-            context_variables
+            setup_test_environment["test_file_path"], context_variables
         )
         print(f"✓ File uploaded: {vector_store_id}")
         assert vector_store_id is not None
