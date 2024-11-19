@@ -10,10 +10,33 @@ import logging
 from .base import ModelConfig, ModelProvider, ModelCapabilities
 from .providers.azure import AZURE_MODELS, get_azure_model
 from .providers.openai import OPENAI_MODELS, get_openai_model
+from .constants import (
+    ENV_AZURE_DEPLOYMENT_OVERRIDE,
+    ENV_AZURE_DEPLOYMENT_PREFIX,
+    PROVIDER_PATH_SEPARATOR,
+    ERROR_VISION_MIME_TYPES,
+    ERROR_INVALID_PROVIDER,
+    ERROR_PROVIDER_TYPE,
+    ERROR_MODEL_NOT_FOUND,
+    ERROR_AMBIGUOUS_MODEL,
+    ERROR_DEPLOYMENT_CONFLICT,
+    ERROR_DEPLOYMENT_NAME_CONFLICT,
+    ERROR_UNKNOWN_CAPABILITY,
+    WARNING_DEPLOYMENT_CONFLICT,
+    LOG_PROVIDER_CONVERSION,
+)
 
 
 class ModelRegistry:
-    """Central registry for all AI model configurations."""
+    """
+    Central registry for managing AI model configurations.
+    
+    This class handles:
+    - Loading and storing model configurations
+    - Environment-based deployment overrides
+    - Model validation and capability checking
+    - Provider-specific model management
+    """
     VALID_CAPABILITIES = list(ModelCapabilities.__annotations__.keys())
     
     def __init__(self):
@@ -31,10 +54,17 @@ class ModelRegistry:
     def _get_model_deployment_config(self, model_name: str) -> tuple[Optional[str], Optional[str]]:
         """
         Get deployment configuration from environment variables.
-        Returns a tuple of (model_specific_deployment, global_override)
+        
+        Args:
+            model_name: Name of the model to get deployment config for
+            
+        Returns:
+            tuple: (model_specific_deployment, global_override)
+                - model_specific_deployment: Value from AZURE_DEPLOYMENT_{MODEL_NAME}
+                - global_override: Value from AZURE_DEPLOYMENT_OVERRIDE
         """
-        specific_deployment = os.getenv(f"AZURE_DEPLOYMENT_{model_name.upper().replace('-', '_')}")
-        global_override = os.getenv("AZURE_DEPLOYMENT_OVERRIDE")
+        specific_deployment = os.getenv(f"{ENV_AZURE_DEPLOYMENT_PREFIX}{model_name.upper().replace('-', '_')}")
+        global_override = os.getenv(ENV_AZURE_DEPLOYMENT_OVERRIDE)
         return specific_deployment, global_override
 
     def _get_deployment_override(self, model_name: str) -> Optional[str]:
@@ -43,7 +73,16 @@ class ModelRegistry:
         return specific_deployment
 
     def _create_overridden_config(self, base_config: ModelConfig, deployment_name: str) -> ModelConfig:
-        """Create a new ModelConfig with an overridden deployment name."""
+        """
+        Create a new ModelConfig with an overridden deployment name.
+        
+        Args:
+            base_config: Original model configuration
+            deployment_name: New deployment name to use
+            
+        Returns:
+            ModelConfig: New configuration with updated deployment name
+        """
         return ModelConfig(
             name=base_config.name,
             provider=self._ensure_model_provider(base_config).provider,
@@ -65,11 +104,22 @@ class ModelRegistry:
                 self._models[f"azure/{name}"] = overridden_config
 
     def _ensure_model_provider(self, model: ModelConfig) -> ModelConfig:
-        """Ensure the model provider is a valid ModelProvider enum."""
+        """
+        Ensure the model provider is a valid ModelProvider enum.
+        
+        Args:
+            model: The model configuration to validate
+            
+        Returns:
+            ModelConfig: Either the original model or a new instance with converted provider
+            
+        Raises:
+            ValueError: If the provider is invalid or of wrong type
+        """
         if isinstance(model.provider, str):
             try:
                 provider = ModelProvider(model.provider)
-                # Create a new instance instead of modifying the frozen one
+                logging.info(LOG_PROVIDER_CONVERSION.format(provider=provider))
                 return ModelConfig(
                     name=model.name,
                     provider=provider,
@@ -80,13 +130,24 @@ class ModelRegistry:
                     version=model.version,
                 )
             except ValueError:
-                raise ValueError(f"Invalid provider '{model.provider}'. Must be one of {list(ModelProvider)}.")
+                raise ValueError(ERROR_INVALID_PROVIDER.format(
+                    provider=model.provider,
+                    valid_providers=list(ModelProvider)
+                ))
         elif not isinstance(model.provider, ModelProvider):
-            raise ValueError(f"Provider must be a ModelProvider enum. Got: {type(model.provider)}")
+            raise ValueError(ERROR_PROVIDER_TYPE.format(provider_type=type(model.provider)))
         return model
 
     def add_model(self, model: ModelConfig) -> None:
-        """Add a model to the registry."""
+        """
+        Add a model to the registry.
+        
+        Args:
+            model: Model configuration to add
+            
+        Raises:
+            ValueError: If model configuration is invalid or conflicts exist
+        """
         # print(f"Adding model: {model.name}, built-in: {model.name in self._built_in_models}")
         
         # Validate the model configuration first
@@ -103,8 +164,10 @@ class ModelRegistry:
             ]
             if existing:
                 raise ValueError(
-                    f"Deployment name conflict: {model.deployment_name} "
-                    f"already used by {existing[0].name}"
+                    ERROR_DEPLOYMENT_NAME_CONFLICT.format(
+                        deployment_name=model.deployment_name,
+                        existing_model=existing[0].name
+                    )
                 )
 
         # Mark model as built-in if it is part of the preloaded models
@@ -118,7 +181,19 @@ class ModelRegistry:
     def get_model(
         self, name: str, provider: Optional[ModelProvider] = None
     ) -> ModelConfig:
-        """Get a model by name and optional provider."""
+        """
+        Get a model by name and optional provider.
+        
+        Args:
+            name: Model name or full path (provider/name)
+            provider: Optional provider to disambiguate model selection
+            
+        Returns:
+            ModelConfig: The requested model configuration
+            
+        Raises:
+            ValueError: If model not found or name is ambiguous
+        """
         # Handle full paths (provider/name format)
         if "/" in name:
             provider_name, model_name = name.split("/", 1)
@@ -127,7 +202,10 @@ class ModelRegistry:
             except ValueError:
                 available = sorted(self._models.keys())
                 raise ValueError(
-                    f"Invalid provider '{provider_name}'. Available models: {', '.join(available)}"
+                    ERROR_MODEL_NOT_FOUND.format(
+                        name=name,
+                        available=available
+                    )
                 )
             return self.get_model(model_name, provider)
 
@@ -135,7 +213,7 @@ class ModelRegistry:
         if provider:
             if not isinstance(provider, ModelProvider):
                 raise ValueError(
-                    f"Invalid provider type: {type(provider)}. Expected ModelProvider enum."
+                    ERROR_PROVIDER_TYPE.format(provider_type=type(provider))
                 )
             key = f"{provider.value}/{name}"
             if key not in self._models:
@@ -143,7 +221,10 @@ class ModelRegistry:
                     m for m in self._models.keys() if m.startswith(f"{provider.value}/")
                 ]
                 raise ValueError(
-                    f"Model '{name}' not found for provider '{provider.value}'. Available models: {', '.join(available)}"
+                    ERROR_MODEL_NOT_FOUND.format(
+                        name=name,
+                        available=available
+                    )
                 )
             return self._models[key]
 
@@ -152,7 +233,10 @@ class ModelRegistry:
         if not matches:
             available = sorted(self._models.keys())
             raise ValueError(
-                f"Model not found: '{name}'. Available models: {', '.join(available)}"
+                ERROR_MODEL_NOT_FOUND.format(
+                    name=name,
+                    available=available
+                )
             )
         if len(matches) > 1:
             conflict_details = "\n".join([
@@ -160,20 +244,34 @@ class ModelRegistry:
                 for m in matches
             ])
             raise ValueError(
-                f"Ambiguous model name '{name}'. Found multiple matches:\n"
-                f"{conflict_details}\n"
-                "Please specify the provider using <provider>/<name>."
+                ERROR_AMBIGUOUS_MODEL.format(
+                    name=name,
+                    conflict_details=conflict_details
+                )
             )
         return matches[0]
 
     def validate_model_config(self, config: ModelConfig):
-        """Validate model configuration."""
+        """
+        Validate model configuration for correctness and consistency.
+        
+        Checks:
+        - MIME type support for vision models
+        - Azure deployment name conflicts
+        - Built-in model overrides
+        
+        Args:
+            config: Model configuration to validate
+            
+        Raises:
+            ValueError: If validation fails
+        """
         # Built-in model check
         is_built_in = config in AZURE_MODELS.values() or config in OPENAI_MODELS.values()
 
         # Validate MIME types for vision models
         if config.capabilities.vision and not config.supported_mime_types:
-            raise ValueError(f"Vision models must support image MIME types: {config.name}")
+            raise ValueError(ERROR_VISION_MIME_TYPES.format(model_name=config.name))
 
         # Azure deployment name validation
         if config.provider == ModelProvider.AZURE:
@@ -182,20 +280,38 @@ class ModelRegistry:
             if specific_deployment and global_override and specific_deployment != global_override:
                 if is_built_in:
                     logging.warning(
-                        f"Conflict detected for built-in model {config.name}. "
-                        f"Using {specific_deployment} over override={global_override}."
+                        WARNING_DEPLOYMENT_CONFLICT.format(
+                            name=config.name,
+                            specific=specific_deployment,
+                            override=global_override
+                        )
                     )
                 else:
                     raise ValueError(
-                        f"Conflicting deployment names for {config.name}: "
-                        f"deployment={specific_deployment}, override={global_override}. "
-                        "Please resolve this conflict before adding the model."
+                        ERROR_DEPLOYMENT_CONFLICT.format(
+                            name=config.name,
+                            specific=specific_deployment,
+                            override=global_override
+                        )
                     )
 
     def list_models(
         self, provider: Optional[ModelProvider] = None, capability: Optional[Union[str, Callable]] = None
     ) -> List[ModelConfig]:
-        """List models filtered by provider and/or capability."""
+        """
+        List models filtered by provider and/or capability.
+        
+        Args:
+            provider: Optional provider to filter by
+            capability: Either a capability name or a callable that takes
+                       ModelCapabilities and returns bool
+            
+        Returns:
+            List[ModelConfig]: Filtered list of model configurations
+            
+        Raises:
+            ValueError: If provider or capability is invalid
+        """
         models = list(self._models.values())
 
         # Filter by provider if specified
@@ -212,7 +328,7 @@ class ModelRegistry:
             else:
                 # Validate capability name
                 if capability not in self.VALID_CAPABILITIES:
-                    raise ValueError(f"Unknown capability: {capability}")
+                    raise ValueError(ERROR_UNKNOWN_CAPABILITY.format(capability=capability))
                 # Filter models by the specified capability
                 models = [m for m in models if getattr(m.capabilities, capability, False)]
 
