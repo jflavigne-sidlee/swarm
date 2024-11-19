@@ -12,7 +12,6 @@ def test_openai_model_configurations():
     
     # Test vision model capabilities
     vision = get_openai_model("gpt-4-vision-preview")
-    assert vision.capabilities.vision == True
     assert vision.capabilities.supports_vision == True
     assert "image/jpeg" in vision.supported_mime_types
     
@@ -23,7 +22,7 @@ def test_openai_model_configurations():
     
     # Test DALL-E
     dalle = get_openai_model("dall-e-3")
-    assert dalle.capabilities.vision == False
+    assert dalle.capabilities.supports_vision == False
     assert dalle.supported_mime_types == ["image/png"]
     
     # Test invalid model name
@@ -37,7 +36,7 @@ def test_all_openai_models_valid():
         assert config.provider == ModelProvider.OPENAI
         assert config.capabilities.max_context_tokens > 0
         
-        if config.capabilities.vision:
+        if config.capabilities.supports_vision:
             assert config.supported_mime_types is not None
             assert "image/jpeg" in config.supported_mime_types
             

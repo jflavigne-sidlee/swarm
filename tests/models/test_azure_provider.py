@@ -12,7 +12,6 @@ def test_azure_model_configurations():
     
     # Test vision model capabilities (using gpt-4o which has vision capability)
     vision = get_azure_model("gpt-4o")
-    assert vision.capabilities.vision is True
     assert vision.capabilities.supports_vision is True
     assert "image/jpeg" in vision.supported_mime_types
     

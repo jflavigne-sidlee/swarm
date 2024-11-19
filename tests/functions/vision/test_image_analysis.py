@@ -149,6 +149,6 @@ def test_encode_image_to_base64(test_images: List[Path]) -> None:
 def test_model_capabilities_access() -> None:
     """Test access to model capabilities."""
     model = get_model("gpt-4o", provider=ModelProvider.AZURE)
-    assert model.capabilities.vision is True
+    assert model.capabilities.supports_vision is True
     assert isinstance(model.capabilities.max_output_tokens, int)
     assert model.supported_mime_types is not None

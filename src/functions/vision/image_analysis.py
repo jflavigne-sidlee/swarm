@@ -142,7 +142,7 @@ async def analyze_images(
         raise ImageValidationError(f"Invalid model configuration: {e}")
 
     # Validate model capabilities
-    if not model_config.capabilities.vision:
+    if not model_config.capabilities.supports_vision:
         raise ImageValidationError(
             f"Model {model_config.name} does not support vision capabilities"
         )
@@ -233,7 +233,7 @@ async def interpretImageSet(
         raise ImageValidationError(f"Invalid model configuration: {e}")
 
     # Validate model capabilities
-    if not model_config.capabilities.vision:
+    if not model_config.capabilities.supports_vision:
         raise ImageValidationError(
             f"Model {model_config.name} does not support vision capabilities"
         )

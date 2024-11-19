@@ -10,7 +10,7 @@ class ModelProvider(str, Enum):
 
 class ModelCapabilities(BaseModel):
     """Defines what a model can do and its limitations."""
-    vision: bool = False
+    #vision: bool = False
     embedding: bool = False
     chat: bool = False
     image_generation: bool = False
@@ -82,7 +82,7 @@ class ModelConfig(BaseModel):
     @model_validator(mode='after')
     def validate_mime_types(self) -> 'ModelConfig':
         """Validate MIME types for vision models."""
-        if self.capabilities.vision and not self.supported_mime_types:
+        if self.capabilities.supports_vision and not self.supported_mime_types:
             raise ValueError(
                 f"Vision models must support image MIME types: {self.name}"
             )

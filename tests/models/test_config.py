@@ -25,9 +25,9 @@ def test_model_registry_filtering():
     registry = ModelRegistry()
 
     # List all vision models
-    vision_models = registry.list_models(capability="vision")
+    vision_models = registry.list_models(capability="supports_vision")
     assert len(vision_models) > 0
-    assert all(m.capabilities.vision for m in vision_models)
+    assert all(m.capabilities.supports_vision for m in vision_models)
     assert all(isinstance(m.provider, ModelProvider) for m in vision_models)
 
     # List Azure models

@@ -20,7 +20,7 @@ class TestModelRegistryIntegration:
         vision_model = ModelConfig(
             name="test-vision",
             provider=ModelProvider.AZURE,
-            capabilities=ModelCapabilities(vision=True),
+            capabilities=ModelCapabilities(supports_vision=True),
             supported_mime_types=["image/jpeg"],
             description="Test vision model"
         )
@@ -36,9 +36,9 @@ class TestModelRegistryIntegration:
 
     def test_vision_model_integration(self):
         """Test vision model filtering and capabilities."""
-        vision_models = list_models(capability="vision")
+        vision_models = list_models(capability="supports_vision")
         assert len(vision_models) > 0
-        assert all(m.capabilities.vision for m in vision_models)
+        assert all(m.capabilities.supports_vision for m in vision_models)
         assert all(m.supported_mime_types for m in vision_models)
         assert all(isinstance(m.provider, ModelProvider) for m in vision_models)
 

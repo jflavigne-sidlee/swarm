@@ -276,7 +276,7 @@ class ModelRegistry:
         )
 
         # Validate MIME types for vision models
-        if config.capabilities.vision and not config.supported_mime_types:
+        if config.capabilities.supports_vision and not config.supported_mime_types:
             raise ValueError(ERROR_VISION_MIME_TYPES.format(model_name=config.name))
 
         # Azure deployment name validation
