@@ -31,5 +31,5 @@ def test_all_azure_models_valid():
     """Test that all defined Azure models have valid configurations."""
     for model_name, config in AZURE_MODELS.items():
         assert config.provider == ModelProvider.AZURE
-        if config.capabilities.chat:
+        if config.capabilities.supports_chat:
             assert config.capabilities.max_context_tokens > 0

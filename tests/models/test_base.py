@@ -8,13 +8,13 @@ class TestModelCapabilities:
     def test_chat_model_capabilities(self):
         """Test chat model capabilities configuration."""
         chat_caps = ModelCapabilities(
-            chat=True,
+            supports_chat=True,
             max_context_tokens=4096,
             max_output_tokens=1000,
             supports_functions=True,
             default_temperature=0.7,
         )
-        assert chat_caps.chat is True
+        assert chat_caps.supports_chat is True
         assert chat_caps.max_context_tokens == 4096
         assert chat_caps.supports_embedding is False  # Default false
 
@@ -71,14 +71,14 @@ class TestModelCapabilities:
         """Test token validation logic."""
         # Valid token configuration
         valid_caps = ModelCapabilities(
-            chat=True, max_context_tokens=4096, max_output_tokens=2048
+            supports_chat=True, max_context_tokens=4096, max_output_tokens=2048
         )
         assert valid_caps.max_output_tokens == 2048
 
         # Invalid: output tokens > context tokens
         with pytest.raises(ValueError) as exc_info:
             ModelCapabilities(
-                chat=True, max_context_tokens=1000, max_output_tokens=2000
+                supports_chat=True, max_context_tokens=1000, max_output_tokens=2000
             )
         assert "cannot exceed max_context_tokens" in str(exc_info.value)
 
@@ -92,20 +92,20 @@ class TestModelCapabilities:
         """Test temperature validation."""
         # Valid temperature
         valid_temp = ModelCapabilities(
-            chat=True, max_context_tokens=1000, default_temperature=0.7
+            supports_chat=True, max_context_tokens=1000, default_temperature=0.7
         )
         assert valid_temp.default_temperature == 0.7
 
         # Invalid: temperature too high
         with pytest.raises(ValueError):
             ModelCapabilities(
-                chat=True, max_context_tokens=1000, default_temperature=2.5
+                supports_chat=True, max_context_tokens=1000, default_temperature=2.5
             )
 
         # Invalid: temperature negative
         with pytest.raises(ValueError):
             ModelCapabilities(
-                chat=True, max_context_tokens=1000, default_temperature=-0.1
+                supports_chat=True, max_context_tokens=1000, default_temperature=-0.1
             )
 
 
@@ -116,7 +116,7 @@ def test_model_config():
         name="gpt-4",
         deployment_name="my-gpt4",
         capabilities=ModelCapabilities(
-            chat=True, max_context_tokens=8192, max_output_tokens=4096
+            supports_chat=True, max_context_tokens=8192, max_output_tokens=4096
         ),
     )
 

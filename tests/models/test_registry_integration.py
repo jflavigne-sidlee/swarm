@@ -14,7 +14,7 @@ class TestModelRegistryIntegration:
         chat_model = ModelConfig(
             name="test-chat",
             provider=ModelProvider.AZURE,
-            capabilities=ModelCapabilities(chat=True, supports_streaming=True),
+            capabilities=ModelCapabilities(supports_chat=True, supports_streaming=True),
             description="Test chat model"
         )
         vision_model = ModelConfig(
@@ -29,9 +29,9 @@ class TestModelRegistryIntegration:
 
     def test_chat_model_integration(self):
         """Test chat model filtering and capabilities."""
-        chat_models = list_models(capability="chat")
+        chat_models = list_models(capability="supports_chat")
         assert len(chat_models) > 0
-        assert all(m.capabilities.chat for m in chat_models)
+        assert all(m.capabilities.supports_chat for m in chat_models)
         assert all(isinstance(m.provider, ModelProvider) for m in chat_models)
 
     def test_vision_model_integration(self):
@@ -59,11 +59,11 @@ class TestModelRegistryIntegration:
     def test_cross_capability_filtering(self):
         """Test filtering models by multiple capabilities."""
         chat_stream_models = self.registry.list_models(
-            capability=lambda c: c.chat and c.supports_streaming
+            capability=lambda c: c.supports_chat and c.supports_streaming
         )
         assert len(chat_stream_models) > 0
         assert all(
-            m.capabilities.chat and m.capabilities.supports_streaming
+            m.capabilities.supports_chat and m.capabilities.supports_streaming
             for m in chat_stream_models
         )
         assert all(isinstance(m.provider, ModelProvider) for m in chat_stream_models)
