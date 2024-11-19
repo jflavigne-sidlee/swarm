@@ -14,7 +14,7 @@ class ModelCapabilities(BaseModel):
     supports_chat: bool = False
     supports_image_generation: bool = False
     supports_speech_recognition: bool = False
-    speech_synthesis: bool = False
+    supports_speech_synthesis: bool = False
     max_context_tokens: Optional[int] = Field(
         None, 
         description="Maximum total tokens (prompt + completion)",

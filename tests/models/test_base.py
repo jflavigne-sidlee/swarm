@@ -58,13 +58,13 @@ class TestModelCapabilities:
         assert whisper_caps.supports_audio_input is True
 
         tts_caps = ModelCapabilities(
-            speech_synthesis=True,
+            supports_speech_synthesis=True,
             max_context_tokens=None,
             max_output_tokens=None,
             supports_streaming=True,
             supports_audio_output=True,
         )
-        assert tts_caps.speech_synthesis is True
+        assert tts_caps.supports_speech_synthesis is True
         assert tts_caps.supports_audio_output is True
 
     def test_token_validation(self):
