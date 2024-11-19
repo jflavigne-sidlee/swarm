@@ -11,6 +11,8 @@ from src.exceptions.models import (
     ModelProviderError,
     DeploymentNameError,
 )
+from src.aoai.client import AOAIClient
+from pathlib import Path  # Add this import
 
 
 class TestModelRegistryErrors:
