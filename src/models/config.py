@@ -167,10 +167,15 @@ class ModelRegistry:
                 f"Model not found: '{name}'. Available models: {', '.join(available)}"
             )
         if len(matches) > 1:
-            # Ensure we're using ModelProvider enum values
-            providers = sorted(f"{m.provider.value}/{m.name}" for m in matches)
+            # Create a detailed message showing each conflicting model and its provider
+            conflict_details = "\n".join([
+                f"  - {m.provider.value}: {m.name} ({m.description or 'No description'})"
+                for m in matches
+            ])
             raise ValueError(
-                f"Ambiguous model name '{name}'. Please specify provider. Found in: {', '.join(providers)}"
+                f"Ambiguous model name '{name}'. Found multiple matches:\n"
+                f"{conflict_details}\n"
+                f"Please specify provider using: <provider>/{name}"
             )
         return matches[0]
 

@@ -31,8 +31,8 @@ class TestModelRegistryErrors:
         with pytest.raises(ValueError) as exc_info:
             get_model("gpt-4")  # Exists in both Azure and OpenAI
         assert "Ambiguous model name" in str(exc_info.value)
-        assert "azure/gpt-4" in str(exc_info.value)
-        assert "openai/gpt-4" in str(exc_info.value)
+        assert "azure: gpt-4" in str(exc_info.value)
+        assert "openai: gpt-4" in str(exc_info.value)
 
     def test_invalid_capability_queries(self):
         """Test error handling for invalid capability queries."""

@@ -14,3 +14,12 @@ id_ed25519
 id_ed25519.pub
 *.key.pub
 .ssh/
+
+# macOS system files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
