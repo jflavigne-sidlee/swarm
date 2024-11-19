@@ -4,7 +4,8 @@ import pytest
 from pathlib import Path
 from swarm import Swarm, Agent
 from src.aoai.client import AOAIClient
-from src.functions.vision import ImageAnalysisResponse
+from src.functions.vision.image_analysis import SingleImageAnalysis, ImageSetAnalysis
+import json
 
 # Load environment variables
 load_dotenv()
@@ -39,38 +40,30 @@ async def test_vision_analysis(ai_client, vision_agent):
     # Test image paths
     image_paths = [
         Path("tests/test_images/test_image.png"),
-        "https://example.com/test.jpg"  # Example URL
+        "https://example.com/test.jpg"
     ]
     print(f"✓ Testing with images: {', '.join(str(p) for p in image_paths)}")
     
     try:
-        # Run analysis
-        response = client.run(
-            agent=vision_agent,
-            messages=[{
-                "role": "user", 
-                "content": f"Please analyze these images: {', '.join(str(p) for p in image_paths)}"
-            }],
-            context_variables={"image_paths": [str(p) for p in image_paths]}
+        # Use the interpretImageSet function directly
+        from src.functions.vision.image_analysis import interpretImageSet
+        
+        result = await interpretImageSet(
+            client=ai_client,
+            images=image_paths,
+            prompt="Please analyze these images and provide a comparative analysis.",
+            model_name=vision_agent.model
         )
         
-        result = ImageAnalysisResponse.model_validate_json(response.messages[-1]["content"])
-        
-        # Assertions
-        assert isinstance(result, ImageAnalysisResponse), "Result should be an ImageAnalysisResponse"
-        assert result.description, "Description should not be empty"
-        assert len(result.objects) > 0, "Should identify at least one object"
-        assert result.scene_type in ['indoor', 'outdoor', None], "Invalid scene type"
-        assert len(result.colors) > 0, "Should identify at least one color"
-        
-        print("\n✓ Vision Analysis Results:")
-        print(f"Description: {result.description}")
-        print(f"Objects: {', '.join(result.objects)}")
-        print(f"Scene Type: {result.scene_type}")
-        print(f"Colors: {', '.join(result.colors)}")
-        print(f"Quality: {result.quality}")
-        print("\n✓ Vision analysis test passed")
-        
+        # Verify the response
+        assert result.summary is not None
+        assert isinstance(result.common_objects, list)
+        assert isinstance(result.unique_features, list)
+        assert result.comparative_analysis is not None
+
+        print("✓ Vision analysis completed successfully")
+        return result
+
     except Exception as e:
         print(f"\n✗ Vision analysis test failed: {str(e)}")
         raise
