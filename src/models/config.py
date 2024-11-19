@@ -13,7 +13,8 @@ from .providers.openai import OPENAI_MODELS, get_openai_model
 
 class ModelRegistry:
     """Central registry for all AI model configurations."""
-
+    VALID_CAPABILITIES = list(ModelCapabilities.__annotations__.keys())
+    
     def __init__(self):
         """Initialize the model registry."""
         self._models: Dict[str, ModelConfig] = {}
@@ -23,16 +24,8 @@ class ModelRegistry:
 
     def _load_models(self) -> None:
         """Load all available models."""
-        # First, mark all built-in models
         for model in itertools.chain(AZURE_MODELS.values(), OPENAI_MODELS.values()):
-            self._built_in_models.add(model.name)
-        
-        # Then add the models to the registry
-        for model in itertools.chain(AZURE_MODELS.values(), OPENAI_MODELS.values()):
-            # Add model to registry
             self.add_model(model)
-            # Track built-in model names
-            self._built_in_models.add(model.name)  # Mark models as built-in
 
     def _get_azure_deployment_override(self, model_name: str) -> Optional[str]:
         """Helper method to get Azure deployment override from environment variables."""
@@ -208,30 +201,28 @@ class ModelRegistry:
                     )
 
     def list_models(
-        self, provider: Optional[ModelProvider] = None, capability: Optional[str] = None
+        self, provider: Optional[ModelProvider] = None, capability: Optional[Union[str, Callable]] = None
     ) -> List[ModelConfig]:
         """List models filtered by provider and/or capability."""
         models = list(self._models.values())
 
+        # Filter by provider if specified
         if provider:
             if not isinstance(provider, ModelProvider):
                 raise ValueError(f"Invalid provider: {provider}")
             models = [m for m in models if m.provider == provider]
 
+        # Filter by capability if specified
         if capability:
             if callable(capability):
-                # Handle function-based filtering
+                # Apply callable directly to capabilities
                 models = [m for m in models if capability(m.capabilities)]
             else:
-                # Get valid capabilities dynamically from ModelCapabilities fields
-                valid_capabilities = [
-                    field for field in ModelCapabilities.__annotations__.keys()
-                ]
-                if capability not in valid_capabilities:
+                # Validate capability name
+                if capability not in self.VALID_CAPABILITIES:
                     raise ValueError(f"Unknown capability: {capability}")
-                models = [
-                    m for m in models if getattr(m.capabilities, capability, False)
-                ]
+                # Filter models by the specified capability
+                models = [m for m in models if getattr(m.capabilities, capability, False)]
 
         return models
 
