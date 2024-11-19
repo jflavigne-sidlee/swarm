@@ -44,9 +44,9 @@ class TestModelRegistryIntegration:
 
     def test_embedding_model_integration(self):
         """Test embedding model filtering and capabilities."""
-        embedding_models = list_models(capability="embedding")
+        embedding_models = list_models(capability="supports_embedding")
         assert len(embedding_models) > 0
-        assert all(m.capabilities.embedding for m in embedding_models)
+        assert all(m.capabilities.supports_embedding for m in embedding_models)
         assert all(isinstance(m.provider, ModelProvider) for m in embedding_models)
 
     def test_image_generation_integration(self):

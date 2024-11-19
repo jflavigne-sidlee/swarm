@@ -17,7 +17,7 @@ def test_openai_model_configurations():
     
     # Test embedding model
     embedding = get_openai_model("text-embedding-3-small")
-    assert embedding.capabilities.embedding == True
+    assert embedding.capabilities.supports_embedding == True
     assert embedding.capabilities.supports_streaming == False
     
     # Test DALL-E
@@ -41,5 +41,5 @@ def test_all_openai_models_valid():
             assert "image/jpeg" in config.supported_mime_types
             
         if "embedding" in model_name:
-            assert config.capabilities.embedding == True
+            assert config.capabilities.supports_embedding == True
             assert config.capabilities.max_output_tokens is None 

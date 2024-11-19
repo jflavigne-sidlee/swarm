@@ -16,18 +16,18 @@ class TestModelCapabilities:
         )
         assert chat_caps.chat is True
         assert chat_caps.max_context_tokens == 4096
-        assert chat_caps.embedding is False  # Default false
+        assert chat_caps.supports_embedding is False  # Default false
 
     def test_embedding_model_capabilities(self):
         """Test embedding model capabilities configuration."""
         embed_caps = ModelCapabilities(
-            embedding=True,
+            supports_embedding=True,
             max_context_tokens=8191,
             max_output_tokens=None,  # Embeddings don't have output tokens
             supports_streaming=False,
             default_temperature=0.0,
         )
-        assert embed_caps.embedding is True
+        assert embed_caps.supports_embedding is True
         assert embed_caps.max_context_tokens == 8191
         assert embed_caps.max_output_tokens is None
         assert embed_caps.supports_streaming is False

@@ -11,7 +11,7 @@ class ModelProvider(str, Enum):
 class ModelCapabilities(BaseModel):
     """Defines what a model can do and its limitations."""
     #vision: bool = False
-    embedding: bool = False
+    supports_embedding: bool = False
     chat: bool = False
     image_generation: bool = False
     speech_recognition: bool = False
