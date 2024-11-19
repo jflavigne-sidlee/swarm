@@ -1,8 +1,8 @@
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Dict, Any
 from pathlib import Path
 import base64
-from pydantic import Field, HttpUrl
-from instructor import OpenAISchema
+from pydantic import Field, HttpUrl, field_validator
+from instructor import OpenAISchema, patch
 from instructor.multimodal import Image as InstructorImage
 import instructor
 import os
@@ -97,7 +97,7 @@ class SingleImageAnalysis(OpenAISchema):
         default_factory=list, description="Main objects identified in the image"
     )
     scene_type: Optional[str] = Field(
-        None, description="Type of scene (indoor, outdoor, etc.)"
+        None, description="The type of scene (e.g., 'indoor', 'outdoor', 'urban', 'nature', etc.)"
     )
     colors: List[str] = Field(
         default_factory=list, description="Dominant colors in the image"
@@ -106,6 +106,23 @@ class SingleImageAnalysis(OpenAISchema):
     metadata: dict = Field(
         default_factory=dict, description="Additional analysis metadata"
     )
+
+    @field_validator("scene_type")
+    def validate_scene_type(cls, v: Optional[str]) -> Optional[str]:
+        """Validate that scene_type is a meaningful value, not a template."""
+        if v is None:
+            return v
+        # Check for template-like responses
+        template_patterns = [
+            "type of scene",
+            "(indoor/outdoor)",
+            "[insert",
+            "scene type here",
+            "describe scene type"
+        ]
+        if any(pattern.lower() in v.lower() for pattern in template_patterns):
+            raise ValueError("Scene type must be a specific description, not a template")
+        return v
 
 
 class ImageSetAnalysis(OpenAISchema):
@@ -179,7 +196,7 @@ async def analyze_images(
     )
 
     try:
-        patched_client = instructor.patch(client)
+        patched_client = patch(client)
         completion = patched_client.chat.completions.create(
             model=model_config.deployment_name or model_config.name,
             messages=[
@@ -238,7 +255,7 @@ async def interpretImageSet(
             f"Model {model_config.name} does not support vision capabilities"
         )
 
-    patched_client = instructor.patch(client)
+    patched_client = patch(client)
 
     # Convert all images to instructor format with validation
     instructor_images = []
