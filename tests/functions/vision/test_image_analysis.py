@@ -1,23 +1,3 @@
-# Individual test commands:
-# pytest tests/functions/vision/test_image_analysis.py::test_analyze_single_local_image -v
-# pytest tests/functions/vision/test_image_analysis.py::test_analyze_single_url_image -v
-# pytest tests/functions/vision/test_image_analysis.py::test_analyze_multiple_images -v
-# pytest tests/functions/vision/test_image_analysis.py::test_invalid_image_path -v
-# pytest tests/functions/vision/test_image_analysis.py::test_invalid_image_url -v
-# pytest tests/functions/vision/test_image_analysis.py::test_encode_image_to_base64 -v
-# pytest tests/functions/vision/test_image_analysis.py::test_response_model_validation -v
-# pytest tests/functions/vision/test_image_analysis.py::test_max_tokens_limit -v
-
-# Run all tests in file:
-# pytest tests/functions/vision/test_image_analysis.py -v
-
-# Run all tests with print statements:
-# pytest tests/functions/vision/test_image_analysis.py -v -s
-
-import pytest
-from pathlib import Path
-...
-
 import pytest
 from pathlib import Path
 import os
@@ -26,7 +6,7 @@ import aiohttp
 import tempfile
 from PIL import Image
 import io
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, Mock, patch
 
 from src.functions.vision import (
     SingleImageAnalysis,
@@ -38,6 +18,13 @@ from src.functions.vision import (
 )
 from src.aoai.client import AOAIClient
 from src.functions.vision.image_analysis import encode_image_to_base64
+from src.models.base import ModelProvider
+from src.models.config import get_model
+from src.exceptions.vision import (
+    ImageValidationError,
+    APIError,
+    ImageAnalysisError
+)
 
 # Test fixtures and utilities
 @pytest.fixture
@@ -238,6 +225,198 @@ async def test_max_tokens_limit(ai_client, test_images):
             print("✓ Successfully caught max tokens limit")
             return  # Test passes if we catch the expected error
         pytest.fail(f"Failed to test max tokens limit: {str(e)}")
+
+@pytest.fixture
+def test_images():
+    """Fixture providing test image paths."""
+    current_dir = Path(__file__).parent
+    test_data_dir = current_dir / "test_assets"
+    return [
+        str(test_data_dir / "image1.png"),
+        str(test_data_dir / "image2.png")
+    ]
+
+@pytest.fixture
+def mock_client():
+    """Fixture providing a mock OpenAI client."""
+    mock = Mock()
+    # Mock the chat completions
+    mock.chat.completions.create.return_value = Mock(
+        content="Test analysis result"
+    )
+    return mock
+
+@pytest.mark.asyncio
+async def test_analyze_images_model_validation(mock_client, test_images):
+    """Test model validation in image analysis."""
+    print("\nTesting model validation...")
+    
+    # Test with valid model
+    try:
+        result = await analyze_images(
+            mock_client,
+            test_images[0],
+            model_name="gpt-4-vision"
+        )
+        print("✓ Successfully used valid model")
+    except Exception as e:
+        pytest.fail(f"Failed with valid model: {str(e)}")
+
+    # Test with non-vision model
+    with pytest.raises(ImageValidationError) as exc_info:
+        await analyze_images(
+            mock_client,
+            test_images[0],
+            model_name="gpt-4"
+        )
+    assert "does not support vision capabilities" in str(exc_info.value)
+    print("✓ Successfully caught non-vision model")
+
+    # Test with invalid model
+    with pytest.raises(ImageValidationError) as exc_info:
+        await analyze_images(
+            mock_client,
+            test_images[0],
+            model_name="invalid-model"
+        )
+    assert "Invalid model configuration" in str(exc_info.value)
+    print("✓ Successfully caught invalid model")
+
+@pytest.mark.asyncio
+async def test_token_limit_validation(mock_client, test_images):
+    """Test token limit validation."""
+    print("\nTesting token limit validation...")
+    
+    model_config = get_model("gpt-4-vision", provider=ModelProvider.AZURE)
+    max_tokens = model_config.capabilities.max_output_tokens
+    
+    # Test with tokens within limit
+    try:
+        result = await analyze_images(
+            mock_client,
+            test_images[0],
+            max_tokens=1000
+        )
+        print("✓ Successfully used valid token limit")
+    except Exception as e:
+        pytest.fail(f"Failed with valid token limit: {str(e)}")
+
+    # Test with tokens exceeding limit
+    with pytest.raises(ImageValidationError) as exc_info:
+        await analyze_images(
+            mock_client,
+            test_images[0],
+            max_tokens=max_tokens + 1000
+        )
+    assert "exceeds model limit" in str(exc_info.value)
+    print("✓ Successfully caught token limit exceeded")
+
+@pytest.mark.asyncio
+async def test_mime_type_validation(mock_client):
+    """Test MIME type validation."""
+    print("\nTesting MIME type validation...")
+    
+    # Create a temporary unsupported file
+    temp_file = Path("test_temp.webp")
+    try:
+        temp_file.touch()
+        
+        # Test with unsupported file type
+        with pytest.raises(ImageValidationError) as exc_info:
+            await analyze_images(
+                mock_client,
+                str(temp_file)
+            )
+        assert "Unsupported image type" in str(exc_info.value)
+        print("✓ Successfully caught unsupported MIME type")
+        
+    finally:
+        if temp_file.exists():
+            temp_file.unlink()
+
+@pytest.mark.asyncio
+async def test_image_set_analysis(mock_client, test_images):
+    """Test image set analysis with model configuration."""
+    print("\nTesting image set analysis...")
+    
+    # Test with valid configuration
+    try:
+        result = await interpretImageSet(
+            mock_client,
+            test_images,
+            model_name="gpt-4-vision"
+        )
+        print("✓ Successfully analyzed image set")
+    except Exception as e:
+        pytest.fail(f"Failed to analyze image set: {str(e)}")
+
+    # Test with invalid model for image set
+    with pytest.raises(ImageValidationError) as exc_info:
+        await interpretImageSet(
+            mock_client,
+            test_images,
+            model_name="text-embedding-ada-002"
+        )
+    assert "does not support vision capabilities" in str(exc_info.value)
+    print("✓ Successfully caught invalid model for image set")
+
+@pytest.mark.asyncio
+async def test_environment_model_override(mock_client, test_images):
+    """Test model override from environment variables."""
+    print("\nTesting environment model override...")
+    
+    # Test with environment override
+    os.environ["AZURE_OPENAI_DEPLOYMENT_NAME"] = "gpt-4-vision"
+    
+    try:
+        result = await analyze_images(
+            mock_client,
+            test_images[0]
+        )
+        print("✓ Successfully used environment model override")
+    except Exception as e:
+        pytest.fail(f"Failed with environment override: {str(e)}")
+    finally:
+        del os.environ["AZURE_OPENAI_DEPLOYMENT_NAME"]
+
+def test_model_capabilities_access():
+    """Test access to model capabilities."""
+    print("\nTesting model capabilities access...")
+    
+    model = get_model("gpt-4-vision", provider=ModelProvider.AZURE)
+    
+    assert model.capabilities.vision == True
+    assert model.capabilities.supports_vision == True
+    assert isinstance(model.capabilities.max_output_tokens, int)
+    assert isinstance(model.capabilities.default_temperature, float)
+    assert model.supported_mime_types is not None
+    
+    print("✓ Successfully accessed model capabilities")
+
+@pytest.mark.asyncio
+async def test_model_capabilities_validation(ai_client, test_images):
+    """Test model capabilities validation."""
+    print("\nTesting model capabilities validation...")
+
+    # Test with model that has all capabilities
+    try:
+        result = await analyze_images(
+            ai_client,
+            test_images[0],
+            model_name="gpt-4o-realtime-preview"
+        )
+        print("✓ Successfully used full-capability model")
+    except Exception as e:
+        pytest.fail(f"Failed with full-capability model: {str(e)}")
+
+    # Test with model that doesn't support vision
+    with pytest.raises(ImageValidationError) as exc_info:
+        await analyze_images(
+            ai_client,
+            test_images[0],
+            model_name="gpt-35-turbo"  # Non-vision model
+        )
+    assert "does not support vision capabilities" in str(exc_info.value)
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

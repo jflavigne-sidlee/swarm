@@ -8,6 +8,12 @@ from .exceptions import AssistantError
 from .aoai.client import AOAIClient
 from .aoai.types import RunStatus, MessageRole
 from .handlers import FileSearchEventHandler
+from .exceptions.assistants import (
+    AssistantError,
+    AssistantCreationError,
+    AssistantNotFoundError,
+    AssistantUpdateError
+)
 
 class AssistantManager:
     """Manages Azure OpenAI Assistants for file-based Q&A."""

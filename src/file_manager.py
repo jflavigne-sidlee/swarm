@@ -5,7 +5,7 @@ from .types import ContextVariables
 from .config import FileSearchConfig
 from .constants import SUPPORTED_MIME_TYPES
 from .errors import FileSearchErrors as Errors
-from .exceptions import FileValidationError, VectorStoreError
+from .exceptions.files import FileValidationError, VectorStoreError
 from .aoai.client import AOAIClient
 
 class FileManager:
