@@ -5,6 +5,7 @@ import json
 from pydantic import BaseModel, Field
 import itertools
 from copy import deepcopy
+import logging
 
 from .base import ModelConfig, ModelProvider, ModelCapabilities
 from .providers.azure import AZURE_MODELS, get_azure_model
@@ -27,10 +28,9 @@ class ModelRegistry:
         for model in itertools.chain(AZURE_MODELS.values(), OPENAI_MODELS.values()):
             self.add_model(model)
 
-    def _get_azure_deployment_override(self, model_name: str) -> Optional[str]:
-        """Helper method to get Azure deployment override from environment variables."""
-        env_var = f"AZURE_DEPLOYMENT_{model_name.upper().replace('-', '_')}"
-        return os.getenv(env_var)
+    def _get_deployment_override(self, model_name: str) -> Optional[str]:
+        """Fetch deployment override from environment variables."""
+        return os.getenv(f"AZURE_DEPLOYMENT_{model_name.upper().replace('-', '_')}")
 
     def _create_overridden_config(self, base_config: ModelConfig, deployment_name: str) -> ModelConfig:
         """Create a new ModelConfig with an overridden deployment name."""
@@ -48,7 +48,7 @@ class ModelRegistry:
         """Load model configuration overrides from environment variables."""
         # Azure deployment name overrides
         for name in AZURE_MODELS:
-            deployment_name = self._get_azure_deployment_override(name)
+            deployment_name = self._get_deployment_override(name)
             if deployment_name:
                 base_config = AZURE_MODELS[name]
                 overridden_config = self._create_overridden_config(base_config, deployment_name)
@@ -63,7 +63,7 @@ class ModelRegistry:
             try:
                 # Convert string provider to ModelProvider enum
                 provider_enum = ModelProvider(model.provider)
-                print(
+                logging.info(
                     f"Converting string provider '{model.provider}' to enum {provider_enum}."
                 )
             except ValueError:
@@ -160,7 +160,6 @@ class ModelRegistry:
                 f"Model not found: '{name}'. Available models: {', '.join(available)}"
             )
         if len(matches) > 1:
-            # Create a detailed message showing each conflicting model and its provider
             conflict_details = "\n".join([
                 f"  - {m.provider.value}: {m.name} ({m.description or 'No description'})"
                 for m in matches
@@ -168,7 +167,7 @@ class ModelRegistry:
             raise ValueError(
                 f"Ambiguous model name '{name}'. Found multiple matches:\n"
                 f"{conflict_details}\n"
-                f"Please specify provider using: <provider>/{name}"
+                "Please specify the provider using <provider>/<name>."
             )
         return matches[0]
 
@@ -183,20 +182,19 @@ class ModelRegistry:
 
         # Azure deployment name validation
         if config.provider == ModelProvider.AZURE:
-            model_env_key = f"AZURE_DEPLOYMENT_{config.name.upper().replace('-', '_')}"
-            deployment_name = os.getenv(model_env_key)
+            deployment_name = self._get_deployment_override(config.name)
             override = os.getenv("AZURE_DEPLOYMENT_OVERRIDE")
 
             if deployment_name and override and deployment_name != override:
                 if is_built_in:
-                    print(
+                    logging.warning(
                         f"Conflict detected for built-in model {config.name}. "
-                        f"Using {model_env_key}={deployment_name} over override={override}."
+                        f"Using {deployment_name} over override={override}."
                     )
                 else:
                     raise ValueError(
                         f"Conflicting deployment names for {config.name}: "
-                        f"{model_env_key}={deployment_name}, override={override}. "
+                        f"deployment={deployment_name}, override={override}. "
                         "Please resolve this conflict before adding the model."
                     )
 
@@ -240,7 +238,7 @@ def get_model(
 
     # Check for environment override
     if model.provider == ModelProvider.AZURE:
-        deployment_name = registry._get_azure_deployment_override(model.name)
+        deployment_name = registry._get_deployment_override(model.name)
         if deployment_name:
             return registry._create_overridden_config(model, deployment_name)
     return model

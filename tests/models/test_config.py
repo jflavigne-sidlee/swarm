@@ -74,6 +74,6 @@ def test_ambiguous_model_name():
     expected_error = """Ambiguous model name 'gpt-4'. Found multiple matches:
   - azure: gpt-4 (Advanced model improving upon GPT-3.5 for natural language and code generation.)
   - openai: gpt-4 (GPT-4 base model)
-Please specify provider using: <provider>/gpt-4"""
+Please specify the provider using <provider>/<name>."""
 
     assert str(exc_info.value) == expected_error
