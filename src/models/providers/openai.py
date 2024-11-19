@@ -102,6 +102,7 @@ OPENAI_MODELS: Dict[str, ModelConfig] = {
         description="Most capable image generation model",
         capabilities=ModelCapabilities(
             supports_chat=False,
+            supports_image_generation=True,
             max_context_tokens=4096,  # This is approximate for text prompt
             max_output_tokens=None,
             supports_streaming=False,

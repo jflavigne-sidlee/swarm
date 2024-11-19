@@ -10,10 +10,9 @@ class ModelProvider(str, Enum):
 
 class ModelCapabilities(BaseModel):
     """Defines what a model can do and its limitations."""
-    #vision: bool = False
     supports_embedding: bool = False
     supports_chat: bool = False
-    image_generation: bool = False
+    supports_image_generation: bool = False
     speech_recognition: bool = False
     speech_synthesis: bool = False
     max_context_tokens: Optional[int] = Field(

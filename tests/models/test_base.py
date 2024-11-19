@@ -35,13 +35,13 @@ class TestModelCapabilities:
     def test_image_generation_capabilities(self):
         """Test DALL-E model capabilities configuration."""
         dalle_caps = ModelCapabilities(
-            image_generation=True,
+            supports_image_generation=True,
             max_context_tokens=None,  # No token limits for image generation
             max_output_tokens=None,
             supports_streaming=False,
             default_temperature=0.0,
         )
-        assert dalle_caps.image_generation is True
+        assert dalle_caps.supports_image_generation is True
         assert dalle_caps.max_context_tokens is None
         assert dalle_caps.max_output_tokens is None
 
@@ -84,7 +84,7 @@ class TestModelCapabilities:
 
         # Valid: tokens can be None for non-token models
         valid_none = ModelCapabilities(
-            image_generation=True, max_context_tokens=None, max_output_tokens=None
+            supports_image_generation=True, max_context_tokens=None, max_output_tokens=None
         )
         assert valid_none.max_context_tokens is None
 

@@ -51,9 +51,9 @@ class TestModelRegistryIntegration:
 
     def test_image_generation_integration(self):
         """Test image generation model filtering and capabilities."""
-        image_models = list_models(capability="image_generation")
+        image_models = list_models(capability="supports_image_generation")
         assert len(image_models) > 0
-        assert all(m.capabilities.image_generation for m in image_models)
+        assert all(m.capabilities.supports_image_generation for m in image_models)
         assert all(isinstance(m.provider, ModelProvider) for m in image_models)
 
     def test_cross_capability_filtering(self):
