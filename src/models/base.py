@@ -13,7 +13,7 @@ class ModelCapabilities(BaseModel):
     supports_embedding: bool = False
     supports_chat: bool = False
     supports_image_generation: bool = False
-    speech_recognition: bool = False
+    supports_speech_recognition: bool = False
     speech_synthesis: bool = False
     max_context_tokens: Optional[int] = Field(
         None, 

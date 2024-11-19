@@ -48,13 +48,13 @@ class TestModelCapabilities:
     def test_speech_model_capabilities(self):
         """Test speech model capabilities configuration."""
         whisper_caps = ModelCapabilities(
-            speech_recognition=True,
+            supports_speech_recognition=True,
             max_context_tokens=None,
             max_output_tokens=None,
             supports_streaming=True,
             supports_audio_input=True,
         )
-        assert whisper_caps.speech_recognition is True
+        assert whisper_caps.supports_speech_recognition is True
         assert whisper_caps.supports_audio_input is True
 
         tts_caps = ModelCapabilities(
