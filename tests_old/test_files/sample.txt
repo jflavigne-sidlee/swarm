@@ -1,4 +1,0 @@
-
-This is a test document about artificial intelligence and its applications in modern technology.
-AI has revolutionized many fields including healthcare, finance, and transportation.
-Machine learning, a subset of AI, enables computers to learn from data without explicit programming.

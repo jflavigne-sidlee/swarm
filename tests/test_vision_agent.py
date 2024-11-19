@@ -1,112 +1,79 @@
 from dotenv import load_dotenv
 import os
-import base64
+import pytest
+from pathlib import Path
 from swarm import Swarm, Agent
 from src.aoai.client import AOAIClient
+from src.functions.vision import ImageAnalysisResponse
 
 # Load environment variables
 load_dotenv()
 
-# Initialize Azure OpenAI client
-ai_client = AOAIClient.create(
-    api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-    api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
-    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-)
+@pytest.fixture
+def ai_client():
+    """Fixture to create Azure OpenAI client."""
+    return AOAIClient.create(
+        api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+        api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
+        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+    )
 
-
-def encode_image_to_base64(image_path):
-    """Convert an image file to base64 string.
-
-    Args:
-        image_path: Path to the image file
-    Returns:
-        base64 encoded string of the image
-    """
-    with open(image_path, "rb") as image_file:
-        return base64.b64encode(image_file.read()).decode("utf-8")
-
-
-def analyze_image(context_variables, image_path):
-    """Analyzes an image and returns a description.
-
-    Args:
-        context_variables: Contains any context needed
-        image_path: Path to the image to analyze
-    Returns:
-        A description of the image
-    """
-    try:
-        # Get the base64 encoded image
-        base64_image = encode_image_to_base64(image_path)
-
-        # Create message content with the image
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": "Describe this image in detail:"},
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
-                    },
-                ],
-            }
-        ]
-
-        # Use the client's chat completions
-        response = ai_client.chat.completions.create(
-            model=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
-            messages=messages,
-            max_tokens=2000,
-        )
-
-        return response.choices[0].message.content
-
-    except Exception as e:
-        return f"Error analyzing image: {str(e)}"
-
-
-def test_vision_agent():
-    print("\nInitializing Vision Agent Test...")
-
-    # Initialize Swarm with the Azure client
-    client = Swarm(client=ai_client)
-    print("Swarm client initialized")
-
-    # Create vision agent
-    vision_agent = Agent(
+@pytest.fixture
+def vision_agent(ai_client):
+    """Fixture to create vision agent."""
+    return Agent(
         name="Vision Agent",
         instructions="You are a vision analysis agent. You can analyze images and provide detailed descriptions.",
-        functions=[analyze_image],
         model=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
     )
-    print("Vision agent created")
 
-    # Test image path
-    image_path = "tests/test_images/test_image.png"
-    print(f"Attempting to analyze image at: {image_path}")
+@pytest.mark.asyncio
+async def test_vision_analysis(ai_client, vision_agent):
+    """Test vision analysis functionality."""
+    print("\nInitializing Vision Analysis Test...")
 
-    # Run the vision agent
+    # Initialize Swarm
+    client = Swarm(client=ai_client)
+    print("✓ Swarm client initialized")
+    
+    # Test image paths
+    image_paths = [
+        Path("tests/test_images/test_image.png"),
+        "https://example.com/test.jpg"  # Example URL
+    ]
+    print(f"✓ Testing with images: {', '.join(str(p) for p in image_paths)}")
+    
     try:
+        # Run analysis
         response = client.run(
             agent=vision_agent,
-            messages=[
-                {"role": "user", "content": f"Please analyze the image at {image_path}"}
-            ],
-            context_variables={},
+            messages=[{
+                "role": "user", 
+                "content": f"Please analyze these images: {', '.join(str(p) for p in image_paths)}"
+            }],
+            context_variables={"image_paths": [str(p) for p in image_paths]}
         )
-
-        print("\nTest Vision Agent:")
-        print(f"Response: {response.messages[-1]['content']}")
-
-        # Basic assertion to ensure we got a response
-        assert len(response.messages[-1]["content"]) > 0, "No description generated"
-        print("\n✓ Vision agent test passed")
-
+        
+        result = ImageAnalysisResponse.model_validate_json(response.messages[-1]["content"])
+        
+        # Assertions
+        assert isinstance(result, ImageAnalysisResponse), "Result should be an ImageAnalysisResponse"
+        assert result.description, "Description should not be empty"
+        assert len(result.objects) > 0, "Should identify at least one object"
+        assert result.scene_type in ['indoor', 'outdoor', None], "Invalid scene type"
+        assert len(result.colors) > 0, "Should identify at least one color"
+        
+        print("\n✓ Vision Analysis Results:")
+        print(f"Description: {result.description}")
+        print(f"Objects: {', '.join(result.objects)}")
+        print(f"Scene Type: {result.scene_type}")
+        print(f"Colors: {', '.join(result.colors)}")
+        print(f"Quality: {result.quality}")
+        print("\n✓ Vision analysis test passed")
+        
     except Exception as e:
-        print(f"\n✗ Vision agent test failed: {str(e)}")
-
+        print(f"\n✗ Vision analysis test failed: {str(e)}")
+        raise
 
 if __name__ == "__main__":
-    test_vision_agent()
+    pytest.main([__file__, "-v"])
