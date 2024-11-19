@@ -181,37 +181,29 @@ class ModelRegistry:
 
     def validate_model_config(self, config: ModelConfig):
         """Validate model configuration."""
-        # A model is considered built-in if it's in the original AZURE_MODELS or OPENAI_MODELS
-        is_built_in = (
-            config.name in AZURE_MODELS and config in AZURE_MODELS.values()
-        ) or (
-            config.name in OPENAI_MODELS and config in OPENAI_MODELS.values()
-        )
-        
-        # print(f"Validating model: {config.name}, built-in: {is_built_in}")
+        # Built-in model check
+        is_built_in = config in AZURE_MODELS.values() or config in OPENAI_MODELS.values()
 
         # Validate MIME types for vision models
         if config.capabilities.vision and not config.supported_mime_types:
             raise ValueError(f"Vision models must support image MIME types: {config.name}")
 
-        # Validate deployment names for Azure models
+        # Azure deployment name validation
         if config.provider == ModelProvider.AZURE:
             model_env_key = f"AZURE_DEPLOYMENT_{config.name.upper().replace('-', '_')}"
+            deployment_name = os.getenv(model_env_key)
             override = os.getenv("AZURE_DEPLOYMENT_OVERRIDE")
-            model_deployment = os.getenv(model_env_key)
 
-            if model_deployment and override and model_deployment != override:
+            if deployment_name and override and deployment_name != override:
                 if is_built_in:
-                    # Allow conflicts for built-in models and log a warning
                     print(
-                        f"Warning: Conflict detected for built-in model {config.name}. "
-                        f"Using {model_env_key}={model_deployment} over override={override}."
+                        f"Conflict detected for built-in model {config.name}. "
+                        f"Using {model_env_key}={deployment_name} over override={override}."
                     )
                 else:
-                    # Raise an error for manually added models
                     raise ValueError(
                         f"Conflicting deployment names for {config.name}: "
-                        f"{model_env_key}={model_deployment}, override={override}. "
+                        f"{model_env_key}={deployment_name}, override={override}. "
                         "Please resolve this conflict before adding the model."
                     )
 
@@ -234,7 +226,6 @@ class ModelRegistry:
                 # Get valid capabilities dynamically from ModelCapabilities fields
                 valid_capabilities = [
                     field for field in ModelCapabilities.__annotations__.keys()
-                    if field not in {"__annotations__", "__dataclass_fields__"}
                 ]
                 if capability not in valid_capabilities:
                     raise ValueError(f"Unknown capability: {capability}")
