@@ -28,9 +28,19 @@ class ModelRegistry:
         for model in itertools.chain(AZURE_MODELS.values(), OPENAI_MODELS.values()):
             self.add_model(model)
 
+    def _get_model_deployment_config(self, model_name: str) -> tuple[Optional[str], Optional[str]]:
+        """
+        Get deployment configuration from environment variables.
+        Returns a tuple of (model_specific_deployment, global_override)
+        """
+        specific_deployment = os.getenv(f"AZURE_DEPLOYMENT_{model_name.upper().replace('-', '_')}")
+        global_override = os.getenv("AZURE_DEPLOYMENT_OVERRIDE")
+        return specific_deployment, global_override
+
     def _get_deployment_override(self, model_name: str) -> Optional[str]:
         """Fetch deployment override from environment variables."""
-        return os.getenv(f"AZURE_DEPLOYMENT_{model_name.upper().replace('-', '_')}")
+        specific_deployment, _ = self._get_model_deployment_config(model_name)
+        return specific_deployment
 
     def _create_overridden_config(self, base_config: ModelConfig, deployment_name: str) -> ModelConfig:
         """Create a new ModelConfig with an overridden deployment name."""
@@ -182,19 +192,18 @@ class ModelRegistry:
 
         # Azure deployment name validation
         if config.provider == ModelProvider.AZURE:
-            deployment_name = self._get_deployment_override(config.name)
-            override = os.getenv("AZURE_DEPLOYMENT_OVERRIDE")
+            specific_deployment, global_override = self._get_model_deployment_config(config.name)
 
-            if deployment_name and override and deployment_name != override:
+            if specific_deployment and global_override and specific_deployment != global_override:
                 if is_built_in:
                     logging.warning(
                         f"Conflict detected for built-in model {config.name}. "
-                        f"Using {deployment_name} over override={override}."
+                        f"Using {specific_deployment} over override={global_override}."
                     )
                 else:
                     raise ValueError(
                         f"Conflicting deployment names for {config.name}: "
-                        f"deployment={deployment_name}, override={override}. "
+                        f"deployment={specific_deployment}, override={global_override}. "
                         "Please resolve this conflict before adding the model."
                     )
 
