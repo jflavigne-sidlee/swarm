@@ -34,29 +34,31 @@ class ModelRegistry:
             # Track built-in model names
             self._built_in_models.add(model.name)  # Mark models as built-in
 
+    def _get_azure_deployment_override(self, model_name: str) -> Optional[str]:
+        """Helper method to get Azure deployment override from environment variables."""
+        env_var = f"AZURE_DEPLOYMENT_{model_name.upper().replace('-', '_')}"
+        return os.getenv(env_var)
+
+    def _create_overridden_config(self, base_config: ModelConfig, deployment_name: str) -> ModelConfig:
+        """Create a new ModelConfig with an overridden deployment name."""
+        return ModelConfig(
+            name=base_config.name,
+            provider=self._ensure_model_provider(base_config).provider,
+            capabilities=base_config.capabilities,
+            description=base_config.description,
+            supported_mime_types=base_config.supported_mime_types,
+            deployment_name=deployment_name,
+            version=base_config.version,
+        )
+
     def _load_environment_overrides(self) -> None:
         """Load model configuration overrides from environment variables."""
         # Azure deployment name overrides
         for name in AZURE_MODELS:
-            env_var = f"AZURE_DEPLOYMENT_{name.replace('-', '_').upper()}"
-            deployment_name = os.getenv(env_var)
+            deployment_name = self._get_azure_deployment_override(name)
             if deployment_name:
-                # Fetch the base Azure model config
                 base_config = AZURE_MODELS[name]
-
-                # Ensure dynamic overrides respect the ModelProvider type
-                overridden_config = ModelConfig(
-                    name=base_config.name,
-                    provider=self._ensure_model_provider(
-                        base_config
-                    ).provider,  # Ensure provider remains ModelProvider
-                    capabilities=base_config.capabilities,
-                    description=base_config.description,
-                    supported_mime_types=base_config.supported_mime_types,
-                    deployment_name=deployment_name,
-                    version=base_config.version,
-                )
-                # Update the registry with the overridden configuration
+                overridden_config = self._create_overridden_config(base_config, deployment_name)
                 self._models[f"azure/{name}"] = overridden_config
 
     def _ensure_model_provider(self, model: ModelConfig) -> ModelConfig:
@@ -224,14 +226,10 @@ class ModelRegistry:
                 # Handle function-based filtering
                 models = [m for m in models if capability(m.capabilities)]
             else:
-                # Validate capability name
+                # Get valid capabilities dynamically from ModelCapabilities fields
                 valid_capabilities = [
-                    "chat",
-                    "vision",
-                    "embedding",
-                    "image_generation",
-                    "speech_recognition",
-                    "speech_synthesis",
+                    field for field in ModelCapabilities.__annotations__.keys()
+                    if field not in {"__annotations__", "__dataclass_fields__"}
                 ]
                 if capability not in valid_capabilities:
                     raise ValueError(f"Unknown capability: {capability}")
@@ -255,16 +253,9 @@ def get_model(
 
     # Check for environment override
     if model.provider == ModelProvider.AZURE:
-        env_var = f"AZURE_DEPLOYMENT_{model.name.upper().replace('-', '_')}"
-        if env_var in os.environ:
-            return ModelConfig(
-                provider=model.provider,
-                name=model.name,
-                capabilities=model.capabilities,
-                deployment_name=os.environ[env_var],
-                description=model.description,
-                supported_mime_types=model.supported_mime_types,
-            )
+        deployment_name = registry._get_azure_deployment_override(model.name)
+        if deployment_name:
+            return registry._create_overridden_config(model, deployment_name)
     return model
 
 
