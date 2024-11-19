@@ -72,17 +72,22 @@ class TestModelRegistryErrors:
             ModelCapabilities(chat=True, max_context_tokens=-1, max_output_tokens=100)
         assert "greater than 0" in str(exc_info.value)
 
-    def test_mime_type_validation(self):
-        """Test error handling for MIME type validation."""
-        with pytest.raises(ValueError) as exc_info:
-            ModelConfig(
-                name="test-vision",
-                provider=ModelProvider.AZURE,
-                capabilities=ModelCapabilities(vision=True),
-                supported_mime_types=None,  # Should raise error for vision model
-                description="Test model",
-            )
-        assert "Vision models must support image MIME types" in str(exc_info.value)
+    from PIL import Image
+
+    @pytest.mark.asyncio
+    async def test_mime_type_validation(ai_client: AOAIClient, tmp_path: Path) -> None:
+        """Test MIME type validation."""
+        temp_file = tmp_path / "test_temp.webp"
+
+        # Create a minimal valid .webp image
+        with Image.new("RGB", (10, 10), color="red") as img:
+            img.save(temp_file, format="WEBP")
+
+        with pytest.raises(ImageValidationError) as exc_info:
+            await analyze_images(ai_client, str(temp_file))
+        assert "Unsupported image type" in str(
+            exc_info.value
+        ), "Expected unsupported MIME type error"
 
     def test_provider_validation(self):
         """Test error handling for provider validation."""

@@ -45,6 +45,47 @@ def validate_image_file(image_path: Union[str, Path]) -> bool:
         )
     return True
 
+def validate_image_source(
+    image_path: Union[str, Path], supported_mime_types: List[str]
+) -> None:
+    """
+    Validates image source for format and size.
+    Raises ImageValidationError if validation fails.
+
+    Args:
+        image_path: Path or URL of the image.
+        supported_mime_types: List of MIME types supported by the model.
+
+    Raises:
+        ImageValidationError: If the image is invalid or unsupported.
+    """
+    path = Path(image_path)
+    if not path.exists() and not str(image_path).startswith("http"):
+        raise ImageValidationError(f"Image source not found: {image_path}")
+
+    if not str(image_path).startswith("http"):
+        # Validate local file
+        if path.suffix.lower() not in SUPPORTED_IMAGE_FORMATS:
+            raise ImageValidationError(f"Unsupported image format: {path.suffix}")
+        if path.stat().st_size > MAX_IMAGE_SIZE:
+            raise ImageValidationError(
+                f"Image size exceeds the limit of {MAX_IMAGE_SIZE / (1024 * 1024)}MB"
+            )
+        # Validate MIME type
+        mime_type = mimetypes.guess_type(str(path))[0]
+        if mime_type not in supported_mime_types:
+            raise ImageValidationError(
+                f"Unsupported MIME type {mime_type}. Supported types: {', '.join(supported_mime_types)}"
+            )
+    else:
+        # For URLs, validate MIME type (e.g., using mimetypes or HTTP headers)
+        mime_type = mimetypes.guess_type(str(image_path))[0]
+        if mime_type not in supported_mime_types:
+            raise ImageValidationError(
+                f"Unsupported MIME type {mime_type} for URL {image_path}. "
+                f"Supported types: {', '.join(supported_mime_types)}"
+            )
+
 
 class SingleImageAnalysis(OpenAISchema):
     """Analysis results for a single image."""
@@ -90,36 +131,25 @@ async def analyze_images(
     images: Union[str, Path, HttpUrl, List[Union[str, Path, HttpUrl]]],
     prompt: Optional[str] = None,
     max_tokens: Optional[int] = None,
-    model_name: Optional[str] = None
+    model_name: Optional[str] = None,
 ) -> SingleImageAnalysis:
-    """Analyzes one or more images with optional custom prompt.
-
-    Args:
-        client: The OpenAI client instance
-        images: Single image or list of images to analyze
-        prompt: Optional custom prompt for analysis
-        max_tokens: Maximum tokens for response. If None, uses model default
-        model_name: Specific model to use. If None, uses environment default
-
-    Returns:
-        SingleImageAnalysis object containing the analysis results
-    """
+    """Analyzes one or more images with optional custom prompt."""
     # Get model configuration
-    model_name = model_name or os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4-vision")
+    model_name = model_name or os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4o")
     try:
         model_config = get_model(model_name, provider=ModelProvider.AZURE)
     except ValueError as e:
         raise ImageValidationError(f"Invalid model configuration: {e}")
 
     # Validate model capabilities
-    if not model_config.capabilities.vision:  # Check vision capability
+    if not model_config.capabilities.vision:
         raise ImageValidationError(
             f"Model {model_config.name} does not support vision capabilities"
         )
 
-    # Use model's token limits for validation
+    # Token validation
     if max_tokens is None:
-        max_tokens = model_config.capabilities.max_output_tokens or 2000
+        max_tokens = model_config.capabilities.max_output_tokens or DEFAULT_MAX_TOKENS
     elif max_tokens > model_config.capabilities.max_output_tokens:
         raise ImageValidationError(
             f"max_tokens ({max_tokens}) exceeds model limit "
@@ -130,25 +160,14 @@ async def analyze_images(
     if not isinstance(images, list):
         images = [images]
 
-    # Convert images to instructor format
+    # Validate and convert images to instructor format
     instructor_images = []
     for img in images:
-        if isinstance(img, (str, Path)) and (Path(img).exists() or str(img).startswith('http')):
-            # Validate file type against model's supported formats
-            if not str(img).startswith('http'):
-                file_type = mimetypes.guess_type(str(img))[0]
-                if file_type not in model_config.supported_mime_types:
-                    raise ImageValidationError(
-                        f"Unsupported image type {file_type}. "
-                        f"Supported types: {', '.join(model_config.supported_mime_types)}"
-                    )
-
-            if str(img).startswith('http'):
-                instructor_images.append(instructor.Image.from_url(str(img)))
-            else:
-                instructor_images.append(instructor.Image.from_path(str(img)))
+        validate_image_source(img, model_config.supported_mime_types)
+        if str(img).startswith("http"):
+            instructor_images.append(instructor.Image.from_url(str(img)))
         else:
-            raise ImageValidationError(f"Invalid image source: {img}")
+            instructor_images.append(instructor.Image.from_path(str(img)))
 
     default_prompt = (
         "Analyze this image in detail and provide a structured response including:\n"
@@ -166,7 +185,8 @@ async def analyze_images(
             messages=[
                 {
                     "role": "user",
-                    "content": [prompt or default_prompt] + instructor_images,
+                    "content": [prompt or default_prompt],
+                    "images": instructor_images,
                 }
             ],
             max_tokens=max_tokens,
@@ -178,7 +198,6 @@ async def analyze_images(
 
     except Exception as e:
         raise APIError(f"Error analyzing image: {str(e)}")
-
 
 async def interpretImages(
     client, images: List[Union[str, Path, HttpUrl]], prompt: Optional[str] = None
@@ -257,7 +276,8 @@ async def interpretImageSet(
             messages=[
                 {
                     "role": "user",
-                    "content": [prompt or default_prompt] + instructor_images,
+                    "content": [prompt or default_prompt],
+                    "images": instructor_images,
                 }
             ],
             max_tokens=model_config.capabilities.max_output_tokens,

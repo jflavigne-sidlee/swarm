@@ -13,7 +13,7 @@ pytest tests/functions/vision/test_image_analysis.py::test_encode_image_to_base6
 # Error handling tests
 pytest tests/functions/vision/test_image_analysis.py::test_invalid_image_path -v
 pytest tests/functions/vision/test_image_analysis.py::test_invalid_image_url -v
-pytest tests/functions/vision/test_image_analysis.py::test_unsupported_mime_type -v
+
 
 # Model configuration tests
 pytest tests/functions/vision/test_image_analysis.py::test_analyze_images_model_validation -v

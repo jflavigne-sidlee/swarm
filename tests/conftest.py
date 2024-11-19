@@ -37,6 +37,23 @@ def azure_client():
         azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
     )
 
+@pytest.fixture(autouse=True)
+def setup_test_environment():
+    """Setup test environment variables."""
+    # Store original value
+    original_deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
+    
+    # Set test deployment name
+    os.environ["AZURE_OPENAI_DEPLOYMENT_NAME"] = "gpt-4o"
+    
+    yield
+    
+    # Restore original value or remove if it wasn't set
+    if original_deployment:
+        os.environ["AZURE_OPENAI_DEPLOYMENT_NAME"] = original_deployment
+    else:
+        os.environ.pop("AZURE_OPENAI_DEPLOYMENT_NAME", None)
+
 @pytest.fixture
 def setup_test_environment():
     """Sets up a temporary test environment with sample files."""

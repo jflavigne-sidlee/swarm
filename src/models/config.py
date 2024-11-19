@@ -97,7 +97,7 @@ class ModelRegistry:
 
     def add_model(self, model: ModelConfig) -> None:
         """Add a model to the registry."""
-        print(f"Adding model: {model.name}, built-in: {model.name in self._built_in_models}")
+        # print(f"Adding model: {model.name}, built-in: {model.name in self._built_in_models}")
         
         # Validate the model configuration first
         self.validate_model_config(model)
@@ -181,7 +181,7 @@ class ModelRegistry:
             config.name in OPENAI_MODELS and config in OPENAI_MODELS.values()
         )
         
-        print(f"Validating model: {config.name}, built-in: {is_built_in}")
+        # print(f"Validating model: {config.name}, built-in: {is_built_in}")
 
         # Validate MIME types for vision models
         if config.capabilities.vision and not config.supported_mime_types:
