@@ -65,39 +65,24 @@ class ModelRegistry:
                 self._models[f"azure/{name}"] = overridden_config
 
     def _ensure_model_provider(self, model: ModelConfig) -> ModelConfig:
-        """
-        Ensure the model provider is a ModelProvider enum. If the provider is a string,
-        convert it to the corresponding enum value. If it's already a valid ModelProvider, return as is.
-        """
+        """Ensure the model provider is a valid ModelProvider enum."""
         if isinstance(model.provider, str):
             try:
-                # Convert string provider to ModelProvider enum
-                provider_enum = ModelProvider(model.provider)
-                logging.info(
-                    f"Converting string provider '{model.provider}' to enum {provider_enum}."
+                provider = ModelProvider(model.provider)
+                # Create a new instance instead of modifying the frozen one
+                return ModelConfig(
+                    name=model.name,
+                    provider=provider,
+                    capabilities=model.capabilities,
+                    description=model.description,
+                    supported_mime_types=model.supported_mime_types,
+                    deployment_name=model.deployment_name,
+                    version=model.version,
                 )
             except ValueError:
-                raise ValueError(
-                    f"Invalid provider '{model.provider}'. Must be one of {list(ModelProvider)}."
-                )
-
-            # Return a new instance of ModelConfig with the updated provider
-            return ModelConfig(
-                name=model.name,
-                provider=provider_enum,
-                capabilities=model.capabilities,
-                description=model.description,
-                supported_mime_types=model.supported_mime_types,
-                deployment_name=model.deployment_name,
-                version=model.version,
-            )
-
-        # If provider is already a ModelProvider, validate and return the same model
-        if not isinstance(model.provider, ModelProvider):
-            raise ValueError(
-                f"Provider must be a ModelProvider enum or valid string. Got: {type(model.provider)}"
-            )
-
+                raise ValueError(f"Invalid provider '{model.provider}'. Must be one of {list(ModelProvider)}.")
+        elif not isinstance(model.provider, ModelProvider):
+            raise ValueError(f"Provider must be a ModelProvider enum. Got: {type(model.provider)}")
         return model
 
     def add_model(self, model: ModelConfig) -> None:
