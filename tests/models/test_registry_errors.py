@@ -13,6 +13,8 @@ from src.exceptions.models import (
 )
 from src.aoai.client import AOAIClient
 from pathlib import Path  # Add this import
+from src.exceptions.vision import ImageValidationError  # Add this import
+from src.functions.vision import analyze_images  # Add this import
 
 
 class TestModelRegistryErrors:
@@ -77,19 +79,21 @@ class TestModelRegistryErrors:
     from PIL import Image
 
     @pytest.mark.asyncio
-    async def test_mime_type_validation(ai_client: AOAIClient, tmp_path: Path) -> None:
-        """Test MIME type validation."""
-        temp_file = tmp_path / "test_temp.webp"
+    async def test_mime_type_validation(ai_client: AOAIClient) -> None:
+        """Test MIME type validation using a real image."""
+        # Resolve the path to the test image
+        temp_file = (Path(__file__).parent / "test_assets" / "unsupported_format_image.webp").resolve()
+        print(f"Resolved path: {temp_file}")
 
-        # Create a minimal valid .webp image
-        with Image.new("RGB", (10, 10), color="red") as img:
-            img.save(temp_file, format="WEBP")
+        # Ensure the file exists
+        assert temp_file.exists(), f"Test file not found: {temp_file}"
 
+        # Test the behavior with the unsupported .webp file
         with pytest.raises(ImageValidationError) as exc_info:
             await analyze_images(ai_client, str(temp_file))
-        assert "Unsupported image type" in str(
-            exc_info.value
-        ), "Expected unsupported MIME type error"
+
+        # Assert the exception contains the expected message
+        assert "Unsupported image format" in str(exc_info.value), "Expected unsupported image format error"
 
     def test_provider_validation(self):
         """Test error handling for provider validation."""
