@@ -1,5 +1,6 @@
 import pytest
 from src.models.base import ModelProvider, ModelCapabilities, ModelConfig
+from pydantic import ValidationError
 
 
 class TestModelCapabilities:
@@ -123,3 +124,59 @@ def test_model_config():
     assert config.provider == "azure"
     assert config.full_name == "azure/my-gpt4"
     assert str(config) == "azure/gpt-4"
+
+
+def test_vision_model_mime_types():
+    """Test MIME type validation for vision models."""
+    # Valid configuration with supported MIME types
+    valid_config = ModelConfig(
+        provider=ModelProvider.OPENAI,
+        name="test-vision-model",
+        capabilities=ModelCapabilities(supports_vision=True),
+        supported_mime_types=["image/jpeg", "image/png"]
+    )
+    assert valid_config.supported_mime_types == ["image/jpeg", "image/png"]
+
+    # Missing MIME types
+    with pytest.raises(
+        ValidationError,
+        match=r"Model 'test-vision-model' has media capabilities but lacks supported MIME types"
+    ):
+        ModelConfig(
+            provider=ModelProvider.OPENAI,
+            name="test-vision-model",
+            capabilities=ModelCapabilities(supports_vision=True)
+        )
+
+    # Invalid MIME type format
+    with pytest.raises(
+        ValidationError,
+        match=r"Invalid MIME type.*must start with one of: \['image/'\]"
+    ):
+        ModelConfig(
+            provider=ModelProvider.OPENAI,
+            name="test-vision-model",
+            capabilities=ModelCapabilities(supports_vision=True),
+            supported_mime_types=["application/json", "image/png"]
+        )
+
+    # Non-vision model doesn't require MIME types 
+    non_vision_config = ModelConfig(
+        provider=ModelProvider.OPENAI,
+        name="test-chat-model",
+        capabilities=ModelCapabilities(supports_chat=True)
+    )
+    assert non_vision_config.supported_mime_types is None
+
+
+def test_model_provider_configurations():
+    """Test model configurations from different providers."""
+    from src.models.providers.azure import AZURE_MODELS
+    from src.models.providers.openai import OPENAI_MODELS
+
+    # Test Azure vision models
+    vision_models = [m for m in AZURE_MODELS.values() if m.capabilities.supports_vision]
+    for model in vision_models:
+        assert model.supported_mime_types is not None, f"Azure model {model.name} missing MIME types"
+        assert any(mt.startswith("image/") for mt in model.supported_mime_types), \
+            f"Invalid MIME types in Azure model {model.name}: {model.supported_mime_types}"

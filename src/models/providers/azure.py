@@ -1,8 +1,6 @@
 from typing import Dict
 from ..base import ModelConfig, ModelProvider, ModelCapabilities
-
-# Supported MIME types for vision models
-VISION_MIME_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"]
+from ..constants import VISION_MIME_TYPES, AUDIO_MIME_TYPES, MULTIMODAL_MIME_TYPES
 
 AZURE_MODELS: Dict[str, ModelConfig] = {
     "o1-preview": ModelConfig(
@@ -76,7 +74,7 @@ AZURE_MODELS: Dict[str, ModelConfig] = {
             supports_audio_output=True,
             default_temperature=0.7,
         ),
-        supported_mime_types=VISION_MIME_TYPES + ["audio/wav", "audio/mpeg"],
+        supported_mime_types=MULTIMODAL_MIME_TYPES,
     ),
     "gpt-4": ModelConfig(
         provider=ModelProvider.AZURE,
@@ -138,6 +136,7 @@ AZURE_MODELS: Dict[str, ModelConfig] = {
             supports_audio_input=True,
             default_temperature=0.0,
         ),
+        supported_mime_types=AUDIO_MIME_TYPES,
     ),
     "text-to-speech": ModelConfig(
         provider=ModelProvider.AZURE,
@@ -149,6 +148,7 @@ AZURE_MODELS: Dict[str, ModelConfig] = {
             supports_audio_output=True,
             default_temperature=0.0,
         ),
+        supported_mime_types=AUDIO_MIME_TYPES,
     ),
 }
 

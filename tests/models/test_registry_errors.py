@@ -15,6 +15,7 @@ from src.aoai.client import AOAIClient
 from pathlib import Path  # Add this import
 from src.exceptions.vision import ImageValidationError  # Add this import
 from src.functions.vision import analyze_images  # Add this import
+from pydantic import ValidationError  # Import ValidationError from Pydantic
 
 
 class TestModelRegistryErrors:
@@ -100,3 +101,36 @@ class TestModelRegistryErrors:
         with pytest.raises(ValueError) as exc_info:
             list_models(provider="invalid")
         assert "Invalid provider" in str(exc_info.value)
+
+    def test_mime_type_validation(self):
+        """Test MIME type validation for vision models."""
+        registry = ModelRegistry()
+        
+        # Try to add a vision model without MIME types
+        with pytest.raises(ValidationError, match=r"has media capabilities but lacks supported MIME types"):
+            invalid_model = ModelConfig(
+                provider=ModelProvider.AZURE,
+                name="invalid-vision-model",
+                capabilities=ModelCapabilities(supports_vision=True)
+            )
+            registry.add_model(invalid_model)  # Attempt to add the invalid model
+
+        # Try to add a vision model with invalid MIME types
+        with pytest.raises(ValidationError, match=r"Invalid MIME type.*must start with one of: \['image/'\]"):
+            invalid_mime_model = ModelConfig(
+                provider=ModelProvider.AZURE,
+                name="invalid-mime-model",
+                capabilities=ModelCapabilities(supports_vision=True),
+                supported_mime_types=["text/plain", "image/png"]
+            )
+            registry.add_model(invalid_mime_model)  # Attempt to add the invalid model
+
+        # Valid vision model should work
+        valid_model = ModelConfig(
+            provider=ModelProvider.AZURE,
+            name="valid-vision-model",
+            capabilities=ModelCapabilities(supports_vision=True),
+            supported_mime_types=["image/jpeg", "image/png"]
+        )
+        registry.add_model(valid_model)
+        assert registry.get_model("valid-vision-model") == valid_model

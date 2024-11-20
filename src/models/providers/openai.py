@@ -1,13 +1,6 @@
 from typing import Dict
 from ..base import ModelConfig, ModelProvider, ModelCapabilities
-
-# Supported MIME types for vision models
-VISION_MIME_TYPES = [
-    "image/jpeg",
-    "image/png",
-    "image/gif",
-    "image/webp"
-]
+from ..constants import VISION_MIME_TYPES, AUDIO_MIME_TYPES, MULTIMODAL_MIME_TYPES
 
 OPENAI_MODELS: Dict[str, ModelConfig] = {
     "gpt-4-turbo-preview": ModelConfig(

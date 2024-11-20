@@ -1,5 +1,9 @@
 """Constants used for model configuration and environment variables."""
 
+VISION_MIME_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"]
+AUDIO_MIME_TYPES = ["audio/wav", "audio/mpeg", "audio/mp3", "audio/ogg"]
+MULTIMODAL_MIME_TYPES = VISION_MIME_TYPES + AUDIO_MIME_TYPES
+
 # Environment Variables
 ENV_AZURE_DEPLOYMENT_OVERRIDE = "AZURE_DEPLOYMENT_OVERRIDE"
 ENV_AZURE_DEPLOYMENT_PREFIX = "AZURE_DEPLOYMENT_"
