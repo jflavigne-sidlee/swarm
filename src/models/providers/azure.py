@@ -154,7 +154,8 @@ AZURE_MODELS: Dict[str, ModelConfig] = {
 
 
 def get_azure_model(model_name: str, deployment_name: str = None) -> ModelConfig:
-    """Get Azure model configuration by name.
+    """
+    Get Azure model configuration by name.
 
     Args:
         model_name: The name of the model
@@ -172,19 +173,10 @@ def get_azure_model(model_name: str, deployment_name: str = None) -> ModelConfig
             f"Available models: {', '.join(AZURE_MODELS.keys())}"
         )
 
-    # Get the base config
     base_config = AZURE_MODELS[model_name]
-
-    # If deployment_name is provided, create a new config with the updated name
+    
+    # If deployment_name is provided, create a new config with the override
     if deployment_name:
-        return ModelConfig(
-            provider=base_config.provider,
-            name=base_config.name,
-            capabilities=base_config.capabilities,
-            version=base_config.version,
-            deployment_name=deployment_name,
-            description=base_config.description,
-            supported_mime_types=base_config.supported_mime_types,
-        )
+        return base_config.clone_with(deployment_name=deployment_name)
 
     return base_config

@@ -207,3 +207,29 @@ class ModelConfig(BaseModel):
                 )
 
         return self
+
+    def clone_with(self, **overrides) -> 'ModelConfig':
+        """
+        Clone the current model configuration with specified overrides.
+        
+        Args:
+            **overrides: Keyword arguments to override specific attributes.
+                        Only existing model attributes can be overridden.
+        
+        Returns:
+            ModelConfig: A new instance with the specified overrides.
+        
+        Raises:
+            ValueError: If an invalid override key is provided.
+        """
+        # Validate override keys
+        valid_fields = self.model_fields.keys()
+        invalid_keys = set(overrides.keys()) - set(valid_fields)
+        if invalid_keys:
+            raise ValueError(f"Invalid override keys: {invalid_keys}. Valid fields are: {valid_fields}")
+
+        # Create new config with current values and overrides
+        config_data = self.model_dump()
+        config_data.update(overrides)
+        
+        return ModelConfig(**config_data)

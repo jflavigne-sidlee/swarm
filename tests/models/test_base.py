@@ -180,3 +180,38 @@ def test_model_provider_configurations():
         assert model.supported_mime_types is not None, f"Azure model {model.name} missing MIME types"
         assert any(mt.startswith("image/") for mt in model.supported_mime_types), \
             f"Invalid MIME types in Azure model {model.name}: {model.supported_mime_types}"
+
+
+def test_model_config_clone():
+    """Test ModelConfig clone_with method."""
+    original = ModelConfig(
+        provider=ModelProvider.AZURE,
+        name="test-model",
+        capabilities=ModelCapabilities(supports_chat=True),
+        version="1.0",
+        description="Original model"
+    )
+
+    # Test cloning with deployment override
+    cloned = original.clone_with(deployment_name="custom-deployment")
+    assert cloned.deployment_name == "custom-deployment"
+    assert cloned.name == original.name
+    assert cloned.capabilities == original.capabilities
+    assert cloned.version == original.version
+    assert cloned.description == original.description
+
+    # Test cloning with multiple overrides
+    cloned = original.clone_with(
+        deployment_name="custom-deployment",
+        version="2.0",
+        description="Modified model"
+    )
+    assert cloned.deployment_name == "custom-deployment"
+    assert cloned.version == "2.0"
+    assert cloned.description == "Modified model"
+    assert cloned.name == original.name
+    assert cloned.capabilities == original.capabilities
+
+    # Test invalid override
+    with pytest.raises(ValueError, match="Invalid override keys"):
+        original.clone_with(invalid_field="value")
