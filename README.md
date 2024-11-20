@@ -5,109 +5,17 @@ A Python-based framework for orchestrating AI agents using Azure OpenAI services
 
 ## Features
 - 🤖 Multi-agent orchestration
-- 📄 File search and analysis
-- 👁️ Vision and image analysis
-- 🔄 Vector store management
+- 📄 File search and analysis with vector store support
+- 👁️ Vision and image analysis capabilities
+- 🔄 Advanced vector store management
 - ⚡ High-performance async operations
 - 🧪 Comprehensive testing suite
 
-### 1. Azure OpenAI Client (`src/aoai/`)
-- Custom client implementation for Azure OpenAI services
-- Handles authentication and API interactions
-- Manages vector stores, assistants, and chat completions
-- Key files:
-  - `client.py`: Main client implementation
-  - `constants.py`: API constants and configuration
-  - `types.py`: Type definitions
-  - `files.py`: Vector store operations
-  - `runs.py`: Run management
-  - `chat.py`: Chat completion functionality
+## Installation
 
-### 2. File Management (`src/file_manager.py`)
-- Handles file operations and vector store management
-- Validates file types and MIME types
-- Manages file uploads to vector stores
-- Integrates with Azure OpenAI's file search capabilities
-
-### 3. Models System (`src/models/`)
-- Type-safe configuration system for AI models
-- Supports multiple providers (Azure, OpenAI)
-- Handles model capabilities and limitations
-
-#### ModelConfig
-Represents a complete model configuration including:
-- Provider information
-- Model capabilities
-- Version information
-- Deployment settings
-- MIME type support
-- Description and metadata
-
-### 4. Functions (`src/functions/`)
-- Vision analysis capabilities
-- File search operations
-- Type definitions and schemas
-
-Notable features:
-
-```python
-@dataclass
-class ImageAnalysisResponse:
-    """Response structure for image analysis results."""
-    description: str
-    tags: List[str]
-    objects: List[str]
-    text: Optional[str] = None
-    faces: Optional[List[dict]] = None
-    colors: Optional[List[str]] = None
-    landmarks: Optional[List[str]] = None
-    categories: Optional[List[str]] = None
-    brands: Optional[List[str]] = None
-
-
-5. Configuration (`src/config.py`)
-- Central configuration management
-- Handles file search settings
-- Deployment configurations
-
-Example configuration:
-
-```python
-@dataclass
-class FileSearchConfig:
-    """Configuration for FileSearchManager.
-    
-    Attributes:
-        assistant_name: Name for created assistants
-        assistant_instructions: Instructions for created assistants
-        vector_store_expiration_days: Days until vector store expires
-        max_retries: Number of retries for API calls
-        retry_delay: Delay between retries in seconds
-        chunk_size: Size of chunks for text splitting (in tokens)
-        chunk_overlap: Overlap between chunks (in tokens)
-        max_chunks_in_context: Maximum number of chunks to include in context
-        model_name: Name of the Azure OpenAI deployment to use
-    """
-    assistant_name: str = "File Analysis Assistant"
-    assistant_instructions: str = "You are an expert at analyzing documents and answering questions about them."
-    vector_store_expiration_days: int = 7
-    max_retries: int = 3
-    retry_delay: float = 1.0
-    chunk_size: int = 800
-    chunk_overlap: int = 400
-    max_chunks_in_context: int = 20
-    model_name: Optional[str] = None
+```bash
+pip install -r requirements.txt
 ```
-
-
-### 6. Testing Infrastructure
-- Comprehensive test suite
-- Pytest-based testing framework
-- Test utilities and fixtures
-- Key test directories:
-  - `/tests/`: Main test suite
-  - `/tests/functions/`: Function-specific tests
-  - `/tests/models/`: Model system tests
 
 ## Project Structure
 
@@ -117,7 +25,6 @@ swarm-project/
 │   ├── functions/          # Core functionality modules
 │   ├── models/            # Model configuration system
 │   ├── exceptions/        # Custom exceptions
-│   ├── __init__.py
 │   ├── config.py          # Configuration management
 │   ├── file_manager.py    # File operations
 │   └── types.py           # Type definitions
@@ -159,61 +66,81 @@ swarm-project/
 - API versions
 - File Search Configuration
 
+## Core Components
+
+### 1. Azure OpenAI Client (`src/aoai/`)
+- Custom client implementation for Azure OpenAI services
+- Handles authentication and API interactions
+- Manages vector stores, assistants, and chat completions
+- Supports file search capabilities
+
+### 2. File Management System
+- Vector store operations and management
+- File validation and MIME type checking
+- Chunking and embedding management
+- Supports multiple file formats including:
+  - Documents (PDF, DOCX, TXT)
+  - Source code (Python, JavaScript, Java, etc.)
+  - Markdown and structured text
+
+### 3. Model Configuration System
+The model system provides type-safe configuration for AI models:
+
+```python
+@dataclass
+class ModelConfig:
+    provider: ModelProvider
+    name: str
+    capabilities: ModelCapabilities
+    deployment_name: Optional[str] = None
+    supported_mime_types: Optional[List[str]] = None
+```
+
+### 4. File Search Configuration
+Configurable settings for file search operations:
+
 ```python
 @dataclass
 class FileSearchConfig:
-    """Configuration for FileSearchManager.
-    
-    Attributes:
-        assistant_name: Name for created assistants
-        assistant_instructions: Instructions for created assistants
-        vector_store_expiration_days: Days until vector store expires
-        max_retries: Number of retries for API calls
-        retry_delay: Delay between retries in seconds
-        chunk_size: Size of chunks for text splitting (in tokens)
-        chunk_overlap: Overlap between chunks (in tokens)
-        max_chunks_in_context: Maximum number of chunks to include in context
-        model_name: Name of the Azure OpenAI deployment to use
-    """
     assistant_name: str = "File Analysis Assistant"
-    assistant_instructions: str = "You are an expert at analyzing documents and answering questions about them."
+    assistant_instructions: str = "You are an expert at analyzing documents."
     vector_store_expiration_days: int = 7
-    max_retries: int = 3
-    retry_delay: float = 1.0
     chunk_size: int = 800
     chunk_overlap: int = 400
     max_chunks_in_context: int = 20
     model_name: Optional[str] = None
 ```
 
-## Testing Structure
+## Environment Setup
 
-### Test Categories
-1. Basic Functionality Tests
-2. Integration Tests
-3. Error Handling Tests
-4. Model Configuration Tests
-5. Vision Analysis Tests
+Required environment variables:
 
-### Test Utilities
-- Test fixtures
-- Environment setup
-- Mock data generation
-- Response validation
+```bash
+AZURE_OPENAI_API_KEY=your_api_key
+AZURE_OPENAI_API_VERSION=2024-05-01-preview
+AZURE_OPENAI_ENDPOINT=your_endpoint
+AZURE_OPENAI_DEPLOYMENT_NAME=your_deployment
+```
 
-## Dependencies
-Key dependencies from requirements.txt:
-- openai
-- python-dotenv
-- pytest
-- pydantic
-- instructor
-- httpx
-- aiohttp
+## Testing
+
+Run the test suite:
+
+```bash
+# Run all tests
+pytest tests/ -v
+
+# Run specific test categories
+pytest tests/functions/ -v  # Function tests
+pytest tests/models/ -v     # Model tests
+
+# Run with coverage
+pytest tests/ -v --cov=src --cov-report=html
+```
 
 ## Error Handling
-The project implements a comprehensive error handling system with custom exceptions:
 
+The project implements a comprehensive error handling system:
 
 ```python
 class FileSearchError(Exception):
@@ -227,11 +154,127 @@ class FileValidationError(FileSearchError):
 class VectorStoreError(FileSearchError):
     """Raised when vector store operations fail."""
     pass
-
-class AssistantError(FileSearchError):
-    """Raised when assistant operations fail."""
-    pass
 ```
 
+## Dependencies
+
+Key dependencies:
+- openai>=1.54.4
+- python-dotenv>=1.0.1
+- pytest>=8.3.3
+- pydantic>=2.9.2
+- instructor>=1.6.4
+- httpx>=0.27.2
+- aiohttp>=3.11.2
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
+
+## Documentation
+
+For detailed documentation on specific components:
+- [File Search Guide](docs/file_upload.md)
+- [Model Configuration](docs/models/README.md)
+- [Vision Tests](docs/functions/vision/README.md)
+
+# Instructions
+For this project, we use an Azure OpenAI instance. 
+Consider this when coding.
+
+# Azure OpenAI Assistants file search tool
+
+08/28/2024
+https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/file-search?tabs=python
+
+In this article
+- File search support
+- Enable file search
+- Upload files for file search
+- Update the assistant to use the new vector store
+- Create a thread
+- Create a run and check the output
+- How it works
+- Vector stores
+- Attaching vector stores
+- Ensuring vector store readiness before creating runs
+- Managing costs with expiration policies
+
+File Search augments the Assistant with knowledge from outside its model, such as proprietary product information or documents provided by your users. OpenAI automatically parses and chunks your documents, creates and stores the embeddings, and use both vector and keyword search to retrieve relevant content to answer user queries.
+
+**Note**
+- File search can ingest up to 10,000 files per assistant - 500 times more than before. It is fast, supports parallel queries through multi-threaded searches, and features enhanced reranking and query rewriting.
+- Vector store is a new object in the API. Once a file is added to a vector store, it's automatically parsed, chunked, and embedded, made ready to be searched. Vector stores can be used across assistants and threads, simplifying file management and billing.
+- We've added support for the tool_choice parameter which can be used to force the use of a specific tool (like file search, code interpreter, or a function) in a particular run.
+
+## File search support
+
+### Supported regions
+File search is available in regions that support Assistants.
+
+### API Version
+2024-05-01-preview
+
+### Supported file types
+
+**Note**
+For text/ MIME types, the encoding must be either utf-8, utf-16, or ASCII.
+
+# Vision Tests
+
+## Running Tests
+
+### Individual test commands:
+```bash
+# Basic functionality tests
+pytest tests/functions/vision/test_image_analysis.py::test_analyze_single_local_image -v
+pytest tests/functions/vision/test_image_analysis.py::test_analyze_single_url_image -v
+pytest tests/functions/vision/test_image_analysis.py::test_analyze_multiple_images -v
+pytest tests/functions/vision/test_image_analysis.py::test_encode_image_to_base64 -v
+
+# Error handling tests
+pytest tests/functions/vision/test_image_analysis.py::test_invalid_image_path -v
+pytest tests/functions/vision/test_image_analysis.py::test_invalid_image_url -v
 
 
+# Model configuration tests
+pytest tests/functions/vision/test_image_analysis.py::test_analyze_images_model_validation -v
+pytest tests/functions/vision/test_image_analysis.py::test_token_limit_validation -v
+pytest tests/functions/vision/test_image_analysis.py::test_mime_type_validation -v
+pytest tests/functions/vision/test_image_analysis.py::test_environment_model_override -v
+
+# Image set analysis tests
+pytest tests/functions/vision/test_image_analysis.py::test_image_set_analysis -v
+pytest tests/functions/vision/test_image_analysis.py::test_image_set_with_custom_prompt -v
+pytest tests/functions/vision/test_image_analysis.py::test_image_set_token_limit -v
+
+# Response validation tests
+pytest tests/functions/vision/test_image_analysis.py::test_response_model_validation -v
+pytest tests/functions/vision/test_image_analysis.py::test_max_tokens_limit -v
+
+# Run all tests in file:
+pytest tests/functions/vision/test_image_analysis.py -v
+
+# Run all tests with print statements:
+pytest tests/functions/vision/test_image_analysis.py -v -s
+
+# Run tests by category:
+pytest tests/functions/vision/test_image_analysis.py -v -k "basic" # Run basic functionality tests
+pytest tests/functions/vision/test_image_analysis.py -v -k "error" # Run error handling tests
+pytest tests/functions/vision/test_image_analysis.py -v -k "model" # Run model configuration tests
+pytest tests/functions/vision/test_image_analysis.py -v -k "set" # Run image set tests
+pytest tests/functions/vision/test_image_analysis.py -v -k "response" # Run response validation tests
+
+# Run tests with coverage:
+pytest tests/functions/vision/test_image_analysis.py -v --cov=src.functions.vision.image_analysis
+
+# Run tests and generate HTML coverage report:
+pytest tests/functions/vision/test_image_analysis.py -v --cov=src.functions.vision.image_analysis --cov-report=html
