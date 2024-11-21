@@ -7,6 +7,14 @@ import re
 
 from .config import WriterConfig
 from .exceptions import WriterError
+from .constants import (
+    MAX_FILENAME_LENGTH, FORBIDDEN_FILENAME_CHARS, RESERVED_WINDOWS_FILENAMES,
+    YAML_FRONTMATTER_START, YAML_FRONTMATTER_END,
+    ERROR_INVALID_FILENAME, ERROR_INVALID_METADATA_TYPE, ERROR_FILE_EXISTS,
+    ERROR_PERMISSION_DENIED_PATH, ERROR_PERMISSION_DENIED_DIR, ERROR_MISSING_METADATA,
+    ERROR_DIR_EXISTS, ERROR_DIR_CREATION, ERROR_YAML_SERIALIZATION,
+    ERROR_FILE_WRITE, ERROR_PERMISSION_DENIED_FILE
+)
 
 
 def create_document(
@@ -17,81 +25,72 @@ def create_document(
     if config is None:
         config = WriterConfig()
 
-    # Validate filename
+    # Validate inputs
     if not file_name or not is_valid_filename(file_name):
-        raise WriterError("Invalid filename")
+        raise WriterError(ERROR_INVALID_FILENAME)
 
-    # Validate metadata types
     if not all(isinstance(value, str) for value in metadata.values()):
-        raise WriterError("Invalid metadata type")
+        raise WriterError(ERROR_INVALID_METADATA_TYPE)
 
     # Ensure file has .md extension
     if not file_name.endswith(".md"):
         file_name += ".md"
 
-    # Construct full file path in drafts directory
+    # Construct full file path
     file_path = config.drafts_dir / file_name
 
-    # Check if file already exists (handle permission errors)
     try:
+        # Check if file exists
         if file_path.exists():
-            raise WriterError(f"File already exists: {file_path}")
-    except PermissionError:
-        raise WriterError(f"Permission denied accessing path: {file_path}")
+            raise WriterError(ERROR_FILE_EXISTS.format(path=file_path))
 
-    # Validate required metadata fields
-    missing_fields = [
-        field for field in config.metadata_keys if field not in metadata
-    ]
-    if missing_fields:
-        raise WriterError(
-            f"Missing required metadata fields: {', '.join(missing_fields)}"
-        )
-
-    # Create drafts directory if it doesn't exist
-    if config.create_directories:
-        try:
-            config.drafts_dir.mkdir(parents=True, exist_ok=True)
-        except FileExistsError:
+        # Validate required metadata fields
+        missing_fields = [
+            field for field in config.metadata_keys if field not in metadata
+        ]
+        if missing_fields:
             raise WriterError(
-                f"Cannot create directory: {config.drafts_dir} (file exists)"
+                ERROR_MISSING_METADATA.format(fields=', '.join(missing_fields))
             )
-        except PermissionError:
-            raise WriterError(
-                f"Permission denied creating directory: {config.drafts_dir}"
-            )
-        except OSError as e:
-            raise WriterError(f"Directory creation error: {str(e)}")
 
-    # Write file with YAML frontmatter
-    try:
-        # First, try to serialize the YAML to catch any serialization errors
+        # Create directories if needed
+        if config.create_directories:
+            try:
+                config.drafts_dir.mkdir(parents=True, exist_ok=True)
+            except FileExistsError:
+                raise WriterError(ERROR_DIR_EXISTS.format(path=config.drafts_dir))
+            except PermissionError:
+                raise WriterError(ERROR_PERMISSION_DENIED_DIR.format(path=config.drafts_dir))
+            except OSError as e:
+                raise WriterError(ERROR_DIR_CREATION.format(error=str(e)))
+
         try:
+            # Serialize YAML
             yaml_content = yaml.dump(metadata, default_flow_style=False, sort_keys=False)
-        except yaml.YAMLError as e:
-            raise WriterError(f"YAML serialization error: {str(e)}")
-
-        # Then, try to write the file
-        try:
+            
+            # Write to file
             with open(file_path, "w", encoding=config.default_encoding) as f:
-                f.write("---\n")
+                f.write(YAML_FRONTMATTER_START)
                 f.write(yaml_content)
-                f.write("---\n\n")
-        except PermissionError:
-            raise WriterError(f"Permission denied writing file: {file_path}")
-        except OSError as e:
-            raise WriterError(f"File writing error: {str(e)}")
+                f.write(YAML_FRONTMATTER_END)
+                
+            return file_path
 
-        return file_path
+        except yaml.YAMLError as e:
+            raise WriterError(ERROR_YAML_SERIALIZATION.format(error=str(e)))
+        except PermissionError:
+            raise WriterError(ERROR_PERMISSION_DENIED_FILE.format(path=file_path))
+        except OSError as e:
+            raise WriterError(ERROR_FILE_WRITE.format(error=str(e)))
 
     except Exception as e:
         # Clean up if file was partially written
-        if file_path.exists():
-            try:
-                file_path.unlink()
-            except OSError:
-                pass  # Ignore cleanup errors
-        raise
+        if isinstance(e, WriterError):
+            cleanup_partial_file(file_path)
+            raise
+        # Re-raise unexpected errors after cleanup
+        cleanup_partial_file(file_path)
+        raise WriterError(f"Unexpected error: {str(e)}")
 
 def is_valid_filename(filename: str) -> bool:
     """Check if the filename is valid based on OS restrictions.
@@ -110,24 +109,15 @@ def is_valid_filename(filename: str) -> bool:
         - Trailing spaces or dots
     """
     # Check for empty or too long filenames
-    if not filename or len(filename) > 255:
+    if not filename or len(filename) > MAX_FILENAME_LENGTH:
         return False
         
     # Check for common forbidden characters in filenames
-    forbidden_chars = '<>:"/\\|?*\0'
-    if any(char in filename for char in forbidden_chars):
+    if any(char in filename for char in FORBIDDEN_FILENAME_CHARS):
         return False
         
     # Check for reserved Windows filenames
-    reserved_names = {
-        "CON", "PRN", "AUX", "NUL",  # Device names
-        "COM1", "COM2", "COM3", "COM4",  # COM ports
-        "LPT1", "LPT2", "LPT3", "LPT4"  # Printer ports
-    }
-    
-    # Get base name without extension and convert to uppercase for comparison
-    base_name = os.path.splitext(os.path.basename(filename))[0].upper()
-    if base_name in reserved_names:
+    if os.path.splitext(os.path.basename(filename))[0].upper() in RESERVED_WINDOWS_FILENAMES:
         return False
         
     # Check for trailing spaces or dots
@@ -135,3 +125,16 @@ def is_valid_filename(filename: str) -> bool:
         return False
         
     return True
+
+def cleanup_partial_file(file_path: Path) -> None:
+    """Clean up partially written files in case of errors.
+    
+    Args:
+        file_path: Path to the file to clean up
+    """
+    try:
+        # Use os.path.exists instead of Path.exists to avoid permission errors
+        if os.path.exists(str(file_path)):
+            os.remove(str(file_path))
+    except (OSError, PermissionError):
+        pass  # Ignore cleanup errors

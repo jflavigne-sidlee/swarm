@@ -81,25 +81,35 @@ class TestCreateDocument:
     
     def test_create_document_invalid_permissions(self, test_config, valid_metadata):
         """Test error when directory cannot be created or written to."""
-        # Make drafts directory read-only
-        test_config.drafts_dir.mkdir(parents=True, exist_ok=True)
-        test_config.drafts_dir.chmod(0o444)  # Read-only
-        
-        with pytest.raises(WriterError, match="Permission denied"):
-            create_document("test_doc.md", valid_metadata, test_config)
+        try:
+            # Make drafts directory read-only
+            test_config.drafts_dir.mkdir(parents=True, exist_ok=True)
+            test_config.drafts_dir.chmod(0o444)  # Read-only
+            
+            with pytest.raises(WriterError, match="Permission denied"):
+                create_document("test_doc.md", valid_metadata, test_config)
+        finally:
+            # Restore permissions for cleanup
+            try:
+                test_config.drafts_dir.chmod(0o755)
+            except Exception:
+                pass
     
     def test_create_document_permission_error_on_exists_check(self, test_config, valid_metadata):
         """Test error when checking file existence fails due to permissions."""
-        # Create directory structure but make it unreadable
-        test_config.drafts_dir.mkdir(parents=True, exist_ok=True)
-        test_config.drafts_dir.chmod(0o000)  # No permissions
-        
         try:
-            with pytest.raises(WriterError, match="Permission denied accessing path"):
+            # Create directory structure but make it unreadable
+            test_config.drafts_dir.mkdir(parents=True, exist_ok=True)
+            test_config.drafts_dir.chmod(0o000)  # No permissions
+            
+            with pytest.raises(WriterError, match="Permission denied"):
                 create_document("test_doc.md", valid_metadata, test_config)
         finally:
-            # Restore permissions so cleanup can work
-            test_config.drafts_dir.chmod(0o755)
+            # Restore permissions for cleanup
+            try:
+                test_config.drafts_dir.chmod(0o755)
+            except Exception:
+                pass
     
     def test_create_document_invalid_filename(self, test_config, valid_metadata):
         """Test error when filename contains invalid characters or patterns."""

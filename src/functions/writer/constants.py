@@ -169,3 +169,29 @@ KEY_MAX_VALUE: Final = "max_value"
 KEY_PATTERN: Final = "pattern"
 KEY_CHOICES: Final = "choices"
 KEY_CONSTRAINTS: Final = "constraints"
+
+# File validation constants
+MAX_FILENAME_LENGTH: Final = 255
+FORBIDDEN_FILENAME_CHARS: Final = '<>:"/\\|?*\0'
+RESERVED_WINDOWS_FILENAMES: Final[Set[str]] = {
+    "CON", "PRN", "AUX", "NUL",  # Device names
+    "COM1", "COM2", "COM3", "COM4",  # COM ports
+    "LPT1", "LPT2", "LPT3", "LPT4"  # Printer ports
+}
+
+# YAML frontmatter markers
+YAML_FRONTMATTER_START: Final = "---\n"
+YAML_FRONTMATTER_END: Final = "---\n\n"
+
+# Error messages for file operations
+ERROR_INVALID_FILENAME: Final = "Invalid filename"
+ERROR_INVALID_METADATA_TYPE: Final = "Invalid metadata type"
+ERROR_FILE_EXISTS: Final = "File already exists: {path}"
+ERROR_PERMISSION_DENIED_PATH: Final = "Permission denied accessing path: {path}"
+ERROR_PERMISSION_DENIED_DIR: Final = "Permission denied creating directory: {path}"
+ERROR_MISSING_METADATA: Final = "Missing required metadata fields: {fields}"
+ERROR_DIR_EXISTS: Final = "Cannot create directory: {path} (file exists)"
+ERROR_DIR_CREATION: Final = "Directory creation error: {error}"
+ERROR_YAML_SERIALIZATION: Final = "YAML serialization error: {error}"
+ERROR_FILE_WRITE: Final = "File writing error: {error}"
+ERROR_PERMISSION_DENIED_FILE: Final = "Permission denied writing file: {path}"
