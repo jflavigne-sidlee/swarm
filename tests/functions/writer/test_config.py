@@ -236,7 +236,12 @@ class TestWriterConfig:
     def test_validation_constraints(self, basic_config):
         """Test numeric constraint validation."""
         basic_config["max_file_size"] = -1
-        with pytest.raises(ConfigurationError, match=".*must be positive.*"):
+        expected_error = ERROR_VALUE_TOO_SMALL.format(
+            name="max_file_size",
+            value=-1,
+            min=1
+        )
+        with pytest.raises(ConfigurationError, match=re.escape(expected_error)):
             WriterConfig(**basic_config)
 
     def test_string_representation(self, basic_config):

@@ -137,7 +137,7 @@ class PathHandler:
         if allow_creation and not path.exists():
             try:
                 path.mkdir(parents=True, exist_ok=True)
-                logging.debug(PATH_CREATION_MSG.format(path=path))
+                self.logger.debug(PATH_CREATION_MSG.format(path=path))
             except Exception as e:
                 raise PathValidationError(
                     ERROR_PATH_PROCESS.format(
@@ -436,7 +436,11 @@ class WriterConfig:
         # Validate max file size
         if self.max_file_size <= 0:
             raise ConfigurationError(
-                "max_file_size must be positive"
+                ERROR_VALUE_TOO_SMALL.format(
+                    name="max_file_size",
+                    value=self.max_file_size,
+                    min=1
+                )
             )
         
         # Validate metadata keys
@@ -454,13 +458,19 @@ class WriterConfig:
             "test".encode(self.default_encoding)
         except LookupError:
             raise ConfigurationError(
-                f"Invalid value for 'default_encoding': {self.default_encoding}"
+                ERROR_INVALID_CONFIG.format(
+                    error=f"Invalid value for 'default_encoding': {self.default_encoding}"
+                )
             )
         
         # Validate compression level
         if not 0 <= self.compression_level <= 9:
             raise ConfigurationError(
-                "compression_level must be between 0 and 9"
+                ERROR_VALUE_TOO_LARGE.format(
+                    name="compression_level",
+                    value=self.compression_level,
+                    max=9
+                )
             )
         
         # Validate allowed extensions
