@@ -100,10 +100,14 @@ class PathHandler:
         check_permissions: bool = True
     ) -> Path:
         """Process and validate a path."""
+        self.logger.debug(
+            f"Processing path '{name}': path={path}, required={required}, "
+            f"check_permissions={check_permissions}"
+        )
+        
         if path is None:
             if required:
                 raise ConfigurationError(PATH_REQUIRED_MSG.format(name=name))
-            self.logger.debug(PATH_OPTIONAL_MSG.format(name=name))
             return None
 
         try:
@@ -115,26 +119,42 @@ class PathHandler:
                 path = path.resolve()
                 self.logger.debug(PATH_CONVERSION_MSG.format(path=path))
             
-            # Create directory if allowed
-            if allow_creation:
-                try:
-                    path.mkdir(parents=True, exist_ok=True)
-                except PermissionError:
-                    raise PathValidationError(
-                        f"Cannot create directory '{name}': Permission denied"
-                    )
-            
             # Check existence after potential creation
             if required and not path.exists():
-                raise PathValidationError(f"{name} does not exist: {path}")
+                if allow_creation:
+                    try:
+                        path.mkdir(parents=True, exist_ok=True)
+                    except PermissionError:
+                        raise PathValidationError(
+                            f"Cannot create directory '{name}': Permission denied"
+                        )
+                else:
+                    raise PathValidationError(f"{name} does not exist: {path}")
             
-            # Check write permissions if path exists
+            # Check if it's a directory
+            if path.exists() and not path.is_dir():
+                raise PathValidationError(f"{name} is not a directory: {path}")
+            
+            # Check permissions using os.access first
             if check_permissions and path.exists():
+                if not os.access(path, os.R_OK):
+                    raise PathValidationError(
+                        f"Path '{name}' does not have read permission: {path}"
+                    )
+                if not os.access(path, os.W_OK):
+                    raise PathValidationError(
+                        f"Path '{name}' does not have write permission: {path}"
+                    )
+                
+                # Double-check with actual file operation only if os.access passes
                 try:
                     test_file = path / ".write_test"
                     test_file.touch()
                     test_file.unlink()
-                except (PermissionError, OSError):
+                except (PermissionError, OSError) as e:
+                    self.logger.warning(
+                        f"Permission check failed for {name} despite os.access: {e}"
+                    )
                     raise PathValidationError(
                         f"Path '{name}' does not have write permission: {path}"
                     )
