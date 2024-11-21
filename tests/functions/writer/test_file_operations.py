@@ -236,6 +236,39 @@ class TestCreateDocument:
         actual_order = [line.split(':')[0].strip() for line in yaml_content.split('\n')]
         
         assert actual_order == expected_order, "Metadata fields are not in the expected order"
-            
+    
+    def test_create_document_special_directory_names(self, test_config, valid_metadata):
+        """Test that special directory names are rejected."""
+        special_names = [
+            ".",
+            "..",
+            "./",
+            "../",
+            "./test.md",
+            "../test.md",
+            "test/./test.md",
+            "test/../test.md"
+        ]
+        
+        for filename in special_names:
+            with pytest.raises(WriterError, match="Invalid filename"):
+                create_document(filename, valid_metadata, test_config)
+    
+    def test_create_document_valid_dot_filenames(self, test_config, valid_metadata):
+        """Test that valid filenames with dots are accepted."""
+        valid_dot_filenames = [
+            ".test.md",          # Hidden file
+            "test.notes.md",     # Multiple dots
+            ".hidden.notes.md",  # Hidden with multiple dots
+        ]
+        
+        for filename in valid_dot_filenames:
+            try:
+                file_path = create_document(filename, valid_metadata, test_config)
+                assert file_path.exists()
+                assert file_path.name == filename
+            except WriterError as e:
+                pytest.fail(f"Valid filename '{filename}' was rejected: {str(e)}")
+    
             
 # pytest tests/functions/writer/test_file_operations.py

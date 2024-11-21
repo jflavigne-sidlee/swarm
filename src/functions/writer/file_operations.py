@@ -106,10 +106,15 @@ def is_valid_filename(filename: str) -> bool:
         - Empty or too long filenames (>255 chars)
         - Forbidden characters (<>:"/\\|?*\0)
         - Reserved Windows filenames (CON, PRN, etc.)
+        - Special directory names (., ..)
         - Trailing spaces or dots
     """
     # Check for empty or too long filenames
     if not filename or len(filename) > MAX_FILENAME_LENGTH:
+        return False
+    
+    # Prevent special directory names
+    if filename in {".", "..", "./", "../"}:
         return False
         
     # Check for common forbidden characters in filenames
@@ -117,7 +122,8 @@ def is_valid_filename(filename: str) -> bool:
         return False
         
     # Check for reserved Windows filenames
-    if os.path.splitext(os.path.basename(filename))[0].upper() in RESERVED_WINDOWS_FILENAMES:
+    base_name = os.path.splitext(os.path.basename(filename))[0].upper()
+    if base_name in RESERVED_WINDOWS_FILENAMES:
         return False
         
     # Check for trailing spaces or dots
