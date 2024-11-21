@@ -42,13 +42,16 @@ def path_handler():
     return PathHandler(logger)
 
 @pytest.fixture
-def basic_config(tmp_path):
+def basic_config(tmp_path, cleanup_dirs):
     """Create a basic configuration with temporary paths."""
     temp_dir = tmp_path / "temp"
     drafts_dir = tmp_path / "drafts"
     finalized_dir = tmp_path / "finalized"
     
-    config = {
+    # Register all directories for cleanup
+    cleanup_dirs(tmp_path, temp_dir, drafts_dir, finalized_dir)
+    
+    return {
         "temp_dir": temp_dir,
         "drafts_dir": drafts_dir,
         "finalized_dir": finalized_dir,
@@ -61,12 +64,29 @@ def basic_config(tmp_path):
         "default_encoding": DEFAULT_ENCODING,
         "create_directories": True
     }
+
+@pytest.fixture
+def cleanup_dirs():
+    """Fixture to handle directory cleanup after tests.
     
-    try:
-        yield config
-    finally:
-        # Clean up all directories
-        clean_directory(tmp_path)
+    Yields a function that can be used to register directories for cleanup.
+    Cleanup happens automatically after the test completes.
+    """
+    dirs_to_clean = set()
+    
+    def register_for_cleanup(*paths: Path):
+        """Register directories for cleanup after test.
+        
+        Args:
+            *paths: Path objects to clean up after test
+        """
+        dirs_to_clean.update(paths)
+    
+    yield register_for_cleanup
+    
+    # Clean up all registered directories in reverse order
+    for path in sorted(dirs_to_clean, key=lambda p: len(str(p)), reverse=True):
+        clean_directory(path)
 
 # Path Handler Tests
 class TestPathHandler:
@@ -89,27 +109,25 @@ class TestPathHandler:
                 required=True
             )
 
-    def test_process_path_permission_denied(self, path_handler, temp_dir):
+    def test_process_path_permission_denied(self, path_handler, temp_dir, cleanup_dirs):
         """Test handling of permission errors during path processing."""
         test_path = temp_dir / "test_perms"
         test_path.mkdir(parents=True, exist_ok=True)
         
-        try:
-            # Mock access to simulate permission issues
-            with patch('os.access', return_value=False):
-                with pytest.raises(PathValidationError, match=re.escape(ERROR_PATH_NO_WRITE.format(
-                    name="test_dir",
-                    path=test_path
-                ))):
-                    path_handler.process_path(
-                        test_path,
-                        "test_dir",
-                        check_permissions=True
-                    )
-        finally:
-            # Restore permissions before cleanup
-            os.chmod(test_path, 0o777)
-            os.chmod(temp_dir, 0o777)
+        # Register paths for cleanup
+        cleanup_dirs(test_path, temp_dir)
+        
+        # Mock access to simulate permission issues
+        with patch('os.access', return_value=False):
+            with pytest.raises(PathValidationError, match=re.escape(ERROR_PATH_NO_WRITE.format(
+                name="test_dir",
+                path=test_path
+            ))):
+                path_handler.process_path(
+                    test_path,
+                    "test_dir",
+                    check_permissions=True
+                )
 
     def test_process_path_permission_checks(self, path_handler, temp_dir):
         """Test different permission check scenarios."""
@@ -323,52 +341,53 @@ class TestWriterConfig:
         assert str(basic_config["temp_dir"]) in str_repr
 
     @pytest.mark.order(before="test_path_validation")
-    def test_initial_directory_state(self, basic_config, tmp_path):
+    def test_initial_directory_state(self, basic_config, tmp_path, cleanup_dirs):
         """Test that directories are properly initialized with correct permissions."""
         temp_dir = tmp_path / "temp"
         drafts_dir = tmp_path / "drafts"
         finalized_dir = tmp_path / "finalized"
         
-        try:
-            # Create directories with write permissions
-            temp_dir.mkdir(parents=True, exist_ok=True)
-            drafts_dir.mkdir(parents=True, exist_ok=True)
-            finalized_dir.mkdir(parents=True, exist_ok=True)
-            
-            # Verify directories exist
-            assert temp_dir.exists(), "Temp directory was not created"
-            assert drafts_dir.exists(), "Drafts directory was not created"
-            assert finalized_dir.exists(), "Finalized directory was not created"
-            
-            # Verify directories are writable (octal 755 = rwxr-xr-x)
-            assert oct(temp_dir.stat().st_mode)[-3:] == '755', f"Temp directory has wrong permissions: {oct(temp_dir.stat().st_mode)}"
-            assert oct(drafts_dir.stat().st_mode)[-3:] == '755', f"Drafts directory has wrong permissions: {oct(drafts_dir.stat().st_mode)}"
-            assert oct(finalized_dir.stat().st_mode)[-3:] == '755', f"Finalized directory has wrong permissions: {oct(finalized_dir.stat().st_mode)}"
-            
-            # Verify directories are empty
-            assert not any(temp_dir.iterdir()), "Temp directory is not empty"
-            assert not any(drafts_dir.iterdir()), "Drafts directory is not empty"
-            assert not any(finalized_dir.iterdir()), "Finalized directory is not empty"
-            
-            # Verify we can write to directories
-            for dir_path in [temp_dir, drafts_dir, finalized_dir]:
-                test_file = dir_path / ".write_test"
-                try:
-                    test_file.touch()
-                    assert test_file.exists(), f"Could not create test file in {dir_path}"
-                    test_file.unlink()
-                    assert not test_file.exists(), f"Could not remove test file in {dir_path}"
-                except (PermissionError, OSError) as e:
-                    pytest.fail(f"Failed to write to {dir_path}: {e}")
+        # Register all directories for cleanup
+        cleanup_dirs(tmp_path, temp_dir, drafts_dir, finalized_dir)
+        
+        # Create directories with write permissions
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        drafts_dir.mkdir(parents=True, exist_ok=True)
+        finalized_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Verify directories exist
+        assert temp_dir.exists(), "Temp directory was not created"
+        assert drafts_dir.exists(), "Drafts directory was not created"
+        assert finalized_dir.exists(), "Finalized directory was not created"
+        
+        # Verify directories are writable (octal 755 = rwxr-xr-x)
+        assert oct(temp_dir.stat().st_mode)[-3:] == '755', f"Temp directory has wrong permissions: {oct(temp_dir.stat().st_mode)}"
+        assert oct(drafts_dir.stat().st_mode)[-3:] == '755', f"Drafts directory has wrong permissions: {oct(drafts_dir.stat().st_mode)}"
+        assert oct(finalized_dir.stat().st_mode)[-3:] == '755', f"Finalized directory has wrong permissions: {oct(finalized_dir.stat().st_mode)}"
+        
+        # Verify directories are empty
+        assert not any(temp_dir.iterdir()), "Temp directory is not empty"
+        assert not any(drafts_dir.iterdir()), "Drafts directory is not empty"
+        assert not any(finalized_dir.iterdir()), "Finalized directory is not empty"
+        
+        # Verify we can write to directories
+        for dir_path in [temp_dir, drafts_dir, finalized_dir]:
+            test_file = dir_path / ".write_test"
+            try:
+                test_file.touch()
+                assert test_file.exists(), f"Could not create test file in {dir_path}"
+                test_file.unlink()
+                assert not test_file.exists(), f"Could not remove test file in {dir_path}"
+            except (PermissionError, OSError) as e:
+                pytest.fail(f"Failed to write to {dir_path}: {e}")
                 
-        finally:
-            # Clean up all directories in reverse creation order
-            for path in [finalized_dir, drafts_dir, temp_dir, tmp_path]:
-                try:
-                    os.chmod(path, 0o777)  # Restore permissions
-                    clean_directory(path)
-                except (PermissionError, OSError) as e:
-                    print(f"Warning: Failed to clean up {path}: {e}")
+        # Clean up all directories in reverse creation order
+        for path in [finalized_dir, drafts_dir, temp_dir, tmp_path]:
+            try:
+                os.chmod(path, 0o777)  # Restore permissions
+                clean_directory(path)
+            except (PermissionError, OSError) as e:
+                print(f"Warning: Failed to clean up {path}: {e}")
 
     def test_metadata_keys_validation(self, basic_config):
         """Test validation of metadata keys."""
