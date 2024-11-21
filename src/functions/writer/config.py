@@ -312,12 +312,12 @@ class WriterConfig:
     )
     
     max_file_size: int = field(
-        default=DEFAULT_MAX_FILE_SIZE,
+        default_factory=get_system_min_file_size,
         metadata={
             MetadataKeys.VALIDATION: {
                 ValidationKeys.TYPE: int,
                 ValidationKeys.MIN: 1,
-                ValidationKeys.ALLOW_ZERO: False
+                ValidationKeys.REQUIRED: True
             },
             MetadataKeys.HELP: "Maximum file size in bytes"
         }
@@ -325,7 +325,7 @@ class WriterConfig:
     
     # List settings
     allowed_extensions: List[str] = field(
-        default_factory=lambda: ALLOWED_EXTENSIONS.copy(),
+        default_factory=get_supported_extensions,
         metadata={
             MetadataKeys.VALIDATION: {
                 ValidationKeys.TYPE: list,
@@ -338,12 +338,13 @@ class WriterConfig:
     
     # Compression settings
     compression_level: int = field(
-        default=5,
+        default_factory=get_max_compression_level,
         metadata={
             MetadataKeys.VALIDATION: {
                 ValidationKeys.TYPE: int,
                 ValidationKeys.MIN: 0,
-                ValidationKeys.MAX: 9
+                ValidationKeys.MAX: 9,
+                ValidationKeys.REQUIRED: True
             },
             MetadataKeys.HELP: "Compression level (0-9)"
         }
@@ -448,6 +449,28 @@ class WriterConfig:
             raise ConfigurationError(
                 "All extensions must start with '.'"
             )
+        
+        # Add system-specific validations
+        available_space = get_available_disk_space(self.temp_dir)
+        if self.max_file_size > available_space:
+            raise ConfigurationError(
+                f"max_file_size ({self.max_file_size} bytes) exceeds available disk space "
+                f"({available_space} bytes) in temp_dir"
+            )
+
+        max_compression = get_max_compression_level()
+        if self.compression_level > max_compression:
+            raise ConfigurationError(
+                f"compression_level ({self.compression_level}) exceeds system maximum "
+                f"({max_compression})"
+            )
+
+        supported_extensions = get_supported_extensions()
+        unsupported = set(self.allowed_extensions) - set(supported_extensions)
+        if unsupported:
+            raise ConfigurationError(
+                f"Unsupported file extensions: {', '.join(unsupported)}"
+            )
     
     def _validate_paths(self) -> None:
         """Validate all configured paths."""
@@ -527,7 +550,7 @@ class WriterConfig:
                     self.backup_dir,
                     "backup_dir",
                     required=True,
-                    allow_creation=True,
+                    allow_creation=self.create_directories,
                     must_be_directory=True,
                     check_permissions=True
                 )
