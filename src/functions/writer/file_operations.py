@@ -2,6 +2,8 @@ from datetime import datetime
 from pathlib import Path
 import yaml
 from typing import Dict, Optional
+import os
+import re
 
 from .config import WriterConfig
 from .exceptions import WriterError
@@ -28,7 +30,7 @@ def create_document(
         config = WriterConfig()
 
     # Validate filename
-    if not file_name or "/" in file_name or "\0" in file_name:
+    if not file_name or not is_valid_filename(file_name):
         raise WriterError("Invalid filename")
 
     # Validate metadata types
@@ -79,3 +81,12 @@ def create_document(
 
     except (OSError, yaml.YAMLError) as e:
         raise WriterError(f"Failed to create document: {str(e)}")
+
+def is_valid_filename(filename: str) -> bool:
+    """Check if the filename is valid based on OS restrictions."""
+    if not filename:
+        return False
+        
+    # Check for common forbidden characters in filenames
+    forbidden_chars = '<>:"/\\|?*\0'
+    return not any(char in filename for char in forbidden_chars)

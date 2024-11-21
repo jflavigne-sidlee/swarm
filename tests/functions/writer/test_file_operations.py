@@ -1,7 +1,6 @@
 import pytest
 from pathlib import Path
 import yaml
-import re
 from datetime import datetime
 
 from src.functions.writer.file_operations import create_document
