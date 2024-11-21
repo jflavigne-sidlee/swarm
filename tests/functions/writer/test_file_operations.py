@@ -85,8 +85,21 @@ class TestCreateDocument:
         test_config.drafts_dir.mkdir(parents=True, exist_ok=True)
         test_config.drafts_dir.chmod(0o444)  # Read-only
         
-        with pytest.raises(WriterError, match="Failed to create document"):
-            create_document("test_doc.md", valid_metadata, test_config) 
+        with pytest.raises(WriterError, match="Permission denied"):
+            create_document("test_doc.md", valid_metadata, test_config)
+    
+    def test_create_document_permission_error_on_exists_check(self, test_config, valid_metadata):
+        """Test error when checking file existence fails due to permissions."""
+        # Create directory structure but make it unreadable
+        test_config.drafts_dir.mkdir(parents=True, exist_ok=True)
+        test_config.drafts_dir.chmod(0o000)  # No permissions
+        
+        try:
+            with pytest.raises(WriterError, match="Permission denied accessing path"):
+                create_document("test_doc.md", valid_metadata, test_config)
+        finally:
+            # Restore permissions so cleanup can work
+            test_config.drafts_dir.chmod(0o755)
     
     def test_create_document_invalid_filename(self, test_config, valid_metadata):
         """Test error when filename contains invalid characters or patterns."""

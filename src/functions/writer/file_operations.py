@@ -12,19 +12,7 @@ from .exceptions import WriterError
 def create_document(
     file_name: str, metadata: Dict[str, str], config: Optional[WriterConfig] = None
 ) -> Path:
-    """Create a new Markdown document with YAML frontmatter metadata.
-
-    Args:
-        file_name: Name of the file to create (will be created in drafts directory)
-        metadata: Dictionary of metadata (must include required fields from config)
-        config: Optional WriterConfig instance (uses default if not provided)
-
-    Returns:
-        Path to the created document
-
-    Raises:
-        WriterError: If file already exists or metadata is invalid
-    """
+    """Create a new Markdown document with YAML frontmatter metadata."""
     # Use default config if none provided
     if config is None:
         config = WriterConfig()
@@ -44,43 +32,66 @@ def create_document(
     # Construct full file path in drafts directory
     file_path = config.drafts_dir / file_name
 
+    # Check if file already exists (handle permission errors)
     try:
-        # Check if file already exists
         if file_path.exists():
             raise WriterError(f"File already exists: {file_path}")
+    except PermissionError:
+        raise WriterError(f"Permission denied accessing path: {file_path}")
 
-        # Validate required metadata fields
-        missing_fields = [
-            field for field in config.metadata_keys if field not in metadata
-        ]
-        if missing_fields:
+    # Validate required metadata fields
+    missing_fields = [
+        field for field in config.metadata_keys if field not in metadata
+    ]
+    if missing_fields:
+        raise WriterError(
+            f"Missing required metadata fields: {', '.join(missing_fields)}"
+        )
+
+    # Create drafts directory if it doesn't exist
+    if config.create_directories:
+        try:
+            config.drafts_dir.mkdir(parents=True, exist_ok=True)
+        except FileExistsError:
             raise WriterError(
-                f"Missing required metadata fields: {', '.join(missing_fields)}"
+                f"Cannot create directory: {config.drafts_dir} (file exists)"
             )
+        except PermissionError:
+            raise WriterError(
+                f"Permission denied creating directory: {config.drafts_dir}"
+            )
+        except OSError as e:
+            raise WriterError(f"Directory creation error: {str(e)}")
 
-        # Create drafts directory if it doesn't exist
-        if config.create_directories:
-            try:
-                config.drafts_dir.mkdir(parents=True, exist_ok=True)
-            except FileExistsError:
-                raise WriterError(
-                    f"Cannot create directory: {config.drafts_dir} (file exists)"
-                )
-            except PermissionError:
-                raise WriterError(
-                    f"Permission denied creating directory: {config.drafts_dir}"
-                )
+    # Write file with YAML frontmatter
+    try:
+        # First, try to serialize the YAML to catch any serialization errors
+        try:
+            yaml_content = yaml.dump(metadata, default_flow_style=False, sort_keys=False)
+        except yaml.YAMLError as e:
+            raise WriterError(f"YAML serialization error: {str(e)}")
 
-        # Write file with YAML frontmatter
-        with open(file_path, "w", encoding=config.default_encoding) as f:
-            f.write("---\n")
-            yaml.dump(metadata, f, default_flow_style=False, sort_keys=False)
-            f.write("---\n\n")
+        # Then, try to write the file
+        try:
+            with open(file_path, "w", encoding=config.default_encoding) as f:
+                f.write("---\n")
+                f.write(yaml_content)
+                f.write("---\n\n")
+        except PermissionError:
+            raise WriterError(f"Permission denied writing file: {file_path}")
+        except OSError as e:
+            raise WriterError(f"File writing error: {str(e)}")
 
         return file_path
 
-    except (OSError, yaml.YAMLError) as e:
-        raise WriterError(f"Failed to create document: {str(e)}")
+    except Exception as e:
+        # Clean up if file was partially written
+        if file_path.exists():
+            try:
+                file_path.unlink()
+            except OSError:
+                pass  # Ignore cleanup errors
+        raise
 
 def is_valid_filename(filename: str) -> bool:
     """Check if the filename is valid based on OS restrictions.
