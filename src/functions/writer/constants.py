@@ -1,6 +1,7 @@
 """Constants for the writer module configuration."""
 from enum import Enum, auto
 from typing import Set, List, Dict, Type, Final
+import os
 
 # Metadata keys
 METADATA_KEY_VALIDATION: Final = "validation"
@@ -12,12 +13,19 @@ METADATA_KEY_TYPE: Final = "type"
 METADATA_KEY_REQUIRED: Final = "required"
 METADATA_KEY_IS_PATH: Final = "is_path"
 
-# Path-related
-DEFAULT_BASE_PATH: Final = "data"
+# Environment variable names
+ENV_PREFIX: Final = "WRITER_"
+ENV_TEMP_DIR: Final = f"{ENV_PREFIX}TEMP_DIR"
+ENV_DRAFTS_DIR: Final = f"{ENV_PREFIX}DRAFTS_DIR"
+ENV_FINALIZED_DIR: Final = f"{ENV_PREFIX}FINALIZED_DIR"
+ENV_BACKUP_DIR: Final = f"{ENV_PREFIX}BACKUP_DIR"
+
+# Default paths with environment variable support
+DEFAULT_BASE_PATH: Final = os.getenv(f"{ENV_PREFIX}BASE_PATH", "data")
 DEFAULT_PATHS: Final[Dict[str, str]] = {
-    "temp": f"{DEFAULT_BASE_PATH}/temp",
-    "drafts": f"{DEFAULT_BASE_PATH}/drafts",
-    "finalized": f"{DEFAULT_BASE_PATH}/finalized",
+    "temp": os.getenv(ENV_TEMP_DIR, f"{DEFAULT_BASE_PATH}/temp"),
+    "drafts": os.getenv(ENV_DRAFTS_DIR, f"{DEFAULT_BASE_PATH}/drafts"),
+    "finalized": os.getenv(ENV_FINALIZED_DIR, f"{DEFAULT_BASE_PATH}/finalized"),
 }
 
 # Markdown settings

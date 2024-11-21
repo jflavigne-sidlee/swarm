@@ -242,7 +242,9 @@ class WriterConfig:
     )
     
     backup_dir: Optional[Path] = field(
-        default=None,
+        default_factory=lambda: Path(
+            os.getenv("WRITER_BACKUP_DIR", "")
+        ) if os.getenv("WRITER_BACKUP_DIR") else None,
         metadata={
             MetadataKeys.VALIDATION: {
                 ValidationKeys.TYPE: Path,
@@ -255,7 +257,9 @@ class WriterConfig:
     
     # Base paths
     temp_dir: Path = field(
-        default_factory=lambda: Path(DEFAULT_PATHS["temp"]),
+        default_factory=lambda: Path(
+            os.getenv("WRITER_TEMP_DIR", DEFAULT_PATHS["temp"])
+        ),
         metadata={
             MetadataKeys.IS_PATH: True,
             MetadataKeys.VALIDATION: {
@@ -267,7 +271,9 @@ class WriterConfig:
     )
     
     drafts_dir: Path = field(
-        default_factory=lambda: Path(DEFAULT_PATHS["drafts"]),
+        default_factory=lambda: Path(
+            os.getenv("WRITER_DRAFTS_DIR", DEFAULT_PATHS["drafts"])
+        ),
         metadata={
             MetadataKeys.IS_PATH: True,
             MetadataKeys.VALIDATION: {
@@ -279,7 +285,9 @@ class WriterConfig:
     )
     
     finalized_dir: Path = field(
-        default_factory=lambda: Path(DEFAULT_PATHS["finalized"]),
+        default_factory=lambda: Path(
+            os.getenv("WRITER_FINALIZED_DIR", DEFAULT_PATHS["finalized"])
+        ),
         metadata={
             MetadataKeys.IS_PATH: True,
             MetadataKeys.VALIDATION: {
