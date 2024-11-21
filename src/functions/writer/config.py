@@ -372,13 +372,28 @@ class WriterConfig:
         """Validate paths and create directories if needed."""
         self.logger.info("Starting path validation and creation")
         
+        # Create required directories first if enabled
+        if self.create_directories:
+            self.logger.debug("Creating required directories")
+            for path_attr in self._get_required_paths():
+                path = getattr(self, path_attr)
+                if path and not path.exists():
+                    try:
+                        path.mkdir(parents=True, exist_ok=True)
+                        self.logger.debug(f"Created directory: {path}")
+                    except Exception as e:
+                        raise ConfigurationError(
+                            f"Failed to create directory '{path_attr}': {str(e)}"
+                        )
+        
         # Process required paths
         for path_attr in self._get_required_paths():
             validated_path = self.path_handler.process_path(
                 getattr(self, path_attr),
                 path_attr,
                 required=True,
-                allow_creation=self.create_directories
+                allow_creation=self.create_directories,
+                check_permissions=True
             )
             setattr(self, path_attr, validated_path)
         
@@ -391,7 +406,8 @@ class WriterConfig:
                 getattr(self, path_attr),
                 path_attr,
                 required=False,
-                allow_creation=self.create_directories
+                allow_creation=self.create_directories,
+                check_permissions=True
             )
             if validated_path:
                 setattr(self, path_attr, validated_path)
