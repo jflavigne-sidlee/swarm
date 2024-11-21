@@ -111,3 +111,16 @@ class TestCreateDocument:
         
         with pytest.raises(WriterError, match="Invalid metadata type"):
             create_document("test_doc.md", invalid_metadata, test_config)
+    
+    def test_create_document_directory_creation_failure(self, test_config, valid_metadata):
+        """Test error when directory cannot be created."""
+        # Remove the drafts directory if it exists
+        if test_config.drafts_dir.exists():
+            test_config.drafts_dir.rmdir()
+            
+        # Create a file where the directory should be
+        with open(test_config.drafts_dir, 'w') as f:
+            f.write('blocking file')
+        
+        with pytest.raises(WriterError, match="Cannot create directory"):
+            create_document("test_doc.md", valid_metadata, test_config)

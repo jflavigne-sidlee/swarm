@@ -6,68 +6,76 @@ from typing import Dict, Optional
 from .config import WriterConfig
 from .exceptions import WriterError
 
+
 def create_document(
-    file_name: str,
-    metadata: Dict[str, str],
-    config: Optional[WriterConfig] = None
+    file_name: str, metadata: Dict[str, str], config: Optional[WriterConfig] = None
 ) -> Path:
     """Create a new Markdown document with YAML frontmatter metadata.
-    
+
     Args:
         file_name: Name of the file to create (will be created in drafts directory)
         metadata: Dictionary of metadata (must include required fields from config)
         config: Optional WriterConfig instance (uses default if not provided)
-        
+
     Returns:
         Path to the created document
-        
+
     Raises:
         WriterError: If file already exists or metadata is invalid
     """
     # Use default config if none provided
     if config is None:
         config = WriterConfig()
-        
+
     # Validate filename
-    if not file_name or '/' in file_name or '\0' in file_name:
+    if not file_name or "/" in file_name or "\0" in file_name:
         raise WriterError("Invalid filename")
-        
+
     # Validate metadata types
     if not all(isinstance(value, str) for value in metadata.values()):
         raise WriterError("Invalid metadata type")
-    
+
     # Ensure file has .md extension
-    if not file_name.endswith('.md'):
-        file_name += '.md'
-    
+    if not file_name.endswith(".md"):
+        file_name += ".md"
+
     # Construct full file path in drafts directory
     file_path = config.drafts_dir / file_name
-    
+
     try:
         # Check if file already exists
         if file_path.exists():
             raise WriterError(f"File already exists: {file_path}")
-            
+
         # Validate required metadata fields
-        missing_fields = [field for field in config.metadata_keys 
-                         if field not in metadata]
+        missing_fields = [
+            field for field in config.metadata_keys if field not in metadata
+        ]
         if missing_fields:
             raise WriterError(
                 f"Missing required metadata fields: {', '.join(missing_fields)}"
             )
-        
+
         # Create drafts directory if it doesn't exist
         if config.create_directories:
-            config.drafts_dir.mkdir(parents=True, exist_ok=True)
-            
+            try:
+                config.drafts_dir.mkdir(parents=True, exist_ok=True)
+            except FileExistsError:
+                raise WriterError(
+                    f"Cannot create directory: {config.drafts_dir} (file exists)"
+                )
+            except PermissionError:
+                raise WriterError(
+                    f"Permission denied creating directory: {config.drafts_dir}"
+                )
+
         # Write file with YAML frontmatter
-        with open(file_path, 'w', encoding=config.default_encoding) as f:
-            # Write YAML frontmatter
-            f.write('---\n')
+        with open(file_path, "w", encoding=config.default_encoding) as f:
+            f.write("---\n")
             yaml.dump(metadata, f, default_flow_style=False)
-            f.write('---\n\n')
-            
+            f.write("---\n\n")
+
         return file_path
-            
+
     except (OSError, yaml.YAMLError) as e:
         raise WriterError(f"Failed to create document: {str(e)}")
