@@ -44,10 +44,14 @@ def path_handler():
 @pytest.fixture
 def basic_config(tmp_path):
     """Create a basic configuration with temporary paths."""
+    temp_dir = tmp_path / "temp"
+    drafts_dir = tmp_path / "drafts"
+    finalized_dir = tmp_path / "finalized"
+    
     config = {
-        "temp_dir": tmp_path / "temp",
-        "drafts_dir": tmp_path / "drafts",
-        "finalized_dir": tmp_path / "finalized",
+        "temp_dir": temp_dir,
+        "drafts_dir": drafts_dir,
+        "finalized_dir": finalized_dir,
         "section_marker_template": DEFAULT_SECTION_MARKER,
         "lock_timeout": DEFAULT_LOCK_TIMEOUT,
         "max_file_size": DEFAULT_MAX_FILE_SIZE,
@@ -57,8 +61,12 @@ def basic_config(tmp_path):
         "default_encoding": DEFAULT_ENCODING,
         "create_directories": True
     }
-    yield config
-    clean_directory(tmp_path)  # Clean up after test
+    
+    try:
+        yield config
+    finally:
+        # Clean up all directories
+        clean_directory(tmp_path)
 
 # Path Handler Tests
 class TestPathHandler:
@@ -148,14 +156,20 @@ class TestPathHandler:
         """Test that validate_relationships prevents nested directories."""
         parent = temp_dir / "parent"
         child = parent / "child"
-        parent.mkdir(parents=True)
-        child.mkdir(parents=True)
         
-        with pytest.raises(ConfigurationError, match="Directories cannot be nested"):
-            path_handler.validate_relationships({
-                "parent": parent,
-                "child": child
-            }, allow_nesting=False)
+        try:
+            parent.mkdir(parents=True)
+            child.mkdir(parents=True)
+            
+            with pytest.raises(ConfigurationError, match="Directories cannot be nested"):
+                path_handler.validate_relationships({
+                    "parent": parent,
+                    "child": child
+                }, allow_nesting=False)
+        finally:
+            # Restore permissions and clean up
+            for path in [child, parent, temp_dir]:
+                clean_directory(path)
 
 # Configuration Tests
 class TestWriterConfig:
@@ -348,7 +362,13 @@ class TestWriterConfig:
                     pytest.fail(f"Failed to write to {dir_path}: {e}")
                 
         finally:
-            clean_directory(tmp_path)
+            # Clean up all directories in reverse creation order
+            for path in [finalized_dir, drafts_dir, temp_dir, tmp_path]:
+                try:
+                    os.chmod(path, 0o777)  # Restore permissions
+                    clean_directory(path)
+                except (PermissionError, OSError) as e:
+                    print(f"Warning: Failed to clean up {path}: {e}")
 
     def test_metadata_keys_validation(self, basic_config):
         """Test validation of metadata keys."""
@@ -423,21 +443,15 @@ def clean_directory(path: Path) -> None:
     if not path.exists():
         return
         
-    # Restore permissions and remove contents
-    for sub_path in path.rglob('*'):
+    def on_error(func, path, exc_info):
+        """Error handler for shutil.rmtree that handles permission errors."""
         try:
-            if sub_path.exists():  # Check again as previous iterations might have removed parent dirs
-                os.chmod(sub_path, 0o777)  # Restore permissions
-                if sub_path.is_file():
-                    sub_path.unlink()
-                else:
-                    sub_path.rmdir()
-        except (PermissionError, OSError) as e:
-            print(f"Warning: Failed to clean {sub_path}: {e}")
+            os.chmod(path, 0o777)  # Restore permissions
+            func(path)  # Retry the operation
+        except Exception as e:
+            print(f"Warning: Failed to clean {path}: {e}")
     
-    # Clean up the root directory
     try:
-        os.chmod(path, 0o777)
-        path.rmdir()
-    except (PermissionError, OSError) as e:
-        print(f"Warning: Failed to remove root directory {path}: {e}")
+        shutil.rmtree(path, onerror=on_error)
+    except Exception as e:
+        print(f"Warning: Failed to remove directory {path}: {e}")
