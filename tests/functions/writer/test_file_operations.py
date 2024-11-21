@@ -89,16 +89,70 @@ class TestCreateDocument:
             create_document("test_doc.md", valid_metadata, test_config) 
     
     def test_create_document_invalid_filename(self, test_config, valid_metadata):
-        """Test error when filename contains invalid characters."""
+        """Test error when filename contains invalid characters or patterns."""
         invalid_filenames = [
-            "test/doc.md",  # Contains path separator
+            # Empty or too long
             "",  # Empty string
-            "test\0doc.md"  # Contains null character
+            "a" * 256,  # Too long (>255 chars)
+            
+            # Forbidden characters
+            "test/doc.md",  # Forward slash
+            "test\\doc.md",  # Backslash
+            "test:doc.md",  # Colon
+            "test*doc.md",  # Asterisk
+            "test?doc.md",  # Question mark
+            "test\"doc.md",  # Quote
+            "test<doc.md",  # Less than
+            "test>doc.md",  # Greater than
+            "test|doc.md",  # Pipe
+            "test\0doc.md",  # Null character
+            
+            # Reserved Windows filenames
+            "CON.md",
+            "PRN.md",
+            "AUX.md",
+            "NUL.md",
+            "COM1.md",
+            "COM2.md",
+            "COM3.md",
+            "COM4.md",
+            "LPT1.md",
+            "LPT2.md",
+            "LPT3.md",
+            "LPT4.md",
+            
+            # Trailing characters
+            "test ",  # Space at end
+            "test.",  # Dot at end
+            "test.md ",  # Space after extension
+            "test.md."  # Dot after extension
         ]
         
         for filename in invalid_filenames:
             with pytest.raises(WriterError, match="Invalid filename"):
                 create_document(filename, valid_metadata, test_config)
+    
+    def test_create_document_valid_filename(self, test_config, valid_metadata):
+        """Test that valid filenames are accepted."""
+        valid_filenames = [
+            "test.md",
+            "test_doc.md",
+            "test-doc.md",
+            "test123.md",
+            "Test Doc.md",  # Spaces in middle are ok
+            "test.doc.md",  # Multiple dots ok
+            "._test.md",    # Leading dot/underscore ok
+            "UPPERCASE.md",
+            "αβγ.md",       # Unicode ok
+        ]
+        
+        for filename in valid_filenames:
+            try:
+                file_path = create_document(filename, valid_metadata, test_config)
+                assert file_path.exists()
+                assert file_path.name == filename
+            except WriterError as e:
+                pytest.fail(f"Valid filename '{filename}' was rejected: {str(e)}")
     
     def test_create_document_invalid_metadata_types(self, test_config):
         """Test error when metadata contains invalid types."""
