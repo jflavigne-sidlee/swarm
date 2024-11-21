@@ -109,72 +109,64 @@ class PathHandler:
         allow_creation: bool = False,
         check_permissions: bool = True
     ) -> Path:
-        """Process and validate a path."""
-        self.logger.debug(
-            f"Processing path '{name}': path={path}, required={required}, "
-            f"check_permissions={check_permissions}"
-        )
+        """Process and validate a path.
         
+        Args:
+            path: Path to process
+            name: Name of the path (for error messages)
+            required: Whether the path is required
+            allow_creation: Whether to create the directory if it doesn't exist
+            check_permissions: Whether to check read/write permissions
+            
+        Returns:
+            Processed and validated Path object
+            
+        Raises:
+            PathValidationError: If path validation fails
+        """
         if path is None:
             if required:
-                raise ConfigurationError(PATH_REQUIRED_MSG.format(name=name))
+                raise PathValidationError(PATH_REQUIRED_MSG.format(name=name))
             return None
-
-        try:
-            # Convert to Path
-            path = Path(path) if isinstance(path, str) else path
             
-            # Convert to absolute path
-            if not path.is_absolute():
-                path = path.resolve()
-                self.logger.debug(PATH_CONVERSION_MSG.format(path=path))
-            
-            # Check existence after potential creation
-            if required and not path.exists():
-                if allow_creation:
-                    try:
-                        path.mkdir(parents=True, exist_ok=True)
-                    except PermissionError:
-                        raise PathValidationError(
-                            f"Cannot create directory '{name}': Permission denied"
-                        )
-                else:
-                    raise PathValidationError(f"{name} does not exist: {path}")
-            
-            # Check if it's a directory
-            if path.exists() and not path.is_dir():
-                raise PathValidationError(f"{name} is not a directory: {path}")
-            
-            # Check permissions using os.access first
-            if check_permissions and path.exists():
-                if not os.access(path, os.R_OK):
-                    raise PathValidationError(
-                        f"Path '{name}' does not have read permission: {path}"
+        # Convert to absolute path
+        path = Path(path).resolve()
+        
+        # Create directory if allowed and needed
+        if allow_creation and not path.exists():
+            try:
+                path.mkdir(parents=True, exist_ok=True)
+                logging.debug(PATH_CREATION_MSG.format(path=path))
+            except Exception as e:
+                raise PathValidationError(
+                    ERROR_PATH_PROCESS.format(
+                        name=name,
+                        error=f"Failed to create directory: {str(e)}"
                     )
+                )
+        
+        # Validate existing path
+        if path.exists():
+            if not path.is_dir():
+                raise PathValidationError(
+                    ERROR_PATH_NOT_DIR.format(name=name, path=path)
+                )
+            
+            if check_permissions:
                 if not os.access(path, os.W_OK):
                     raise PathValidationError(
                         f"Path '{name}' does not have write permission: {path}"
                     )
-                
-                # Double-check with actual file operation only if os.access passes
-                try:
-                    test_file = path / ".write_test"
-                    test_file.touch()
-                    test_file.unlink()
-                except (PermissionError, OSError) as e:
-                    self.logger.warning(
-                        f"Permission check failed for {name} despite os.access: {e}"
-                    )
+                if not os.access(path, os.R_OK):
                     raise PathValidationError(
-                        f"Path '{name}' does not have write permission: {path}"
+                        f"Path '{name}' does not have read permission: {path}"
                     )
-            
-            return path
-            
-        except Exception as e:
-            if isinstance(e, (ConfigurationError, PathValidationError)):
-                raise
-            raise PathValidationError(f"Failed to process {name}: {str(e)}")
+        elif required:
+            raise PathValidationError(
+                ERROR_PATH_NOT_EXIST.format(name=name, path=path)
+            )
+        
+        return path
     
     def validate_relationships(self, paths: Dict[str, Path], allow_nesting: bool = True) -> None:
         """Validate relationships between paths."""
@@ -390,69 +382,104 @@ class WriterConfig:
     )
     
     def __post_init__(self):
-        """Validate configuration after initialization."""
+        """Initialize after instance creation."""
+        # Set up logging
         self.logger = logging.getLogger(__name__)
-        # Initialize path handler with logger
+        
+        # Initialize PathHandler
         self.path_handler = PathHandler(self.logger)
         
+        # Validate all fields
         self._validate_fields()
+        
+        # Validate paths (this will also create directories if enabled)
         self._validate_paths()
-        self._validate_backup_config()
     
     def _validate_fields(self) -> None:
-        """Validate all fields using their metadata."""
-        for field_obj in fields(self):
-            value = getattr(self, field_obj.name)
-            validate_field_metadata(field_obj.name, value, field_obj.metadata)
+        """Validate all configuration fields."""
+        # Validate section marker template
+        if "{section_title}" not in self.section_marker_template:
+            raise ConfigurationError(
+                "section_marker_template must contain '{section_title}' placeholder"
+            )
+        
+        # Validate lock timeout
+        if self.lock_timeout <= 0:
+            raise ConfigurationError(
+                "lock_timeout must be positive"
+            )
+        
+        # Validate max file size
+        if self.max_file_size <= 0:
+            raise ConfigurationError(
+                "max_file_size must be positive"
+            )
+        
+        # Validate metadata keys
+        if not all(isinstance(key, str) for key in self.metadata_keys):
+            raise ConfigurationError(
+                "Invalid type in list 'metadata_keys'"
+            )
+        
+        # Validate encoding
+        try:
+            "test".encode(self.default_encoding)
+        except LookupError:
+            raise ConfigurationError(
+                f"Invalid value for 'default_encoding': {self.default_encoding}"
+            )
+        
+        # Validate compression level
+        if not 0 <= self.compression_level <= 9:
+            raise ConfigurationError(
+                "compression_level must be between 0 and 9"
+            )
+        
+        # Validate allowed extensions
+        if not all(ext.startswith('.') for ext in self.allowed_extensions):
+            raise ConfigurationError(
+                "All extensions must start with '.'"
+            )
     
     def _validate_paths(self) -> None:
-        """Validate paths and create directories if needed."""
-        self.logger.info("Starting path validation and creation")
+        """Validate all configured paths."""
+        self.logger.debug("Validating paths")
         
-        # Create required directories first if enabled
-        if self.create_directories:
-            self.logger.debug("Creating required directories")
-            for path_attr in self._get_required_paths():
-                path = getattr(self, path_attr)
-                if path and not path.exists():
-                    try:
-                        path.mkdir(parents=True, exist_ok=True)
-                        self.logger.debug(f"Created directory: {path}")
-                    except Exception as e:
-                        raise ConfigurationError(
-                            f"Failed to create directory '{path_attr}': {str(e)}"
-                        )
+        # Process each path with appropriate settings
+        self.temp_dir = self.path_handler.process_path(
+            self.temp_dir,
+            "temp_dir",
+            required=True,
+            allow_creation=self.create_directories
+        )
         
-        # Process required paths
-        for path_attr in self._get_required_paths():
-            validated_path = self.path_handler.process_path(
-                getattr(self, path_attr),
-                path_attr,
+        self.drafts_dir = self.path_handler.process_path(
+            self.drafts_dir,
+            "drafts_dir",
+            required=True,
+            allow_creation=self.create_directories
+        )
+        
+        self.finalized_dir = self.path_handler.process_path(
+            self.finalized_dir,
+            "finalized_dir",
+            required=True,
+            allow_creation=self.create_directories
+        )
+        
+        # Process backup directory if enabled
+        if self.backup_enabled:
+            self.backup_dir = self.path_handler.process_path(
+                self.backup_dir,
+                "backup_dir",
                 required=True,
-                allow_creation=self.create_directories,
-                check_permissions=True
+                allow_creation=self.create_directories
             )
-            setattr(self, path_attr, validated_path)
-        
-        # Process optional paths
-        optional_paths = set(self._get_path_attributes()) - set(self._get_required_paths())
-        for path_attr in optional_paths:
-            if path_attr == "backup_dir" and not self.backup_enabled:
-                continue
-            validated_path = self.path_handler.process_path(
-                getattr(self, path_attr),
-                path_attr,
-                required=False,
-                allow_creation=self.create_directories,
-                check_permissions=True
-            )
-            if validated_path:
-                setattr(self, path_attr, validated_path)
+        elif self.backup_dir is not None:
+            self.logger.warning(LOG_BACKUP_WARNING)
         
         # Validate directory relationships
         self._validate_directory_relationships()
-        
-        self.logger.info("Path validation and creation completed successfully")
     
     def _validate_directory_relationships(self) -> None:
         """Validate relationships between configured directories."""
