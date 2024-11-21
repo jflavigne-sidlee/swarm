@@ -23,7 +23,66 @@ logger = logging.getLogger(__name__)
 def create_document(
     file_name: str, metadata: Dict[str, str], config: Optional[WriterConfig] = None
 ) -> Path:
-    """Create a new Markdown document with YAML frontmatter metadata."""
+    """Create a new Markdown document with YAML frontmatter metadata.
+    
+    Creates a new Markdown document with the specified filename and metadata.
+    The document will include YAML frontmatter at the beginning, followed by
+    an empty document body.
+    
+    Args:
+        file_name: Name of the document to create. If it doesn't end with '.md',
+            the extension will be added automatically. Must be a valid filename
+            according to OS restrictions.
+        metadata: Dictionary of metadata fields to include in the frontmatter.
+            All values must be strings. Required fields are specified in
+            config.metadata_keys (defaults to title, author, and date).
+        config: Optional configuration object. If None, default configuration
+            will be used.
+            
+    Returns:
+        Path: Path object pointing to the created document.
+        
+    Raises:
+        WriterError: In the following cases:
+            - Invalid filename (empty, too long, forbidden chars, etc.)
+            - Invalid metadata types (non-string values)
+            - File already exists
+            - Missing required metadata fields
+            - Permission denied (for directory creation or file writing)
+            - Directory creation fails
+            - YAML serialization fails
+            - File writing fails
+            
+    Note:
+        - Directory Creation:
+            If config.create_directories is True (default), missing directories
+            will be created automatically. If False, the function will fail if
+            the directory doesn't exist.
+            
+        - File Cleanup:
+            If an error occurs after file creation starts, any partially written
+            file will be cleaned up automatically.
+            
+        - Metadata Handling:
+            - All metadata values must be strings
+            - Required fields are enforced before file creation
+            - Metadata order is preserved in the YAML frontmatter
+            
+        - Path Handling:
+            - Relative paths are resolved against config.drafts_dir
+            - Absolute paths are not allowed in the filename
+            - Special directory names (., ..) are rejected
+            
+    Example:
+        >>> metadata = {
+        ...     "title": "My Document",
+        ...     "author": "John Doe",
+        ...     "date": "2024-03-21"
+        ... }
+        >>> doc_path = create_document("my-doc", metadata)
+        >>> print(doc_path)
+        /path/to/drafts/my-doc.md
+    """
     logger.debug("Creating document with filename: %s", file_name)
     
     # Use default config if none provided
