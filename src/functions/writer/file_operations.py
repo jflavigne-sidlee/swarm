@@ -110,10 +110,14 @@ def create_document(
     logger.debug("Full file path: %s", file_path)
 
     try:
-        # Check if file exists
-        if file_path.exists():
-            logger.warning("File already exists: %s", file_path)
-            raise WriterError(ERROR_FILE_EXISTS.format(path=file_path))
+        # Check if file exists - use os.path to handle permission errors
+        try:
+            if os.path.exists(str(file_path)):
+                logger.warning("File already exists: %s", file_path)
+                raise WriterError(ERROR_FILE_EXISTS.format(path=file_path))
+        except (OSError, PermissionError) as e:
+            logger.error("Permission error checking path: %s - %s", file_path, str(e))
+            raise WriterError(ERROR_PERMISSION_DENIED_PATH.format(path=file_path))
 
         # Validate required metadata fields
         missing_fields = [
@@ -168,13 +172,14 @@ def create_document(
     except Exception as e:
         # Clean up if file was partially written
         logger.debug("Exception occurred, cleaning up partial file: %s", file_path)
-        if isinstance(e, WriterError):
-            cleanup_partial_file(file_path)
-            raise
-        # Re-raise unexpected errors after cleanup
         cleanup_partial_file(file_path)
-        logger.error("Unexpected error: %s", str(e))
-        raise WriterError(f"Unexpected error: {str(e)}")
+        
+        if isinstance(e, WriterError):
+            raise
+            
+        # Log and re-raise unexpected errors with original type
+        logger.error("Unexpected error: %s (%s)", str(e), type(e).__name__)
+        raise
 
 def is_valid_filename(filename: str) -> bool:
     """Check if the filename is valid based on OS restrictions.
