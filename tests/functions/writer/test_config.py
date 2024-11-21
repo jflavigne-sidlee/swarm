@@ -13,9 +13,15 @@ from src.functions.writer.constants import (
     DEFAULT_METADATA_FIELDS,
     ERROR_VALUE_TOO_SMALL,
     ERROR_PATH_NO_WRITE,
-    ERROR_INVALID_TYPE
+    ERROR_INVALID_TYPE,
+    ERROR_PATH_NO_READ,
+    ERROR_PATH_PROCESS,
+    ERROR_PATH_NOT_DIR,
+    ERROR_PATH_NOT_EXIST
 )
 import re
+import shutil
+from unittest.mock import patch, Mock
 
 # Configure logging for tests
 logger = logging.getLogger(__name__)
@@ -27,7 +33,8 @@ def temp_dir(tmp_path):
     """Create a temporary directory for testing."""
     temp = tmp_path / "temp"
     temp.mkdir(parents=True, exist_ok=True)
-    return temp
+    yield temp
+    clean_directory(tmp_path)  # Clean up after test
 
 @pytest.fixture
 def path_handler():
@@ -37,7 +44,7 @@ def path_handler():
 @pytest.fixture
 def basic_config(tmp_path):
     """Create a basic configuration with temporary paths."""
-    return {
+    config = {
         "temp_dir": tmp_path / "temp",
         "drafts_dir": tmp_path / "drafts",
         "finalized_dir": tmp_path / "finalized",
@@ -50,6 +57,8 @@ def basic_config(tmp_path):
         "default_encoding": DEFAULT_ENCODING,
         "create_directories": True
     }
+    yield config
+    clean_directory(tmp_path)  # Clean up after test
 
 # Path Handler Tests
 class TestPathHandler:
@@ -72,20 +81,58 @@ class TestPathHandler:
                 required=True
             )
 
-    def test_process_path_permissions(self, path_handler, temp_dir):
-        """Test path permission validation."""
-        test_dir = temp_dir / "test_perms"
-        test_dir.mkdir(parents=True)
+    def test_process_path_permission_denied(self, path_handler, temp_dir):
+        """Test handling of permission errors during path processing."""
+        test_path = temp_dir / "test_perms"
+        test_path.mkdir(parents=True, exist_ok=True)  # Create the directory first
         
-        # Make directory read-only
-        os.chmod(test_dir, 0o444)
+        # Mock access to simulate permission issues
+        with patch('os.access', return_value=False):
+            with pytest.raises(PathValidationError, match=re.escape(ERROR_PATH_NO_WRITE.format(
+                name="test_dir",
+                path=test_path
+            ))):
+                path_handler.process_path(
+                    test_path,
+                    "test_dir",
+                    check_permissions=True
+                )
+
+    def test_process_path_permission_checks(self, path_handler, temp_dir):
+        """Test different permission check scenarios."""
+        test_path = temp_dir / "test_perms"
+        test_path.mkdir(parents=True, exist_ok=True)  # Create the directory first
         
-        with pytest.raises(PathValidationError, match=".*write permission.*"):
-            path_handler.process_path(
-                test_dir,
-                "test_dir",
-                check_permissions=True
-            )
+        # Mock access checks for different scenarios
+        access_mock = Mock()
+        
+        # Scenario 1: No read permission
+        access_mock.side_effect = lambda path, mode: mode != os.R_OK
+        with patch('os.access', access_mock):
+            with pytest.raises(PathValidationError, match=re.escape(ERROR_PATH_NO_READ.format(
+                name="test_dir",
+                path=test_path
+            ))):
+                path_handler.process_path(
+                    test_path,
+                    "test_dir",
+                    check_permissions=True
+                )
+
+    def test_process_path_creation_permission_error(self, path_handler, temp_dir):
+        """Test handling of permission errors during directory creation."""
+        test_path = temp_dir / "test_perms"
+        
+        with patch('pathlib.Path.mkdir', side_effect=PermissionError("Mocked mkdir error")):
+            with pytest.raises(PathValidationError, match=re.escape(ERROR_PATH_PROCESS.format(
+                name="test_dir",
+                error="Failed to create directory: Mocked mkdir error"
+            ))):
+                path_handler.process_path(
+                    test_path,
+                    "test_dir",
+                    allow_creation=True
+                )
 
     def test_validate_relationships_no_nesting(self, path_handler, temp_dir):
         """Test that validate_relationships prevents nested directories."""
@@ -254,7 +301,6 @@ class TestWriterConfig:
     @pytest.mark.order(before="test_path_validation")
     def test_initial_directory_state(self, basic_config, tmp_path):
         """Test that directories are properly initialized with correct permissions."""
-        # Create separate directories
         temp_dir = tmp_path / "temp"
         drafts_dir = tmp_path / "drafts"
         finalized_dir = tmp_path / "finalized"
@@ -292,19 +338,7 @@ class TestWriterConfig:
                     pytest.fail(f"Failed to write to {dir_path}: {e}")
                 
         finally:
-            # Clean up
-            for path in [temp_dir, drafts_dir, finalized_dir]:
-                try:
-                    if path.exists():
-                        os.chmod(path, 0o755)  # Ensure we can delete it
-                        path.rmdir()
-                except (PermissionError, OSError) as e:
-                    print(f"Cleanup warning for {path}: {e}")
-            
-            try:
-                tmp_path.rmdir()
-            except OSError:
-                pass  # Directory might not be empty or already removed
+            clean_directory(tmp_path)
 
     def test_metadata_keys_validation(self, basic_config):
         """Test validation of metadata keys."""
@@ -360,3 +394,40 @@ class TestWriterConfig:
         assert config.create_directories is True
         assert config.metadata_keys == DEFAULT_METADATA_FIELDS
         assert config.default_encoding == DEFAULT_ENCODING
+
+    def test_directory_permission_validation(self, basic_config):
+        """Test directory permission validation during config initialization."""
+        with patch('os.access', return_value=False):
+            with pytest.raises(PathValidationError, match=ERROR_PATH_NO_WRITE.format(
+                name="temp_dir",
+                path=basic_config["temp_dir"]
+            )):
+                WriterConfig(**basic_config)
+
+def clean_directory(path: Path) -> None:
+    """Clean up a directory and its contents, restoring permissions first.
+    
+    Args:
+        path: Directory path to clean
+    """
+    if not path.exists():
+        return
+        
+    # Restore permissions and remove contents
+    for sub_path in path.rglob('*'):
+        try:
+            if sub_path.exists():  # Check again as previous iterations might have removed parent dirs
+                os.chmod(sub_path, 0o777)  # Restore permissions
+                if sub_path.is_file():
+                    sub_path.unlink()
+                else:
+                    sub_path.rmdir()
+        except (PermissionError, OSError) as e:
+            print(f"Warning: Failed to clean {sub_path}: {e}")
+    
+    # Clean up the root directory
+    try:
+        os.chmod(path, 0o777)
+        path.rmdir()
+    except (PermissionError, OSError) as e:
+        print(f"Warning: Failed to remove root directory {path}: {e}")
