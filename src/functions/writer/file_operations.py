@@ -74,7 +74,7 @@ def create_document(
         # Write file with YAML frontmatter
         with open(file_path, "w", encoding=config.default_encoding) as f:
             f.write("---\n")
-            yaml.dump(metadata, f, default_flow_style=False)
+            yaml.dump(metadata, f, default_flow_style=False, sort_keys=False)
             f.write("---\n\n")
 
         return file_path

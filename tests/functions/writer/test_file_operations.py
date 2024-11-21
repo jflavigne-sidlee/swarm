@@ -191,6 +191,28 @@ class TestCreateDocument:
         
         with pytest.raises(WriterError, match="Invalid metadata type"):
             create_document("test_doc.md", invalid_metadata, test_config)
+    
+    def test_create_document_preserves_metadata_order(self, test_config):
+        """Test that metadata order is preserved in the YAML frontmatter."""
+        ordered_metadata = {
+            "title": "Test Document",
+            "author": "Test Author",
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "category": "Test",
+            "tags": "test, example"
+        }
+        
+        file_path = create_document("test_doc.md", ordered_metadata, test_config)
+        
+        # Read the created file
+        content = file_path.read_text(encoding=test_config.default_encoding)
+        yaml_content = content.split('---')[1].strip()
+        
+        # Check that fields appear in the same order
+        expected_order = list(ordered_metadata.keys())
+        actual_order = [line.split(':')[0].strip() for line in yaml_content.split('\n')]
+        
+        assert actual_order == expected_order, "Metadata fields are not in the expected order"
             
             
 # pytest tests/functions/writer/test_file_operations.py
