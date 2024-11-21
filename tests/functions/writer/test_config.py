@@ -22,6 +22,7 @@ from src.functions.writer.constants import (
 import re
 import shutil
 from unittest.mock import patch, Mock
+import uuid
 
 # Configure logging for tests
 logger = logging.getLogger(__name__)
@@ -39,20 +40,25 @@ def path_handler(test_logger):
     return PathHandler(logger=test_logger)
 
 @pytest.fixture
-def temp_directory(tmp_path, cleanup_dirs):
-    """Provide a temporary directory for tests with automatic cleanup."""
-    dir_path = tmp_path / "test_dir"
-    dir_path.mkdir(parents=True, exist_ok=True)
-    cleanup_dirs(dir_path)
-    return dir_path
+def unique_temp_directory(tmp_path):
+    """Create a unique temporary directory."""
+    unique_dir = tmp_path / f"test_dir_{uuid.uuid4().hex}"
+    unique_dir.mkdir(parents=True, exist_ok=True)
+    return unique_dir
 
 @pytest.fixture
-def test_directories(tmp_path, cleanup_dirs):
+def temp_directory(unique_temp_directory, cleanup_dirs):
+    """Provide a temporary directory for tests with automatic cleanup."""
+    cleanup_dirs(unique_temp_directory)
+    return unique_temp_directory
+
+@pytest.fixture
+def test_directories(unique_temp_directory, cleanup_dirs):
     """Provide standard test directories (temp, drafts, finalized) with cleanup."""
     dirs = {
-        "temp": tmp_path / "temp",
-        "drafts": tmp_path / "drafts",
-        "finalized": tmp_path / "finalized"
+        "temp": unique_temp_directory / f"temp_{uuid.uuid4().hex}",
+        "drafts": unique_temp_directory / f"drafts_{uuid.uuid4().hex}",
+        "finalized": unique_temp_directory / f"finalized_{uuid.uuid4().hex}"
     }
     
     # Create all directories
@@ -60,7 +66,7 @@ def test_directories(tmp_path, cleanup_dirs):
         path.mkdir(parents=True, exist_ok=True)
     
     # Register for cleanup
-    cleanup_dirs(tmp_path, *dirs.values())
+    cleanup_dirs(unique_temp_directory, *dirs.values())
     
     return dirs
 
@@ -83,26 +89,23 @@ def basic_config(test_directories):
 
 @pytest.fixture
 def cleanup_dirs():
-    """Fixture to handle directory cleanup after tests.
-    
-    Yields a function that can be used to register directories for cleanup.
-    Cleanup happens automatically after the test completes.
-    """
+    """Fixture to handle directory cleanup after tests."""
     dirs_to_clean = set()
     
     def register_for_cleanup(*paths: Path):
-        """Register directories for cleanup after test.
-        
-        Args:
-            *paths: Path objects to clean up after test
-        """
+        """Register directories for cleanup after test."""
         dirs_to_clean.update(paths)
     
     yield register_for_cleanup
     
-    # Clean up all registered directories in reverse order
+    # Clean up all registered directories in reverse order (deepest first)
     for path in sorted(dirs_to_clean, key=lambda p: len(str(p)), reverse=True):
-        clean_directory(path)
+        try:
+            if path.exists():
+                os.chmod(path, 0o777)  # Ensure we have permissions to clean
+                clean_directory(path)
+        except Exception as e:
+            print(f"Warning: Failed to clean {path}: {e}")
 
 # Path Handler Tests
 class TestPathHandler:
