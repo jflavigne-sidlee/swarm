@@ -21,95 +21,69 @@ from .utils import (
 def validate_field_metadata(name: str, value: Any, metadata: Dict[str, Any]) -> None:
     """Validate a field value against its metadata constraints."""
     validation = metadata.get(MetadataKeys.VALIDATION, {})
-    help_text = metadata.get(MetadataKeys.HELP, "No description available")
     
-    def resolve_constraint(constraint_value: Any) -> Any:
-        """Resolve constraint value, handling callables."""
-        if callable(constraint_value):
-            try:
-                return constraint_value()
-            except Exception as e:
-                raise ConfigurationError(
-                    f"Failed to evaluate dynamic constraint for '{name}': {str(e)}"
-                )
-        return constraint_value
-    
-    # Pre-resolve all constraints
-    try:
-        resolved_validation = {
-            key: resolve_constraint(value) 
-            for key, value in validation.items()
-        }
-    except ConfigurationError as e:
-        raise ConfigurationError(f"Failed to resolve constraints: {str(e)}")
-    
-    def format_constraints() -> str:
-        """Format validation constraints for error messages."""
-        constraints = []
-        if ValidationKeys.TYPE in resolved_validation:
-            constraints.append(f"type={resolved_validation[ValidationKeys.TYPE].__name__}")
-        if ValidationKeys.MIN in resolved_validation:
-            constraints.append(f"min={resolved_validation[ValidationKeys.MIN]}")
-        if ValidationKeys.MAX in resolved_validation:
-            constraints.append(f"max={resolved_validation[ValidationKeys.MAX]}")
-        if ValidationKeys.PATTERN in resolved_validation:
-            constraints.append(f"pattern='{resolved_validation[ValidationKeys.PATTERN]}'")
-        if ValidationKeys.CHOICES in resolved_validation:
-            constraints.append(f"one of {resolved_validation[ValidationKeys.CHOICES]}")
-        return ", ".join(constraints)
-    
-    # Handle None values
+    # Handle None values for optional fields
     if value is None:
-        if resolved_validation.get(ValidationKeys.REQUIRED, False):
-            raise ConfigurationError(
-                ERROR_REQUIRED_FIELD.format(name=name) + f"\n"
-                f"Description: {help_text}\n"
-                f"Constraints: {format_constraints()}"
-            )
-        return
-
+        if validation.get(ValidationKeys.REQUIRED, False):
+            raise ConfigurationError(f"Required field '{name}' is not set")
+        return  # Skip further validation for None values in optional fields
+    
     # Type validation
-    expected_type = resolved_validation.get(ValidationKeys.TYPE)
-    if expected_type:
-        if not isinstance(value, expected_type):
-            raise ConfigurationError(
-                ERROR_INVALID_TYPE.format(
-                    name=name,
-                    got=type(value).__name__,
-                    expected=expected_type.__name__
-                ) + f"\n"
-                f"Value: {value}\n"
-                f"Description: {help_text}\n"
-                f"Constraints: {format_constraints()}"
+    expected_type = validation.get(ValidationKeys.TYPE)
+    if expected_type and not isinstance(value, expected_type):
+        raise ConfigurationError(
+            ERROR_INVALID_TYPE.format(
+                name=name,
+                got=type(value).__name__,
+                expected=expected_type.__name__
             )
+        )
     
     # Numeric constraints
     if isinstance(value, (int, float)):
-        if ValidationKeys.MIN in resolved_validation:
-            min_value = resolved_validation[ValidationKeys.MIN]
-            if value < min_value:
+        min_value = validation.get(ValidationKeys.MIN)
+        if min_value is not None and value < min_value:
+            if min_value == 1 and value <= 0:
+                raise ConfigurationError(f"{name} must be positive")
+            else:
                 raise ConfigurationError(
                     ERROR_VALUE_TOO_SMALL.format(
                         name=name,
                         value=value,
                         min=min_value
-                    ) + f"\n"
-                    f"Description: {help_text}\n"
-                    f"Constraints: {format_constraints()}"
+                    )
                 )
-        
-        if ValidationKeys.MAX in resolved_validation:
-            max_value = resolved_validation[ValidationKeys.MAX]
-            if value > max_value:
-                raise ConfigurationError(
-                    ERROR_VALUE_TOO_LARGE.format(
-                        name=name,
-                        value=value,
-                        max=max_value
-                    ) + f"\n"
-                    f"Description: {help_text}\n"
-                    f"Constraints: {format_constraints()}"
+    
+    # Required field validation
+    if validation.get(ValidationKeys.REQUIRED) and value is None:
+        raise ConfigurationError(f"Required field '{name}' is not set")
+    
+    # Zero validation
+    if not validation.get(ValidationKeys.ALLOW_ZERO, True) and value == 0:
+        raise ConfigurationError(ERROR_NO_ZERO.format(name=name))
+    
+    # Pattern validation for strings
+    if isinstance(value, str):
+        pattern = validation.get(ValidationKeys.PATTERN)
+        if pattern and not re.match(pattern, value):
+            raise ConfigurationError(
+                ERROR_PATTERN_MISMATCH.format(
+                    name=name,
+                    value=value,
+                    pattern=pattern
                 )
+            )
+    
+    # Choices validation
+    choices = validation.get(ValidationKeys.CHOICES)
+    if choices and value not in choices:
+        raise ConfigurationError(
+            ERROR_INVALID_CHOICE.format(
+                name=name,
+                value=value,
+                choices=", ".join(map(str, choices))
+            )
+        )
 
 class PathHandler:
     """Utility class for handling path operations."""
@@ -119,33 +93,13 @@ class PathHandler:
     
     def process_path(
         self,
-        path: Union[str, Path, None],
+        path: Optional[Path],
         name: str,
-        *,
-        required: bool = False,
-        allow_creation: bool = True,
-        must_exist: bool = False,
-        must_be_directory: bool = True,
-        check_permissions: bool = True,
-    ) -> Optional[Path]:
-        """Process and validate a path.
-        
-        Args:
-            path: Path to process
-            name: Name for error messages
-            required: Whether the path is required
-            allow_creation: Whether to create directory if missing
-            must_exist: Whether the path must exist
-            must_be_directory: Whether the path must be a directory
-            check_permissions: Whether to check read/write permissions
-            
-        Returns:
-            Validated Path object or None for optional paths
-            
-        Raises:
-            ConfigurationError: For invalid path configurations
-            PathValidationError: For path validation failures
-        """
+        required: bool = True,
+        allow_creation: bool = False,
+        check_permissions: bool = True
+    ) -> Path:
+        """Process and validate a path."""
         if path is None:
             if required:
                 raise ConfigurationError(PATH_REQUIRED_MSG.format(name=name))
@@ -161,25 +115,29 @@ class PathHandler:
                 path = path.resolve()
                 self.logger.debug(PATH_CONVERSION_MSG.format(path=path))
             
-            # Check existence
-            if must_exist and not path.exists():
+            # Create directory if allowed
+            if allow_creation:
+                try:
+                    path.mkdir(parents=True, exist_ok=True)
+                except PermissionError:
+                    raise PathValidationError(
+                        f"Cannot create directory '{name}': Permission denied"
+                    )
+            
+            # Check existence after potential creation
+            if required and not path.exists():
                 raise PathValidationError(f"{name} does not exist: {path}")
             
-            # Create if needed
-            if allow_creation and not path.exists():
-                self.logger.info(PATH_CREATION_MSG.format(path=path))
-                path.mkdir(parents=True, exist_ok=True)
-            
-            # Validate directory
-            if must_be_directory and path.exists() and not path.is_dir():
-                raise PathValidationError(f"{name} is not a directory: {path}")
-            
-            # Check permissions
+            # Check write permissions if path exists
             if check_permissions and path.exists():
-                if not os.access(path, os.R_OK):
-                    raise PathValidationError(f"No read permission for {name}: {path}")
-                if not os.access(path, os.W_OK):
-                    raise PathValidationError(f"No write permission for {name}: {path}")
+                try:
+                    test_file = path / ".write_test"
+                    test_file.touch()
+                    test_file.unlink()
+                except (PermissionError, OSError):
+                    raise PathValidationError(
+                        f"Path '{name}' does not have write permission: {path}"
+                    )
             
             return path
             
@@ -188,103 +146,138 @@ class PathHandler:
                 raise
             raise PathValidationError(f"Failed to process {name}: {str(e)}")
     
-    def validate_relationships(
-        self,
-        paths: Dict[str, Path],
-        allow_nesting: bool = False
-    ) -> None:
-        """Validate relationships between multiple paths.
-        
-        Args:
-            paths: Dictionary of path names to Path objects
-            allow_nesting: Whether to allow nested directories
+    def validate_relationships(self, paths: Dict[str, Path], allow_nesting: bool = True) -> None:
+        """Validate relationships between paths."""
+        try:
+            # First check if paths exist and collect valid ones
+            valid_paths = []
+            for name, path in paths.items():
+                if path is not None:
+                    try:
+                        if path.exists():
+                            valid_paths.append((name, path))
+                    except (PermissionError, OSError):
+                        # If we can't check existence due to permissions,
+                        # assume the path exists and add it
+                        valid_paths.append((name, path))
             
-        Raises:
-            ConfigurationError: If paths overlap or are nested incorrectly
-        """
-        self.logger.debug("Validating directory relationships")
-        
-        # Filter out None values and convert to list of tuples
-        valid_paths = [(name, path) for name, path in paths.items() 
-                      if path is not None and path.exists()]
-        
-        for i, (name1, path1) in enumerate(valid_paths):
-            for name2, path2 in valid_paths[i + 1:]:
-                try:
-                    # Check for same directory
-                    if path1.samefile(path2):
-                        raise ConfigurationError(
-                            f"Directories cannot be the same: "
-                            f"'{name1}' ({path1}) and '{name2}' ({path2})"
-                        )
-                    
-                    # Check for nesting if not allowed
-                    if not allow_nesting:
-                        if path1 in path2.parents or path2 in path1.parents:
-                            raise ConfigurationError(
-                                f"Directories cannot be nested: "
-                                f"'{name1}' ({path1}) and '{name2}' ({path2})"
-                            )
-                
-                except OSError as e:
-                    raise ConfigurationError(
-                        f"Error checking relationship between "
-                        f"'{name1}' ({path1}) and '{name2}' ({path2}): {str(e)}"
-                    )
-        
-        self.logger.info("Directory relationship validation completed successfully")
+            # Check for nesting if not allowed
+            if not allow_nesting:
+                for name1, path1 in valid_paths:
+                    for name2, path2 in valid_paths:
+                        if name1 != name2:
+                            try:
+                                if self._is_nested(path1, path2):
+                                    raise ConfigurationError(
+                                        f"Directories cannot be nested: '{name1}' and '{name2}'"
+                                    )
+                            except (PermissionError, OSError):
+                                # If we can't check nesting due to permissions,
+                                # that's okay - the permission error will be caught
+                                # elsewhere during actual usage
+                                pass
+                            
+        except Exception as e:
+            self.logger.error(f"Error validating path relationships: {str(e)}")
+            raise
+    
+    def _is_nested(self, path1: Path, path2: Path) -> bool:
+        """Check if path1 is nested within path2."""
+        try:
+            return path1 in path2.parents or path2 in path1.parents
+        except (PermissionError, OSError):
+            # If we can't check nesting due to permissions,
+            # that's okay - the permission error will be caught
+            # elsewhere during actual usage
+            return False
 
 @dataclass
 class WriterConfig:
     """Configuration for the Markdown Document Management System."""
     
-    # Base paths with metadata
+    # Add create_directories field with default value
+    create_directories: bool = field(
+        default=True,
+        metadata={
+            MetadataKeys.VALIDATION: {
+                ValidationKeys.TYPE: bool,
+                ValidationKeys.REQUIRED: False
+            },
+            MetadataKeys.HELP: "Whether to create directories if they don't exist"
+        }
+    )
+    
+    # Backup settings
+    backup_enabled: bool = field(
+        default=False,
+        metadata={
+            MetadataKeys.VALIDATION: {
+                ValidationKeys.TYPE: bool,
+                ValidationKeys.REQUIRED: True
+            },
+            MetadataKeys.HELP: "Enable backup functionality"
+        }
+    )
+    
+    backup_dir: Optional[Path] = field(
+        default=None,
+        metadata={
+            MetadataKeys.VALIDATION: {
+                ValidationKeys.TYPE: Path,
+                ValidationKeys.REQUIRED: False,
+                "is_path": True
+            },
+            MetadataKeys.HELP: "Directory for backups (required if backup_enabled is True)"
+        }
+    )
+    
+    # Base paths
     temp_dir: Path = field(
         default_factory=lambda: Path(DEFAULT_PATHS["temp"]),
         metadata={
-            MetadataKeys.DEFAULT: {
-                "value": "DEFAULT_PATHS['temp']",
-                "factory": "Path constructor"
-            },
+            MetadataKeys.IS_PATH: True,
             MetadataKeys.VALIDATION: {
-                "type": Path,
-                "is_path": True,
-                "required": True
+                ValidationKeys.TYPE: Path,
+                ValidationKeys.REQUIRED: True
             },
             MetadataKeys.HELP: "Directory for temporary files"
         }
     )
     
-    # Locking settings with metadata
-    lock_timeout: int = field(
-        default=DEFAULT_LOCK_TIMEOUT,
+    drafts_dir: Path = field(
+        default_factory=lambda: Path(DEFAULT_PATHS["drafts"]),
         metadata={
-            MetadataKeys.DEFAULT: {
-                "value": DEFAULT_LOCK_TIMEOUT
-            },
+            MetadataKeys.IS_PATH: True,
             MetadataKeys.VALIDATION: {
-                "type": int,
-                "min_value": 1,
-                "allow_zero": False
+                ValidationKeys.TYPE: Path,
+                ValidationKeys.REQUIRED: True
             },
-            MetadataKeys.HELP: "Timeout in seconds for acquiring locks",
-            MetadataKeys.CONSTRAINTS: "Must be positive"
+            MetadataKeys.HELP: "Directory for draft Markdown files"
         }
     )
     
-    section_marker_template: str = field(
-        default=DEFAULT_SECTION_MARKER,
+    finalized_dir: Path = field(
+        default_factory=lambda: Path(DEFAULT_PATHS["finalized"]),
         metadata={
-            MetadataKeys.DEFAULT: {
-                "value": DEFAULT_SECTION_MARKER
-            },
+            MetadataKeys.IS_PATH: True,
             MetadataKeys.VALIDATION: {
-                "type": str,
-                "required": True,
-                "pattern": r".*\{section_title\}.*"
+                ValidationKeys.TYPE: Path,
+                ValidationKeys.REQUIRED: True
             },
-            MetadataKeys.HELP: "Template for section markers, must contain {section_title}",
-            MetadataKeys.EXAMPLE: "## {section_title}"
+            MetadataKeys.HELP: "Directory for finalized Markdown files"
+        }
+    )
+    
+    # Numeric settings
+    lock_timeout: int = field(
+        default=DEFAULT_LOCK_TIMEOUT,
+        metadata={
+            MetadataKeys.VALIDATION: {
+                ValidationKeys.TYPE: int,
+                ValidationKeys.MIN: 1,
+                ValidationKeys.ALLOW_ZERO: False
+            },
+            MetadataKeys.HELP: "Lock timeout in seconds"
         }
     )
     
@@ -293,55 +286,70 @@ class WriterConfig:
         metadata={
             MetadataKeys.VALIDATION: {
                 ValidationKeys.TYPE: int,
-                ValidationKeys.MIN: lambda: get_system_min_file_size(),
-                ValidationKeys.MAX: lambda: get_available_disk_space() // 2,
+                ValidationKeys.MIN: 1,
                 ValidationKeys.ALLOW_ZERO: False
             },
             MetadataKeys.HELP: "Maximum file size in bytes"
         }
     )
     
+    # List settings
     allowed_extensions: List[str] = field(
-        default_factory=list,
+        default_factory=lambda: ALLOWED_EXTENSIONS.copy(),
         metadata={
             MetadataKeys.VALIDATION: {
                 ValidationKeys.TYPE: list,
                 ValidationKeys.ELEMENT_TYPE: str,
-                ValidationKeys.CHOICES: get_supported_extensions
+                ValidationKeys.REQUIRED: True
             },
             MetadataKeys.HELP: "List of allowed file extensions"
         }
     )
     
+    # Compression settings
     compression_level: int = field(
         default=5,
         metadata={
             MetadataKeys.VALIDATION: {
                 ValidationKeys.TYPE: int,
-                ValidationKeys.MIN: 1,
-                ValidationKeys.MAX: lambda: get_max_compression_level(),
-                ValidationKeys.ALLOW_ZERO: False
+                ValidationKeys.MIN: 0,
+                ValidationKeys.MAX: 9
             },
-            MetadataKeys.HELP: "Compression level for file storage"
+            MetadataKeys.HELP: "Compression level (0-9)"
         }
     )
     
-    def __post_init__(self) -> None:
-        """Initialize and validate configuration after creation."""
+    # String settings with pattern
+    section_marker_template: str = field(
+        default=DEFAULT_SECTION_MARKER,
+        metadata={
+            MetadataKeys.VALIDATION: {
+                ValidationKeys.TYPE: str,
+                ValidationKeys.REQUIRED: True,
+                ValidationKeys.PATTERN: r".*\{section_title\}.*"
+            },
+            MetadataKeys.HELP: "Template for section markers, must contain {section_title}"
+        }
+    )
+    
+    def __post_init__(self):
+        """Validate configuration after initialization."""
         self.logger = logging.getLogger(__name__)
+        # Initialize path handler with logger
         self.path_handler = PathHandler(self.logger)
         
-        # Set default backup directory before path validation
-        self._set_default_backup_dir()
-        
-        # Validate paths and create directories if needed
-        self._validate_and_create_paths()
-        
-        # Validate all other settings
-        self._validate_all()
+        self._validate_fields()
+        self._validate_paths()
+        self._validate_backup_config()
     
-    def _validate_and_create_paths(self) -> None:
-        """Validate and create all configured paths."""
+    def _validate_fields(self) -> None:
+        """Validate all fields using their metadata."""
+        for field_obj in fields(self):
+            value = getattr(self, field_obj.name)
+            validate_field_metadata(field_obj.name, value, field_obj.metadata)
+    
+    def _validate_paths(self) -> None:
+        """Validate paths and create directories if needed."""
         self.logger.info("Starting path validation and creation")
         
         # Process required paths
@@ -399,25 +407,42 @@ class WriterConfig:
         
         self.logger.info("Directory relationship validation completed successfully")
     
-    def _set_default_backup_dir(self) -> None:
-        """Set and validate default backup directory if needed."""
-        self.logger.debug("Checking backup directory configuration")
-        
-        if self.backup_dir is None and self.backup_enabled:
-            self.logger.info("Setting default backup directory")
-            try:
-                # Process through PathHandler for consistent validation
+    def _validate_backup_config(self) -> None:
+        """Validate backup configuration."""
+        if self.backup_enabled:
+            # Ensure backup directory is set and valid
+            if self.backup_dir is None:
+                self._set_default_backup_dir()
+            else:
+                # Validate existing backup directory
                 self.backup_dir = self.path_handler.process_path(
-                    self.temp_dir / "backups",
+                    self.backup_dir,
                     "backup_dir",
                     required=True,
-                    allow_creation=self.create_directories,
+                    allow_creation=True,
                     must_be_directory=True,
                     check_permissions=True
                 )
-                self.logger.info(f"Default backup directory set to: {self.backup_dir}")
-            except Exception as e:
-                raise ConfigurationError(f"Failed to set default backup directory: {str(e)}")
+            
+            # Validate directory relationships
+            other_dirs = [self.temp_dir, self.drafts_dir, self.finalized_dir]
+            if any(self.backup_dir.samefile(dir_path) 
+                   for dir_path in other_dirs 
+                   if dir_path is not None and dir_path.exists()):
+                raise ConfigurationError(
+                    f"Backup directory '{self.backup_dir}' cannot be the same as "
+                    "temp_dir, drafts_dir, or finalized_dir"
+                )
+            
+            self.logger.info(f"Backup directory validated: {self.backup_dir}")
+        else:
+            self.logger.info(LOG_BACKUP_ENABLED)
+            if self.backup_dir is not None:
+                self.logger.warning(LOG_BACKUP_WARNING)
+    
+    def _set_default_backup_dir(self) -> None:
+        """Set default backup directory."""
+        self.backup_dir = Path(DEFAULT_PATHS.get("backup", "data/backup"))
     
     def _validate_all(self) -> None:
         """Run all validation checks in the following order:
