@@ -1,0 +1,19 @@
+Based on your understanding of the project,
+Create a complete feature description that includes the following:
+
+1.	Define the Problem and Context: Ensure the feature fits within the broader system's purpose and functionality. 
+    Clarify the problem it addresses and its context.
+
+2.	Function-Level Goals:
+    - Specify what the function should do.
+    - Define the input/output format clearly.
+    - Account for constraints and edge cases.
+
+3.	Dependencies:
+    - Specify the relevant libraries and tools to use.
+    - Follow best practices of the python ecosystem.
+    
+You may include code blocks that describe outputs or inputs.
+Do not write the code of the feature, just the description.
+
+Feature definition to elaborate:
