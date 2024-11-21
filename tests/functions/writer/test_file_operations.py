@@ -100,3 +100,14 @@ class TestCreateDocument:
         for filename in invalid_filenames:
             with pytest.raises(WriterError, match="Invalid filename"):
                 create_document(filename, valid_metadata, test_config)
+    
+    def test_create_document_invalid_metadata_types(self, test_config):
+        """Test error when metadata contains invalid types."""
+        invalid_metadata = {
+            "title": ["Not", "A", "String"],  # List instead of string
+            "author": "Test Author",
+            "date": datetime.now()  # datetime object instead of string
+        }
+        
+        with pytest.raises(WriterError, match="Invalid metadata type"):
+            create_document("test_doc.md", invalid_metadata, test_config)

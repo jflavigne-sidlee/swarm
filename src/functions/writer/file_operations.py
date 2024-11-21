@@ -32,6 +32,10 @@ def create_document(
     if not file_name or '/' in file_name or '\0' in file_name:
         raise WriterError("Invalid filename")
         
+    # Validate metadata types
+    if not all(isinstance(value, str) for value in metadata.values()):
+        raise WriterError("Invalid metadata type")
+    
     # Ensure file has .md extension
     if not file_name.endswith('.md'):
         file_name += '.md'
