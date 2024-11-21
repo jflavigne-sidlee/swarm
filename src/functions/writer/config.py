@@ -127,6 +127,7 @@ class PathHandler:
         if path is None:
             if required:
                 raise PathValidationError(PATH_REQUIRED_MSG.format(name=name))
+            self.logger.debug(PATH_OPTIONAL_MSG.format(name=name))
             return None
             
         # Convert to absolute path
@@ -155,11 +156,17 @@ class PathHandler:
             if check_permissions:
                 if not os.access(path, os.W_OK):
                     raise PathValidationError(
-                        f"Path '{name}' does not have write permission: {path}"
+                        ERROR_PATH_NO_WRITE.format(
+                            name=name,
+                            path=path
+                        )
                     )
                 if not os.access(path, os.R_OK):
                     raise PathValidationError(
-                        f"Path '{name}' does not have read permission: {path}"
+                        ERROR_PATH_NO_READ.format(
+                            name=name,
+                            path=path
+                        )
                     )
         elif required:
             raise PathValidationError(
@@ -409,13 +416,21 @@ class WriterConfig:
         # Validate section marker template
         if "{section_title}" not in self.section_marker_template:
             raise ConfigurationError(
-                "section_marker_template must contain '{section_title}' placeholder"
+                ERROR_PATTERN_MISMATCH.format(
+                    name="section_marker_template",
+                    value=self.section_marker_template,
+                    pattern="{section_title}"
+                )
             )
         
         # Validate lock timeout
-        if self.lock_timeout <= 0:
+        if self.lock_timeout <= MIN_LOCK_RETRIES:
             raise ConfigurationError(
-                "lock_timeout must be positive"
+                ERROR_VALUE_TOO_SMALL.format(
+                    name="lock_timeout",
+                    value=self.lock_timeout,
+                    min=MIN_LOCK_RETRIES
+                )
             )
         
         # Validate max file size
@@ -427,7 +442,11 @@ class WriterConfig:
         # Validate metadata keys
         if not all(isinstance(key, str) for key in self.metadata_keys):
             raise ConfigurationError(
-                "Invalid type in list 'metadata_keys'"
+                ERROR_INVALID_TYPE.format(
+                    name="metadata_keys",
+                    got="mixed types",
+                    expected="str"
+                )
             )
         
         # Validate encoding

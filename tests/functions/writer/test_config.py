@@ -10,8 +10,12 @@ from src.functions.writer.constants import (
     DEFAULT_MAX_FILE_SIZE,
     ALLOWED_EXTENSIONS,
     DEFAULT_ENCODING,
-    DEFAULT_METADATA_FIELDS
+    DEFAULT_METADATA_FIELDS,
+    ERROR_VALUE_TOO_SMALL,
+    ERROR_PATH_NO_WRITE,
+    ERROR_INVALID_TYPE
 )
+import re
 
 # Configure logging for tests
 logger = logging.getLogger(__name__)
@@ -114,7 +118,12 @@ class TestWriterConfig:
     def test_invalid_lock_timeout(self, basic_config):
         """Test validation of lock timeout."""
         basic_config["lock_timeout"] = 0
-        with pytest.raises(ConfigurationError, match=".*must be positive.*"):
+        expected_error = ERROR_VALUE_TOO_SMALL.format(
+            name="lock_timeout",
+            value=0,
+            min=1
+        )
+        with pytest.raises(ConfigurationError, match=re.escape(expected_error)):
             WriterConfig(**basic_config)
 
     def test_from_dict_conversion(self, basic_config):
@@ -177,7 +186,11 @@ class TestWriterConfig:
             logger.debug(f"Drafts dir permissions: {oct(drafts_dir.stat().st_mode)}")
             logger.debug(f"Finalized dir permissions: {oct(finalized_dir.stat().st_mode)}")
 
-            with pytest.raises(PathValidationError, match=r"Path '.*' does not have write permission: .*"):
+            expected_error = ERROR_PATH_NO_WRITE.format(
+                name="temp_dir",
+                path=temp_dir
+            )
+            with pytest.raises(PathValidationError, match=re.escape(expected_error)):
                 config = WriterConfig(**basic_config)
 
         finally:
@@ -297,7 +310,12 @@ class TestWriterConfig:
         
         # Test invalid metadata key type
         basic_config["metadata_keys"] = ["title", 123, "author"]
-        with pytest.raises(ConfigurationError, match="Invalid type in list 'metadata_keys'"):
+        expected_error = ERROR_INVALID_TYPE.format(
+            name="metadata_keys",
+            got="mixed types",
+            expected="str"
+        )
+        with pytest.raises(ConfigurationError, match=re.escape(expected_error)):
             WriterConfig(**basic_config)
         
         # Test empty metadata keys list
