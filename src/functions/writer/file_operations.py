@@ -14,7 +14,8 @@ from .constants import (
     ERROR_INVALID_FILENAME, ERROR_INVALID_METADATA_TYPE, ERROR_FILE_EXISTS,
     ERROR_PERMISSION_DENIED_PATH, ERROR_PERMISSION_DENIED_DIR, ERROR_MISSING_METADATA,
     ERROR_DIR_EXISTS, ERROR_DIR_CREATION, ERROR_YAML_SERIALIZATION,
-    ERROR_FILE_WRITE, ERROR_PERMISSION_DENIED_FILE
+    ERROR_FILE_WRITE, ERROR_PERMISSION_DENIED_FILE, MAX_PATH_LENGTH,
+    ERROR_PATH_TOO_LONG
 )
 
 # Set up module logger
@@ -23,66 +24,7 @@ logger = logging.getLogger(__name__)
 def create_document(
     file_name: str, metadata: Dict[str, str], config: Optional[WriterConfig] = None
 ) -> Path:
-    """Create a new Markdown document with YAML frontmatter metadata.
-    
-    Creates a new Markdown document with the specified filename and metadata.
-    The document will include YAML frontmatter at the beginning, followed by
-    an empty document body.
-    
-    Args:
-        file_name: Name of the document to create. If it doesn't end with '.md',
-            the extension will be added automatically. Must be a valid filename
-            according to OS restrictions.
-        metadata: Dictionary of metadata fields to include in the frontmatter.
-            All values must be strings. Required fields are specified in
-            config.metadata_keys (defaults to title, author, and date).
-        config: Optional configuration object. If None, default configuration
-            will be used.
-            
-    Returns:
-        Path: Path object pointing to the created document.
-        
-    Raises:
-        WriterError: In the following cases:
-            - Invalid filename (empty, too long, forbidden chars, etc.)
-            - Invalid metadata types (non-string values)
-            - File already exists
-            - Missing required metadata fields
-            - Permission denied (for directory creation or file writing)
-            - Directory creation fails
-            - YAML serialization fails
-            - File writing fails
-            
-    Note:
-        - Directory Creation:
-            If config.create_directories is True (default), missing directories
-            will be created automatically. If False, the function will fail if
-            the directory doesn't exist.
-            
-        - File Cleanup:
-            If an error occurs after file creation starts, any partially written
-            file will be cleaned up automatically.
-            
-        - Metadata Handling:
-            - All metadata values must be strings
-            - Required fields are enforced before file creation
-            - Metadata order is preserved in the YAML frontmatter
-            
-        - Path Handling:
-            - Relative paths are resolved against config.drafts_dir
-            - Absolute paths are not allowed in the filename
-            - Special directory names (., ..) are rejected
-            
-    Example:
-        >>> metadata = {
-        ...     "title": "My Document",
-        ...     "author": "John Doe",
-        ...     "date": "2024-03-21"
-        ... }
-        >>> doc_path = create_document("my-doc", metadata)
-        >>> print(doc_path)
-        /path/to/drafts/my-doc.md
-    """
+    """Create a new Markdown document with YAML frontmatter metadata."""
     logger.debug("Creating document with filename: %s", file_name)
     
     # Use default config if none provided
@@ -90,12 +32,16 @@ def create_document(
         config = WriterConfig()
         logger.debug("Using default configuration")
 
-    # Validate inputs
+    # First validate basic filename rules
     if not file_name or not is_valid_filename(file_name):
         logger.warning("Invalid filename rejected: %s", file_name)
         raise WriterError(ERROR_INVALID_FILENAME)
 
-    if not all(isinstance(value, str) for value in metadata.values()):
+    # Validate metadata types
+    if not isinstance(metadata, dict) or not all(
+        isinstance(key, str) and isinstance(value, str) 
+        for key, value in metadata.items()
+    ):
         logger.warning("Invalid metadata types detected in: %s", metadata)
         raise WriterError(ERROR_INVALID_METADATA_TYPE)
 
@@ -105,19 +51,26 @@ def create_document(
         file_name += ".md"
         logger.debug("Added .md extension: %s -> %s", original_name, file_name)
 
-    # Construct full file path
-    file_path = config.drafts_dir / file_name
-    logger.debug("Full file path: %s", file_path)
+    # Then check path length
+    full_path = config.drafts_dir / file_name
+    if len(str(full_path)) > MAX_PATH_LENGTH:
+        logger.warning("Path too long: %s", full_path)
+        raise WriterError(
+            ERROR_PATH_TOO_LONG.format(
+                max_length=MAX_PATH_LENGTH,
+                path=full_path
+            )
+        )
 
     try:
-        # Check if file exists - use os.path to handle permission errors
+        # Check if file exists
         try:
-            if os.path.exists(str(file_path)):
-                logger.warning("File already exists: %s", file_path)
-                raise WriterError(ERROR_FILE_EXISTS.format(path=file_path))
+            if os.path.exists(str(full_path)):
+                logger.warning("File already exists: %s", full_path)
+                raise WriterError(ERROR_FILE_EXISTS.format(path=full_path))
         except (OSError, PermissionError) as e:
-            logger.error("Permission error checking path: %s - %s", file_path, str(e))
-            raise WriterError(ERROR_PERMISSION_DENIED_PATH.format(path=file_path))
+            logger.error("Permission error checking path: %s - %s", full_path, str(e))
+            raise WriterError(ERROR_PERMISSION_DENIED_PATH.format(path=full_path))
 
         # Validate required metadata fields
         missing_fields = [
@@ -150,29 +103,29 @@ def create_document(
             yaml_content = yaml.dump(metadata, default_flow_style=False, sort_keys=False)
             
             # Write to file
-            logger.debug("Writing content to file: %s", file_path)
-            with open(file_path, "w", encoding=config.default_encoding) as f:
+            logger.debug("Writing content to file: %s", full_path)
+            with open(full_path, "w", encoding=config.default_encoding) as f:
                 f.write(YAML_FRONTMATTER_START)
                 f.write(yaml_content)
                 f.write(YAML_FRONTMATTER_END)
                 
-            logger.info("Successfully created document: %s", file_path)
-            return file_path
+            logger.info("Successfully created document: %s", full_path)
+            return full_path
 
         except yaml.YAMLError as e:
             logger.error("YAML serialization error: %s", str(e))
             raise WriterError(ERROR_YAML_SERIALIZATION.format(error=str(e)))
         except PermissionError:
-            logger.error("Permission denied writing file: %s", file_path)
-            raise WriterError(ERROR_PERMISSION_DENIED_FILE.format(path=file_path))
+            logger.error("Permission denied writing file: %s", full_path)
+            raise WriterError(ERROR_PERMISSION_DENIED_FILE.format(path=full_path))
         except OSError as e:
-            logger.error("File writing error: %s - %s", file_path, str(e))
+            logger.error("File writing error: %s - %s", full_path, str(e))
             raise WriterError(ERROR_FILE_WRITE.format(error=str(e)))
 
     except Exception as e:
         # Clean up if file was partially written
-        logger.debug("Exception occurred, cleaning up partial file: %s", file_path)
-        cleanup_partial_file(file_path)
+        logger.debug("Exception occurred, cleaning up partial file: %s", full_path)
+        cleanup_partial_file(full_path)
         
         if isinstance(e, WriterError):
             raise

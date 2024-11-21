@@ -6,6 +6,7 @@ from datetime import datetime
 from src.functions.writer.file_operations import create_document
 from src.functions.writer.config import WriterConfig
 from src.functions.writer.exceptions import WriterError
+from src.functions.writer.constants import MAX_PATH_LENGTH
 
 @pytest.fixture
 def test_config(tmp_path):
@@ -269,6 +270,33 @@ class TestCreateDocument:
                 assert file_path.name == filename
             except WriterError as e:
                 pytest.fail(f"Valid filename '{filename}' was rejected: {str(e)}")
+    
+    def test_create_document_path_at_limit(self, test_config, valid_metadata):
+        """Test that paths exactly at the length limit are accepted."""
+        # Calculate available length for filename
+        base_path_length = len(str(test_config.drafts_dir)) + 1  # +1 for path separator
+        available_length = MAX_PATH_LENGTH - base_path_length
+        
+        # Create filename that will make the full path exactly MAX_PATH_LENGTH
+        filename = f"{'a' * (available_length - 3)}.md"  # -3 for '.md'
+        
+        try:
+            file_path = create_document(filename, valid_metadata, test_config)
+            assert file_path.exists()
+            assert len(str(file_path)) <= MAX_PATH_LENGTH
+        except WriterError as e:
+            pytest.fail(f"Valid path length was rejected: {str(e)}")
+    
+    def test_create_document_path_too_long(self, test_config, valid_metadata):
+        """Test error when full path exceeds system limits."""
+        # Calculate a length that will exceed MAX_PATH_LENGTH
+        base_path_length = len(str(test_config.drafts_dir)) + 1  # +1 for path separator
+        excess_length = MAX_PATH_LENGTH - base_path_length + 10  # +10 to exceed limit
+        
+        filename = f"{'a' * (excess_length - 3)}.md"  # -3 for '.md'
+        
+        with pytest.raises(WriterError, match="Full path exceeds maximum length"):
+            create_document(filename, valid_metadata, test_config)
     
             
 # pytest tests/functions/writer/test_file_operations.py

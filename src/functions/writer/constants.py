@@ -172,6 +172,7 @@ KEY_CONSTRAINTS: Final = "constraints"
 
 # File validation constants
 MAX_FILENAME_LENGTH: Final = 255
+MAX_PATH_LENGTH: Final = 260  # Windows MAX_PATH limit
 FORBIDDEN_FILENAME_CHARS: Final = '<>:"/\\|?*\0'
 RESERVED_WINDOWS_FILENAMES: Final[Set[str]] = {
     "CON", "PRN", "AUX", "NUL",  # Device names
@@ -195,3 +196,4 @@ ERROR_DIR_CREATION: Final = "Directory creation error: {error}"
 ERROR_YAML_SERIALIZATION: Final = "YAML serialization error: {error}"
 ERROR_FILE_WRITE: Final = "File writing error: {error}"
 ERROR_PERMISSION_DENIED_FILE: Final = "Permission denied writing file: {path}"
+ERROR_PATH_TOO_LONG: Final = "Full path exceeds maximum length of {max_length} characters: {path}"
