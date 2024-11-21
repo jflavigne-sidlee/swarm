@@ -124,3 +124,20 @@ class TestCreateDocument:
         
         with pytest.raises(WriterError, match="Cannot create directory"):
             create_document("test_doc.md", valid_metadata, test_config)
+    
+    def test_create_document_yaml_error(self, test_config):
+        """Test error when metadata cannot be serialized to YAML."""
+        class UnserializableObject:
+            pass
+        
+        invalid_metadata = {
+            "title": "Test Document",
+            "author": "Test Author",
+            "date": UnserializableObject()  # This object can't be serialized to YAML
+        }
+        
+        with pytest.raises(WriterError, match="Invalid metadata type"):
+            create_document("test_doc.md", invalid_metadata, test_config)
+            
+            
+# pytest tests/functions/writer/test_file_operations.py
