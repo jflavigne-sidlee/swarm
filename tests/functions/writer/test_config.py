@@ -84,40 +84,50 @@ class TestPathHandler:
     def test_process_path_permission_denied(self, path_handler, temp_dir):
         """Test handling of permission errors during path processing."""
         test_path = temp_dir / "test_perms"
-        test_path.mkdir(parents=True, exist_ok=True)  # Create the directory first
+        test_path.mkdir(parents=True, exist_ok=True)
         
-        # Mock access to simulate permission issues
-        with patch('os.access', return_value=False):
-            with pytest.raises(PathValidationError, match=re.escape(ERROR_PATH_NO_WRITE.format(
-                name="test_dir",
-                path=test_path
-            ))):
-                path_handler.process_path(
-                    test_path,
-                    "test_dir",
-                    check_permissions=True
-                )
+        try:
+            # Mock access to simulate permission issues
+            with patch('os.access', return_value=False):
+                with pytest.raises(PathValidationError, match=re.escape(ERROR_PATH_NO_WRITE.format(
+                    name="test_dir",
+                    path=test_path
+                ))):
+                    path_handler.process_path(
+                        test_path,
+                        "test_dir",
+                        check_permissions=True
+                    )
+        finally:
+            # Restore permissions before cleanup
+            os.chmod(test_path, 0o777)
+            os.chmod(temp_dir, 0o777)
 
     def test_process_path_permission_checks(self, path_handler, temp_dir):
         """Test different permission check scenarios."""
         test_path = temp_dir / "test_perms"
-        test_path.mkdir(parents=True, exist_ok=True)  # Create the directory first
+        test_path.mkdir(parents=True, exist_ok=True)
         
-        # Mock access checks for different scenarios
-        access_mock = Mock()
-        
-        # Scenario 1: No read permission
-        access_mock.side_effect = lambda path, mode: mode != os.R_OK
-        with patch('os.access', access_mock):
-            with pytest.raises(PathValidationError, match=re.escape(ERROR_PATH_NO_READ.format(
-                name="test_dir",
-                path=test_path
-            ))):
-                path_handler.process_path(
-                    test_path,
-                    "test_dir",
-                    check_permissions=True
-                )
+        try:
+            # Mock access checks for different scenarios
+            access_mock = Mock()
+            
+            # Scenario 1: No read permission
+            access_mock.side_effect = lambda path, mode: mode != os.R_OK
+            with patch('os.access', access_mock):
+                with pytest.raises(PathValidationError, match=re.escape(ERROR_PATH_NO_READ.format(
+                    name="test_dir",
+                    path=test_path
+                ))):
+                    path_handler.process_path(
+                        test_path,
+                        "test_dir",
+                        check_permissions=True
+                    )
+        finally:
+            # Restore permissions before cleanup
+            os.chmod(test_path, 0o777)
+            os.chmod(temp_dir, 0o777)
 
     def test_process_path_creation_permission_error(self, path_handler, temp_dir):
         """Test handling of permission errors during directory creation."""
