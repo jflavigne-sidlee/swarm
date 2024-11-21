@@ -83,10 +83,44 @@ def create_document(
         raise WriterError(f"Failed to create document: {str(e)}")
 
 def is_valid_filename(filename: str) -> bool:
-    """Check if the filename is valid based on OS restrictions."""
-    if not filename:
+    """Check if the filename is valid based on OS restrictions.
+    
+    Args:
+        filename: The filename to validate
+        
+    Returns:
+        bool: True if filename is valid, False otherwise
+        
+    Note:
+        Validates against:
+        - Empty or too long filenames (>255 chars)
+        - Forbidden characters (<>:"/\\|?*\0)
+        - Reserved Windows filenames (CON, PRN, etc.)
+        - Trailing spaces or dots
+    """
+    # Check for empty or too long filenames
+    if not filename or len(filename) > 255:
         return False
         
     # Check for common forbidden characters in filenames
     forbidden_chars = '<>:"/\\|?*\0'
-    return not any(char in filename for char in forbidden_chars)
+    if any(char in filename for char in forbidden_chars):
+        return False
+        
+    # Check for reserved Windows filenames
+    reserved_names = {
+        "CON", "PRN", "AUX", "NUL",  # Device names
+        "COM1", "COM2", "COM3", "COM4",  # COM ports
+        "LPT1", "LPT2", "LPT3", "LPT4"  # Printer ports
+    }
+    
+    # Get base name without extension and convert to uppercase for comparison
+    base_name = os.path.splitext(os.path.basename(filename))[0].upper()
+    if base_name in reserved_names:
+        return False
+        
+    # Check for trailing spaces or dots
+    if filename.endswith((" ", ".")):
+        return False
+        
+    return True
