@@ -8,7 +8,9 @@ from src.functions.writer.constants import (
     DEFAULT_SECTION_MARKER,
     DEFAULT_LOCK_TIMEOUT,
     DEFAULT_MAX_FILE_SIZE,
-    ALLOWED_EXTENSIONS
+    ALLOWED_EXTENSIONS,
+    DEFAULT_ENCODING,
+    DEFAULT_METADATA_FIELDS
 )
 
 # Configure logging for tests
@@ -39,7 +41,10 @@ def basic_config(tmp_path):
         "lock_timeout": DEFAULT_LOCK_TIMEOUT,
         "max_file_size": DEFAULT_MAX_FILE_SIZE,
         "allowed_extensions": ALLOWED_EXTENSIONS,
-        "compression_level": 5
+        "compression_level": 5,
+        "metadata_keys": DEFAULT_METADATA_FIELDS,
+        "default_encoding": DEFAULT_ENCODING,
+        "create_directories": True
     }
 
 # Path Handler Tests
@@ -282,3 +287,53 @@ class TestWriterConfig:
                 tmp_path.rmdir()
             except OSError:
                 pass  # Directory might not be empty or already removed
+
+    def test_metadata_keys_validation(self, basic_config):
+        """Test validation of metadata keys."""
+        # Test valid metadata keys
+        basic_config["metadata_keys"] = ["title", "author", "custom"]
+        config = WriterConfig(**basic_config)
+        assert config.metadata_keys == ["title", "author", "custom"]
+        
+        # Test invalid metadata key type
+        basic_config["metadata_keys"] = ["title", 123, "author"]
+        with pytest.raises(ConfigurationError, match="Invalid type in list 'metadata_keys'"):
+            WriterConfig(**basic_config)
+        
+        # Test empty metadata keys list
+        basic_config["metadata_keys"] = []
+        config = WriterConfig(**basic_config)
+        assert config.metadata_keys == []
+
+    def test_encoding_validation(self, basic_config):
+        """Test validation of default encoding."""
+        # Test valid encoding
+        basic_config["default_encoding"] = "utf-8"
+        config = WriterConfig(**basic_config)
+        assert config.default_encoding == "utf-8"
+        
+        # Test invalid encoding
+        basic_config["default_encoding"] = "invalid-encoding"
+        with pytest.raises(ConfigurationError, match="Invalid value for 'default_encoding'"):
+            WriterConfig(**basic_config)
+        
+        # Test default value
+        del basic_config["default_encoding"]
+        config = WriterConfig(**basic_config)
+        assert config.default_encoding == DEFAULT_ENCODING
+
+    def test_default_values(self, basic_config):
+        """Test default values for new fields."""
+        # Remove optional fields from basic_config
+        basic_config = {
+            "temp_dir": basic_config["temp_dir"],
+            "drafts_dir": basic_config["drafts_dir"],
+            "finalized_dir": basic_config["finalized_dir"]
+        }
+        
+        config = WriterConfig(**basic_config)
+        
+        # Check defaults
+        assert config.create_directories is True
+        assert config.metadata_keys == DEFAULT_METADATA_FIELDS
+        assert config.default_encoding == DEFAULT_ENCODING

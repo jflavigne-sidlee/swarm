@@ -84,6 +84,16 @@ def validate_field_metadata(name: str, value: Any, metadata: Dict[str, Any]) -> 
                 choices=", ".join(map(str, choices))
             )
         )
+    
+    # List element type validation
+    if isinstance(value, list) and ValidationKeys.ELEMENT_TYPE in validation:
+        element_type = validation[ValidationKeys.ELEMENT_TYPE]
+        for item in value:
+            if not isinstance(item, element_type):
+                raise ConfigurationError(
+                    f"Invalid type in list '{name}': got {type(item).__name__}, "
+                    f"expected {element_type.__name__}"
+                )
 
 class PathHandler:
     """Utility class for handling path operations."""
@@ -349,6 +359,33 @@ class WriterConfig:
                 ValidationKeys.PATTERN: r".*\{section_title\}.*"
             },
             MetadataKeys.HELP: "Template for section markers, must contain {section_title}"
+        }
+    )
+    
+    # Metadata and encoding configuration
+    metadata_keys: List[str] = field(
+        default_factory=lambda: DEFAULT_METADATA_FIELDS,
+        metadata={
+            MetadataKeys.VALIDATION: {
+                ValidationKeys.TYPE: list,
+                ValidationKeys.ELEMENT_TYPE: str,
+                ValidationKeys.REQUIRED: True
+            },
+            MetadataKeys.HELP: "List of metadata keys for Markdown documents",
+            MetadataKeys.EXAMPLE: ["title", "author", "date", "tags"]
+        }
+    )
+
+    default_encoding: str = field(
+        default=DEFAULT_ENCODING,
+        metadata={
+            MetadataKeys.VALIDATION: {
+                ValidationKeys.TYPE: str,
+                ValidationKeys.REQUIRED: True,
+                ValidationKeys.CHOICES: ["utf-8", "utf-16", "ascii"]
+            },
+            MetadataKeys.HELP: "Default encoding for Markdown files",
+            MetadataKeys.EXAMPLE: "utf-8"
         }
     )
     
