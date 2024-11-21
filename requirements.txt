@@ -52,3 +52,10 @@ typing_extensions==4.12.2
 urllib3==2.2.3
 virtualenv==20.27.1
 yarl==1.17.1
+markdown>=3.4.0
+mistune>=3.0.0
+aiofiles>=23.1.0
+pypandoc>=1.11.0
+watchdog>=3.0.0
+beautifulsoup4>=4.12.2
+gitpython>=3.1.31
