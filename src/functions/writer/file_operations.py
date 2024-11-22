@@ -196,20 +196,7 @@ def append_section(
     allow_append: bool = False,
     header_level: Optional[int] = None
 ) -> None:
-    """Append a new section to a Markdown document.
-    
-    Args:
-        file_name: Name of the target document
-        section_title: Title for the new section
-        content: Content to add under the section
-        config: Optional configuration override
-        allow_append: If True, append to existing section instead of raising error
-        header_level: Optional explicit header level (1-6), overrides automatic detection
-        
-    Raises:
-        WriterError: If file doesn't exist, section exists (and allow_append=False),
-                    content is invalid, header level is invalid, or on write errors
-    """
+    """Append a new section to a Markdown document."""
     if config is None:
         config = WriterConfig()
     
@@ -222,12 +209,6 @@ def append_section(
         logger.error("Invalid section title: %s", section_title)
         raise WriterError("Section title must be a non-empty string")
         
-    # Validate header level if provided
-    if header_level is not None:
-        if not isinstance(header_level, int) or not 1 <= header_level <= 6:
-            logger.error("Invalid header level: %s", header_level)
-            raise WriterError("Header level must be an integer between 1 and 6")
-    
     # Validate filename and get full path
     file_path = validate_filename(file_name, config)
     
@@ -264,14 +245,14 @@ def append_section(
                     file_path, section_title, content, content_str, config
                 )
     
-        # Determine header level
+        # Determine header level - use explicit level or determine from content
         try:
-            final_header_level = (
-                header_level if header_level is not None 
-                else determine_header_level(content_str)
-            )
+            final_header_level = header_level if header_level is not None else 2  # Default to level 2
+            if not isinstance(final_header_level, int) or not 1 <= final_header_level <= 6:
+                logger.error("Invalid header level: %s", final_header_level)
+                raise WriterError("Header level must be an integer between 1 and 6")
         except ValueError as e:
-            logger.error("Invalid header level: %s", str(e))
+            logger.error("Header level error: %s", str(e))
             raise WriterError(f"Header level error: {str(e)}")
             
         header_prefix = "#" * final_header_level
@@ -306,51 +287,6 @@ def append_section(
         if isinstance(e, WriterError):
             raise
         raise WriterError(f"Failed to append section: {str(e)}")
-
-def determine_header_level(content: str, default_level: int = 2) -> int:
-    """Determine appropriate header level based on document structure.
-    
-    Args:
-        content: The document content to analyze
-        default_level: Default level to use if no headers exist (default: 2)
-        
-    Returns:
-        int: The determined header level (1-6)
-        
-    Raises:
-        ValueError: If default_level is not between 1 and 6
-    """
-    if not 1 <= default_level <= 6:
-        raise ValueError("Default header level must be between 1 and 6")
-        
-    # If no content, use default
-    if not content:
-        logger.debug("Empty content, using default level: %d", default_level)
-        return default_level
-        
-    # Find all headers in the document, accounting for various Markdown formats
-    # This pattern matches:
-    # - Headers at start of line (^)
-    # - Headers with optional space after #
-    # - Headers that are followed by actual content
-    headers = re.findall(r'^(#{1,6})\s*[^\s#]', content, re.MULTILINE)
-    
-    if not headers:
-        logger.debug("No valid headers found, using default level: %d", default_level)
-        return default_level
-        
-    # Get the minimum header level currently in use
-    min_level = min(len(h) for h in headers)
-    
-    # Return one level deeper than the document's top level, capped at 6
-    suggested_level = min(min_level + 1, 6)
-    
-    logger.debug(
-        "Found existing headers (min level: %d), suggesting level %d", 
-        min_level, 
-        suggested_level
-    )
-    return suggested_level
 
 def append_to_existing_section(
     file_path: Path,

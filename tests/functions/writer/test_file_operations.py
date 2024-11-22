@@ -3,7 +3,7 @@ from pathlib import Path
 import yaml
 from datetime import datetime
 
-from src.functions.writer.file_operations import create_document
+from src.functions.writer.file_operations import create_document, append_section
 from src.functions.writer.config import WriterConfig
 from src.functions.writer.exceptions import WriterError
 from src.functions.writer.constants import MAX_PATH_LENGTH
@@ -298,5 +298,98 @@ class TestCreateDocument:
         with pytest.raises(WriterError, match="Full path exceeds maximum length"):
             create_document(filename, valid_metadata, test_config)
     
-            
+class TestAppendSection:
+    @pytest.fixture
+    def sample_document(self, test_config, valid_metadata):
+        """Create a sample document for testing append operations."""
+        file_path = create_document("test_doc.md", valid_metadata, test_config)
+        return file_path
+
+    def test_append_section_success(self, sample_document, test_config):
+        """Test successful section append with default header level."""
+        append_section("test_doc.md", "Test Section", "Test content", test_config)
+        
+        content = sample_document.read_text(encoding=test_config.default_encoding)
+        assert "## Test Section" in content
+        assert "<!-- Section: Test Section -->" in content
+        assert "Test content" in content
+
+    def test_append_section_with_explicit_header_level(self, sample_document, test_config):
+        """Test section append with specified header level."""
+        append_section("test_doc.md", "Custom Level", "Content", test_config, header_level=3)
+        content = sample_document.read_text()
+        assert "### Custom Level" in content
+
+    def test_append_section_to_existing_section(self, sample_document, test_config):
+        """Test appending to existing section with allow_append=True."""
+        # First append
+        append_section("test_doc.md", "Existing", "Original content", test_config)
+        # Second append
+        append_section("test_doc.md", "Existing", "New content", test_config, allow_append=True)
+        
+        content = sample_document.read_text()
+        assert "Original content" in content
+        assert "New content" in content
+
+    def test_append_section_duplicate_error(self, sample_document, test_config):
+        """Test error when attempting to add duplicate section."""
+        append_section("test_doc.md", "Duplicate", "Content", test_config)
+        with pytest.raises(WriterError, match="Section .* already exists"):
+            append_section("test_doc.md", "Duplicate", "New content", test_config)
+
+    def test_append_section_invalid_header_level(self, sample_document, test_config):
+        """Test error when attempting to use invalid header level."""
+        with pytest.raises(WriterError, match="Header level must be an integer between 1 and 6"):
+            append_section("test_doc.md", "Invalid", "Content", test_config, header_level=7)
+
+    def test_append_section_file_not_found(self, test_config):
+        """Test error when target file doesn't exist."""
+        with pytest.raises(WriterError, match="Document does not exist"):
+            append_section("nonexistent.md", "Section", "Content", test_config)
+
+    def test_append_section_permission_error(self, sample_document, test_config):
+        """Test error when file permissions prevent writing."""
+        sample_document.chmod(0o444)  # Read-only
+        try:
+            with pytest.raises(WriterError, match="Permission denied"):
+                append_section("test_doc.md", "Section", "Content", test_config)
+        finally:
+            sample_document.chmod(0o644)  # Restore permissions
+
+    def test_append_section_header_level_detection(self, sample_document, test_config):
+        """Test automatic header level detection based on document structure."""
+        # Add a top-level header
+        with open(sample_document, "a") as f:
+            f.write("\n# Top Level\nContent")
+        
+        append_section("test_doc.md", "Auto Level", "Content", test_config)
+        content = sample_document.read_text()
+        assert "## Auto Level" in content  # Should be one level deeper
+
+    def test_append_section_empty_content(self, sample_document, test_config):
+        """Test error when attempting to append empty content."""
+        with pytest.raises(WriterError, match="Content must be a non-empty string"):
+            append_section("test_doc.md", "Empty", "", test_config)
+
+    def test_append_section_empty_title(self, sample_document, test_config):
+        """Test error when section title is empty."""
+        with pytest.raises(WriterError, match="Section title must be a non-empty string"):
+            append_section("test_doc.md", "", "Content", test_config)
+
+    def test_append_section_preserves_existing_content(self, sample_document, test_config):
+        """Test that existing document content is preserved when appending."""
+        original_content = sample_document.read_text()
+        append_section("test_doc.md", "New Section", "New content", test_config)
+        new_content = sample_document.read_text()
+        assert original_content in new_content
+
+    def test_append_section_proper_spacing(self, sample_document, test_config):
+        """Test that proper spacing is maintained between sections."""
+        append_section("test_doc.md", "First", "Content 1", test_config)
+        append_section("test_doc.md", "Second", "Content 2", test_config)
+        content = sample_document.read_text()
+        # Check for double newline between sections
+        assert "\n\n## First" in content
+        assert "\n\n## Second" in content
+    
 # pytest tests/functions/writer/test_file_operations.py
