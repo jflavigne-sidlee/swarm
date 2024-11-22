@@ -778,4 +778,32 @@ class TestAppendSection:
         ):
             validate_section_markers(document_content)
 
+    def test_validate_section_markers_empty_document(self, sample_document, test_config):
+        """Test validation succeeds with a completely empty document."""
+        # Create an empty document
+        content = ""
+        
+        # Write the content to the test document
+        with open(sample_document, "w", encoding=test_config.default_encoding) as f:
+            f.write(content)
+        
+        # Read the content
+        with open(sample_document, "r", encoding=test_config.default_encoding) as f:
+            document_content = f.read()
+        
+        # Validation should succeed without raising any errors
+        from src.functions.writer.file_operations import validate_section_markers
+        validate_section_markers(document_content)  # Should not raise any exceptions
+
+        # Also test with just whitespace
+        content_whitespace = "\n\n  \n\t\n"
+        with open(sample_document, "w", encoding=test_config.default_encoding) as f:
+            f.write(content_whitespace)
+        
+        with open(sample_document, "r", encoding=test_config.default_encoding) as f:
+            document_content = f.read()
+        
+        # Should also succeed with whitespace-only content
+        validate_section_markers(document_content)  # Should not raise any exceptions
+
 # pytest tests/functions/writer/test_file_operations.py
