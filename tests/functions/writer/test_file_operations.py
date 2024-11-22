@@ -8,7 +8,8 @@ from src.functions.writer.file_operations import (
     create_document, 
     append_section,
     validate_section_markers,
-    edit_section
+    edit_section,
+    find_section
 )
 from src.functions.writer.config import WriterConfig
 from src.functions.writer.exceptions import WriterError
@@ -1025,5 +1026,37 @@ class TestEditSection:
         
         # Validate the updated document's section markers
         validate_section_markers(updated_content)
+
+class TestFindSection:
+    def test_find_section_basic(self):
+        """Test that find_section correctly locates a section in the content."""
+        content = (
+            "# Introduction\n"
+            "<!-- Section: Introduction -->\n"
+            "This is the introduction section.\n\n"
+            "## Methods\n"
+            "<!-- Section: Methods -->\n"
+            "This is the methods section.\n\n"
+            "## Results\n"
+            "<!-- Section: Results -->\n"
+            "This is the results section.\n\n"
+        )
+        
+        # Attempt to find the 'Methods' section
+        section_match = find_section(content, "Methods")
+        
+        # Verify that the section was found
+        assert section_match is not None, "The section 'Methods' should be found."
+        
+        # Verify that the header and content are correctly captured
+        expected_header = "## Methods\n"
+        expected_content = "This is the methods section.\n\n"
+
+        assert section_match.group(1) == expected_header, "The header does not match."
+        assert section_match.group(2) == expected_content, "The content does not match."
+        
+        # Attempt to find a non-existent section
+        section_match_none = find_section(content, "Discussion")
+        assert section_match_none is None, "The section 'Discussion' should not be found."
 
 # pytest tests/functions/writer/test_file_operations.py

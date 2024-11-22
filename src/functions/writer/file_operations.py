@@ -537,27 +537,28 @@ def find_section_boundaries(content: str, section_title: str) -> tuple[int, int]
 
 def find_section(content: str, section_title: str) -> Optional[re.Match]:
     """Find a section in the document content.
-    
+
     Args:
         content: The document content to search
         section_title: Title of the section to find
-        
+
     Returns:
         Match object if section is found, None otherwise
-        
+
     Note:
         The match groups will contain:
         1. The header line
         2. The section content
     """
     section_pattern = (
-        r"(#{1,6} .*?\n)"  # Header
-        r"<!-- Section: " + re.escape(section_title) + r" -->\n"  # Marker
-        r"(.*?)"  # Content (non-greedy)
-        r"(?=\n#{1,6} |$)"  # Until next header or end of file
+        # Previously tried and failed: r"(^#{1,6}\s.*\n)"  # Header at the start of the line
+        r"(^#{1,6}\s[^\n]*\n)"  # Header at the start of the line, up to the end of the line
+        r"<!-- Section: " + re.escape(section_title) + r" -->\n"
+        r"(.*?)"  # Non-greedy match of content
+        r"(?=^#{1,6}\s|\Z)"  # Lookahead for next header or end of file
     )
-    
-    return re.search(section_pattern, content, re.DOTALL)
+
+    return re.search(section_pattern, content, re.MULTILINE | re.DOTALL)
 
 
 def edit_section(
