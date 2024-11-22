@@ -535,6 +535,31 @@ def find_section_boundaries(content: str, section_title: str) -> tuple[int, int]
     return section_start, section_end
 
 
+def find_section(content: str, section_title: str) -> Optional[re.Match]:
+    """Find a section in the document content.
+    
+    Args:
+        content: The document content to search
+        section_title: Title of the section to find
+        
+    Returns:
+        Match object if section is found, None otherwise
+        
+    Note:
+        The match groups will contain:
+        1. The header line
+        2. The section content
+    """
+    section_pattern = (
+        r"(#{1,6} .*?\n)"  # Header
+        r"<!-- Section: " + re.escape(section_title) + r" -->\n"  # Marker
+        r"(.*?)"  # Content (non-greedy)
+        r"(?=\n#{1,6} |$)"  # Until next header or end of file
+    )
+    
+    return re.search(section_pattern, content, re.DOTALL)
+
+
 def edit_section(
     file_name: str,
     section_title: str,
@@ -551,15 +576,8 @@ def edit_section(
         with open(file_path, "r", encoding=config.default_encoding) as f:
             content = f.read()
         
-        # Find the section to edit using the constant pattern
-        section_pattern = (
-            r"(#{1,6} .*?\n)"  # Header
-            r"<!-- Section: " + re.escape(section_title) + r" -->\n"  # Marker
-            r"(.*?)"  # Content (non-greedy)
-            r"(?=\n#{1,6} |$)"  # Until next header or end of file
-        )
-        
-        section_match = re.search(section_pattern, content, re.DOTALL)
+        # Find the section to edit
+        section_match = find_section(content, section_title)
         if not section_match:
             logger.error(LOG_SECTION_NOT_FOUND, section_title)
             raise WriterError(ERROR_SECTION_NOT_FOUND.format(section_title=section_title))
