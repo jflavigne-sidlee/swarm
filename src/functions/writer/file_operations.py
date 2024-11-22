@@ -541,155 +541,59 @@ def edit_section(
     new_content: str,
     config: Optional[WriterConfig] = None
 ) -> None:
-    """Edit a specific section in a Markdown document.
+    """Edit a specific section in a document."""
+    config = config or WriterConfig()
+    file_path = config.drafts_dir / file_name
+    temp_file = config.temp_dir / f"temp_{file_name}"
     
-    Args:
-        file_name: Name of the Markdown file to edit
-        section_title: Title of the section to edit
-        new_content: New content to replace the existing section content
-        config: Optional configuration settings
-        
-    Raises:
-        WriterError: If section not found, file not found, or other errors occur
-    """
-    if config is None:
-        config = WriterConfig()
-        logger.debug(LOG_USING_DEFAULT_CONFIG)
-
-    # Validate inputs
-    if not new_content or not isinstance(new_content, str):
-        logger.error("Invalid content provided: %s", new_content)
-        raise WriterError("Content must be a non-empty string")
-
-    if not section_title or not isinstance(section_title, str):
-        logger.error("Invalid section title: %s", section_title)
-        raise WriterError("Section title must be a non-empty string")
-
-    # Validate filename and get full path
-    file_path = validate_filename(file_name, config)
-
-    # Validate file exists and is readable
     try:
-        if not file_path.exists():
-            logger.error("File not found: %s", file_path)
-            raise WriterError(f"Document does not exist: {file_path}")
-
-        # Verify file is a Markdown file
-        if not file_path.suffix.lower() == ".md":
-            logger.error("Invalid file format: %s", file_path)
-            raise WriterError(f"File must be a Markdown document: {file_path}")
-
-    except (OSError, PermissionError) as e:
-        logger.error("Permission error checking file: %s - %s", file_path, str(e))
-        raise WriterError(f"Permission denied when accessing {file_path}")
-
-    try:
-        # Read existing content
+        # Read the original content
         with open(file_path, "r", encoding=config.default_encoding) as f:
-            content_str = f.read()
-
-        # Find section boundaries
-        section_start, section_end = find_section_boundaries(content_str, section_title)
-        if section_start == -1:
-            logger.error(
-                "Section '%s' not found in %s. Available sections: %s",
-                section_title,
-                file_path,
-                extract_section_titles(content_str)
-            )
+            content = f.read()
+        
+        # Find the section to edit using the constant pattern
+        section_pattern = (
+            r"(#{1,6} .*?\n)"  # Header
+            r"<!-- Section: " + re.escape(section_title) + r" -->\n"  # Marker
+            r"(.*?)"  # Content (non-greedy)
+            r"(?=\n#{1,6} |$)"  # Until next header or end of file
+        )
+        
+        section_match = re.search(section_pattern, content, re.DOTALL)
+        if not section_match:
+            logger.error(LOG_SECTION_NOT_FOUND, section_title)
             raise WriterError(ERROR_SECTION_NOT_FOUND.format(section_title=section_title))
-
-        # Create updated content
-        section_marker = SECTION_MARKER_TEMPLATE.format(section_title=section_title)
-        updated_content = (
-            content_str[:section_start + len(section_marker)] +
-            "\n" + new_content.strip() + "\n" +
-            content_str[section_end:]
-        )
-
-        # Log content changes for debugging
-        logger.debug(
-            "Content update for section '%s':\nOriginal content length: %d\n"
-            "Updated content length: %d\nSection boundaries: %d to %d",
-            section_title,
-            len(content_str),
-            len(updated_content),
-            section_start,
-            section_end
-        )
-
-        # Validate the updated content's section markers
+        
+        # Preserve the header
+        header = section_match.group(1)
+        marker = f"<!-- Section: {section_title} -->"
+        
+        # Create the replacement text with proper spacing
+        replacement = f"{header}{marker}\n{new_content.strip()}\n\n"
+        
+        # Replace the section while preserving document structure
+        updated_content = content[:section_match.start()] + replacement + content[section_match.end():]
+        
+        # Validate the updated content
         try:
             validate_section_markers(updated_content)
         except WriterError as e:
-            # Extract and log the problematic sections
-            original_markers = extract_section_markers(content_str)
-            updated_markers = extract_section_markers(updated_content)
-            
-            logger.error(
-                "Section marker validation failed:\n"
-                "Original markers: %s\n"
-                "Updated markers: %s\n"
-                "Validation error: %s",
-                original_markers,
-                updated_markers,
-                str(e)
-            )
-            raise WriterError(
-                f"Edit would break document structure: {str(e)}\n"
-                f"Section '{section_title}' update failed validation"
-            )
-
-        # Create temporary file in the same directory
-        temp_file = file_path.with_suffix(f"{file_path.suffix}.tmp")
-        try:
-            # Write to temporary file first
-            with open(temp_file, "w", encoding=config.default_encoding) as f:
-                f.write(updated_content)
-
-            # Ensure temporary file was written completely
-            if not temp_file.exists() or temp_file.stat().st_size == 0:
-                raise WriterError("Failed to write temporary file")
-
-            # Replace original file with temporary file
-            try:
-                # On Windows, we need to remove the target file first
-                if os.name == 'nt' and file_path.exists():
-                    file_path.unlink()
-                temp_file.replace(file_path)
-                
-                logger.info(
-                    "Successfully edited section '%s' in %s",
-                    section_title,
-                    file_path
-                )
-
-            except OSError as e:
-                logger.error("Failed to replace original file: %s", str(e))
-                raise WriterError(f"Failed to update file: {str(e)}")
-
-        except Exception as e:
-            # Clean up temporary file if something went wrong
-            if temp_file.exists():
-                try:
-                    temp_file.unlink()
-                except OSError:
-                    logger.warning("Failed to clean up temporary file: %s", temp_file)
-            raise e
-
-        finally:
-            # Ensure temporary file is cleaned up
-            if temp_file.exists():
-                try:
-                    temp_file.unlink()
-                except OSError:
-                    logger.warning("Failed to clean up temporary file: %s", temp_file)
-
-    except Exception as e:
-        logger.error("Error editing section: %s - %s", file_path, str(e))
-        if isinstance(e, WriterError):
+            logger.error("Edit would break document structure: %s", str(e))
             raise
-        raise WriterError(f"Failed to edit section: {str(e)}")
+        
+        # Write to temporary file first
+        config.temp_dir.mkdir(parents=True, exist_ok=True)
+        with open(temp_file, "w", encoding=config.default_encoding) as f:
+            f.write(updated_content)
+        
+        # Move temporary file to final location
+        os.replace(temp_file, file_path)
+        
+    except (OSError, IOError) as e:
+        logger.error("File operation error: %s", str(e))
+        if temp_file.exists():
+            temp_file.unlink()
+        raise WriterError(str(e)) from e
 
 
 def extract_section_titles(content: str) -> list[str]:

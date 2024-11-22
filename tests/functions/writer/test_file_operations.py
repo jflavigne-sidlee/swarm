@@ -7,7 +7,8 @@ import re
 from src.functions.writer.file_operations import (
     create_document, 
     append_section,
-    validate_section_markers
+    validate_section_markers,
+    edit_section
 )
 from src.functions.writer.config import WriterConfig
 from src.functions.writer.exceptions import WriterError
@@ -31,6 +32,12 @@ def valid_metadata():
         "author": "Test Author",
         "date": datetime.now().strftime("%Y-%m-%d")
     }
+
+@pytest.fixture
+def sample_document(test_config) -> Path:
+    """Create a sample document for testing."""
+    test_config.drafts_dir.mkdir(parents=True, exist_ok=True)
+    return test_config.drafts_dir / "test_doc.md"
 
 class TestCreateDocument:
     def test_create_document_success(self, test_config, valid_metadata):
@@ -952,5 +959,71 @@ class TestAppendSection:
         assert "<!-- Section: Main Section -->" in updated_content
         assert "## First Subsection" in updated_content
         assert "<!-- Section: First Subsection -->" in updated_content
+
+class TestEditSection:
+    def test_edit_section_basic(self, sample_document, test_config):
+        """Test basic section editing functionality."""
+        # Create initial document with a section to edit
+        initial_content = (
+            "---\n"
+            "title: Test Document\n"
+            "author: Test Author\n"
+            "date: 2024-03-21\n"
+            "---\n\n"
+            "# Introduction\n"
+            "<!-- Section: Introduction -->\n"
+            "Original content.\n\n"
+            "## Methods\n"
+            "<!-- Section: Methods -->\n"
+            "Initial methods content.\n\n"
+            "## Results\n"
+            "<!-- Section: Results -->\n"
+            "Initial results.\n\n"
+        )
+        
+        # Write initial content
+        with open(sample_document, "w", encoding=test_config.default_encoding) as f:
+            f.write(initial_content)
+        
+        # Edit the Methods section
+        new_content = "Updated methods content with new information."
+        edit_section(
+            file_name=sample_document.name,
+            section_title="Methods",
+            new_content=new_content,
+            config=test_config
+        )
+        
+        # Read the updated content
+        with open(sample_document, "r", encoding=test_config.default_encoding) as f:
+            updated_content = f.read()
+        
+        # Verify the content structure
+        assert updated_content.count("<!-- Section:") == 3, "Should have all three section markers"
+        
+        # Verify section content and order
+        sections = {
+            "Introduction": "Original content",
+            "Methods": "Updated methods content with new information",
+            "Results": "Initial results"
+        }
+        
+        last_pos = 0
+        for section, content in sections.items():
+            marker = f"<!-- Section: {section} -->"
+            pos = updated_content.find(marker)
+            assert pos > last_pos, f"Section {section} is out of order"
+            assert content in updated_content, f"Content for section {section} is missing or incorrect"
+            last_pos = pos
+        
+        # Verify document structure is maintained
+        assert "---\n" in updated_content, "YAML frontmatter start marker missing"
+        assert "title: Test Document\n" in updated_content, "YAML frontmatter content missing"
+        assert "# Introduction\n" in updated_content, "Introduction header missing"
+        assert "## Methods\n" in updated_content, "Methods header missing"
+        assert "## Results\n" in updated_content, "Results header missing"
+        
+        # Validate the updated document's section markers
+        validate_section_markers(updated_content)
 
 # pytest tests/functions/writer/test_file_operations.py
