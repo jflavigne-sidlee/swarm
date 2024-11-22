@@ -69,6 +69,7 @@ from .constants import (
     LOG_UNEXPECTED_ERROR,
     ERROR_SECTION_NOT_FOUND,
 )
+from .file_io import read_file, write_file, atomic_write
 
 # Set up module logger
 logger = logging.getLogger(__name__)
@@ -589,24 +590,21 @@ def find_section(content: str, section_title: str) -> Optional[re.Match]:
 def edit_section(file_name: str, section_title: str, new_content: str, config: WriterConfig):
     """Edit an existing section in the document."""
     file_path = config.drafts_dir / file_name
-    temp_file = config.temp_dir / f"temp_{file_name}"
 
     try:
-        # Read the original content
-        with open(file_path, "r", encoding=config.default_encoding) as f:
-            content = f.read()
+        # Read using centralized function
+        content = read_file(file_path, config.default_encoding)
 
-        # Find the section to edit
         section_match = find_section(content, section_title)
         if not section_match:
             logger.error(LOG_SECTION_NOT_FOUND.format(section_title=section_title))
             raise WriterError(ERROR_SECTION_NOT_FOUND.format(section_title=section_title))
 
-        # Preserve exact header and marker formatting
+        # Create replacement preserving exact content
         replacement = (
             section_match.group('header')
             + section_match.group('marker')
-            + new_content  # Use content exactly as provided
+            + new_content
         )
 
         updated_content = (
@@ -615,25 +613,14 @@ def edit_section(file_name: str, section_title: str, new_content: str, config: W
             + content[section_match.end() :]
         )
 
-        # Validate the updated content
-        try:
-            validate_section_markers(updated_content)
-        except WriterError as e:
-            logger.error("Edit would break document structure: %s", str(e))
-            raise
+        # Validate before writing
+        validate_section_markers(updated_content)
 
-        # Write to temporary file first
-        config.temp_dir.mkdir(parents=True, exist_ok=True)
-        with open(temp_file, "w", encoding=config.default_encoding) as f:
-            f.write(updated_content)
-
-        # Move temporary file to final location
-        os.replace(temp_file, file_path)
+        # Write using atomic operation
+        atomic_write(file_path, updated_content, config.default_encoding, config.temp_dir)
 
     except (OSError, IOError) as e:
         logger.error("File operation error: %s", str(e))
-        if temp_file.exists():
-            temp_file.unlink()
         raise WriterError(str(e)) from e
 
 def extract_section_titles(content: str) -> list[str]:
