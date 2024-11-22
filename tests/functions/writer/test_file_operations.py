@@ -806,4 +806,49 @@ class TestAppendSection:
         # Should also succeed with whitespace-only content
         validate_section_markers(document_content)  # Should not raise any exceptions
 
+    def test_validate_section_markers_large_document(self, sample_document, test_config):
+        """Test validation performance with a large document containing many sections."""
+        # Create a large document with 1000 sections
+        sections = []
+        sections.append(
+            "---\n"
+            "title: Large Test Document\n"
+            "author: Test Author\n"
+            "date: 2024-03-21\n"
+            "---\n\n"
+        )
+        
+        # Generate 1000 sections with proper headers and markers
+        for i in range(1000):
+            section_title = f"Section {i}"
+            sections.extend([
+                f"# {section_title}\n",
+                f"<!-- Section: {section_title} -->\n",
+                f"Content for section {i}.\n\n"
+            ])
+        
+        content = "".join(sections)
+        
+        # Write the large content to the test document
+        with open(sample_document, "w", encoding=test_config.default_encoding) as f:
+            f.write(content)
+        
+        # Read the content
+        with open(sample_document, "r", encoding=test_config.default_encoding) as f:
+            document_content = f.read()
+        
+        # Time the validation
+        import time
+        start_time = time.time()
+        
+        # Validation should succeed without raising any errors
+        from src.functions.writer.file_operations import validate_section_markers
+        validate_section_markers(document_content)
+        
+        end_time = time.time()
+        execution_time = end_time - start_time
+        
+        # Assert reasonable performance (should complete in under 1 second)
+        assert execution_time < 1.0, f"Validation took too long: {execution_time:.2f} seconds"
+
 # pytest tests/functions/writer/test_file_operations.py
