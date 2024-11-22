@@ -59,6 +59,8 @@ from .constants import (
     LOG_YAML_SERIALIZATION,
     LOG_WRITING_FILE,
     LOG_SECTION_NOT_FOUND,
+    LOG_USING_DEFAULT_CONFIG,
+    LOG_CONFIG_DEBUG,
 )
 
 # Set up module logger
@@ -152,7 +154,7 @@ def create_document(
     # Use default config if none provided
     if config is None:
         config = WriterConfig()
-        logger.debug("Using default configuration")
+        logger.debug(LOG_USING_DEFAULT_CONFIG)
 
     # Validate inputs
     full_path = validate_filename(file_name, config)

@@ -333,3 +333,7 @@ ERROR_SECTION_MARKER_MISMATCH: Final = "Section marker mismatch: expected '{expe
 # Metadata validation logs
 LOG_INVALID_METADATA_TYPES: Final = "Invalid metadata types detected in: %s"
 LOG_MISSING_METADATA_FIELDS: Final = "Missing required metadata fields: %s"
+
+# Configuration logs
+LOG_USING_DEFAULT_CONFIG: Final = "Using default configuration"
+LOG_CONFIG_DEBUG: Final = "Debug configuration: %s"
