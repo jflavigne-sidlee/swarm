@@ -710,4 +710,39 @@ class TestAppendSection:
         ):
             validate_section_markers(document_content)
 
+    def test_validate_section_markers_nested_headers(self, sample_document, test_config):
+        """Test validation succeeds with nested header structure."""
+        # Create a document with nested headers and their markers
+        content = (
+            "---\n"
+            "title: Test Document\n"
+            "author: Test Author\n"
+            "date: 2024-03-21\n"
+            "---\n\n"
+            "# Main Section\n"
+            "<!-- Section: Main Section -->\n"
+            "Content here.\n\n"
+            "## Subsection\n"
+            "<!-- Section: Subsection -->\n"
+            "More content.\n\n"
+            "### Deep Subsection\n"
+            "<!-- Section: Deep Subsection -->\n"
+            "Even more content.\n\n"
+            "## Another Subsection\n"
+            "<!-- Section: Another Subsection -->\n"
+            "Final content.\n"
+        )
+        
+        # Write the content to the test document
+        with open(sample_document, "w", encoding=test_config.default_encoding) as f:
+            f.write(content)
+        
+        # Read the content
+        with open(sample_document, "r", encoding=test_config.default_encoding) as f:
+            document_content = f.read()
+        
+        # Validation should succeed without raising any errors
+        from src.functions.writer.file_operations import validate_section_markers
+        validate_section_markers(document_content)  # Should not raise any exceptions
+
 # pytest tests/functions/writer/test_file_operations.py
