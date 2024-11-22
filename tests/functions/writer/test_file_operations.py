@@ -679,4 +679,35 @@ class TestAppendSection:
         ):
             validate_section_markers(document_content)
 
+    def test_validate_section_markers_empty_section(self, sample_document, test_config):
+        """Test validation fails when a header has no content or marker."""
+        # Create a document with a header but no marker or content
+        content = (
+            "---\n"
+            "title: Test Document\n"
+            "author: Test Author\n"
+            "date: 2024-03-21\n"
+            "---\n\n"
+            "# Empty Section\n\n"  # Header with no marker
+            "# Another Section\n"
+            "<!-- Section: Another Section -->\n"
+            "Some content here.\n"
+        )
+        
+        # Write the content to the test document
+        with open(sample_document, "w", encoding=test_config.default_encoding) as f:
+            f.write(content)
+        
+        # Read the content
+        with open(sample_document, "r", encoding=test_config.default_encoding) as f:
+            document_content = f.read()
+        
+        # Validation should raise an error
+        from src.functions.writer.file_operations import validate_section_markers
+        with pytest.raises(
+            WriterError, 
+            match="Header 'Empty Section' is missing its section marker"
+        ):
+            validate_section_markers(document_content)
+
 # pytest tests/functions/writer/test_file_operations.py
