@@ -745,4 +745,37 @@ class TestAppendSection:
         from src.functions.writer.file_operations import validate_section_markers
         validate_section_markers(document_content)  # Should not raise any exceptions
 
+    def test_validate_section_markers_malformed_marker(self, sample_document, test_config):
+        """Test validation fails when markers don't follow the expected format."""
+        # Create a document with malformed markers
+        content = (
+            "---\n"
+            "title: Test Document\n"
+            "author: Test Author\n"
+            "date: 2024-03-21\n"
+            "---\n\n"
+            "# Introduction\n"
+            "<!-- SECTION: Introduction -->\n"  # Wrong format (uppercase SECTION)
+            "Content here.\n\n"
+            "# Details\n"
+            "<!-- Section: Details -->\n"  # Correct format for comparison
+            "More content.\n"
+        )
+        
+        # Write the content to the test document
+        with open(sample_document, "w", encoding=test_config.default_encoding) as f:
+            f.write(content)
+        
+        # Read the content
+        with open(sample_document, "r", encoding=test_config.default_encoding) as f:
+            document_content = f.read()
+        
+        # Validation should raise an error
+        from src.functions.writer.file_operations import validate_section_markers
+        with pytest.raises(
+            WriterError,
+            match="Section marker for 'Introduction' does not match header title"
+        ):
+            validate_section_markers(document_content)
+
 # pytest tests/functions/writer/test_file_operations.py

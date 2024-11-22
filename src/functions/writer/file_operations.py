@@ -416,7 +416,7 @@ def validate_section_markers(content: str) -> None:
 
     # Regular expressions to identify headers and markers
     header_pattern = re.compile(r"^(#{1,6})\s+(.+?)$", re.MULTILINE)
-    marker_pattern = re.compile(r"<!-- Section: (.+?) -->")
+    marker_pattern = re.compile(r"<!--\s*(?:Section|SECTION):\s*(.+?)\s*-->")
 
     # Extract headers and markers
     headers = list(header_pattern.finditer(content))
@@ -440,11 +440,14 @@ def validate_section_markers(content: str) -> None:
         following_content = content[header_position:].strip()
         first_line = following_content.split("\n")[0] if following_content else ""
 
-        if not first_line.startswith("<!-- Section:"):
+        expected_marker = f"<!-- Section: {header_title} -->"
+        
+        # Check if any marker format is present
+        if not re.match(r"<!--\s*(?:Section|SECTION):", first_line):
             logger.error("Missing marker for header: %s", header_title)
             raise WriterError(f"Header '{header_title}' is missing its section marker")
 
-        expected_marker = f"<!-- Section: {header_title} -->"
+        # Check if the marker matches exactly
         if first_line != expected_marker:
             logger.error(
                 "Mismatched marker for header '%s': expected '%s', found '%s'",
