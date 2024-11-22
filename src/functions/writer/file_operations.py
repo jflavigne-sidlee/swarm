@@ -61,6 +61,11 @@ from .constants import (
     LOG_SECTION_NOT_FOUND,
     LOG_USING_DEFAULT_CONFIG,
     LOG_CONFIG_DEBUG,
+    LOG_FILE_EXISTS,
+    LOG_PERMISSION_ERROR,
+    LOG_DOCUMENT_CREATED,
+    LOG_CLEANUP_PARTIAL_FILE,
+    LOG_UNEXPECTED_ERROR,
 )
 
 # Set up module logger
@@ -149,7 +154,7 @@ def create_document(
     file_name: str, metadata: Dict[str, str], config: Optional[WriterConfig] = None
 ) -> Path:
     """Create a new Markdown document with YAML frontmatter metadata."""
-    logger.debug(LOG_FILE_VALIDATION.format(file_name))
+    logger.debug(LOG_FILE_VALIDATION, file_name)
 
     # Use default config if none provided
     if config is None:
@@ -164,10 +169,10 @@ def create_document(
         # Check if file exists
         try:
             if os.path.exists(str(full_path)):
-                logger.warning("File already exists: %s", full_path)
+                logger.warning(LOG_FILE_EXISTS, full_path)
                 raise WriterError(ERROR_FILE_EXISTS.format(path=full_path))
         except (OSError, PermissionError) as e:
-            logger.error("Permission error checking path: %s - %s", full_path, str(e))
+            logger.error(LOG_PERMISSION_ERROR, full_path, str(e))
             raise WriterError(ERROR_PERMISSION_DENIED_PATH.format(path=full_path))
 
         # Create directories if needed
@@ -176,19 +181,19 @@ def create_document(
 
         # Write document
         write_document(full_path, metadata, config.default_encoding)
-        logger.info("Successfully created document: %s", full_path)
+        logger.info(LOG_DOCUMENT_CREATED, full_path)
         return full_path
 
     except Exception as e:
         # Clean up if file was partially written
-        logger.debug("Exception occurred, cleaning up partial file: %s", full_path)
+        logger.debug(LOG_CLEANUP_PARTIAL_FILE, full_path)
         cleanup_partial_file(full_path)
 
         if isinstance(e, WriterError):
             raise
 
         # Log and re-raise unexpected errors with original type
-        logger.error("Unexpected error: %s (%s)", str(e), type(e).__name__)
+        logger.error(LOG_UNEXPECTED_ERROR, str(e), type(e).__name__)
         raise
 
 
