@@ -66,6 +66,7 @@ from .constants import (
     LOG_DOCUMENT_CREATED,
     LOG_CLEANUP_PARTIAL_FILE,
     LOG_UNEXPECTED_ERROR,
+    ERROR_SECTION_NOT_FOUND
 )
 
 # Set up module logger
@@ -583,13 +584,19 @@ def edit_section(
         raise WriterError(f"Permission denied when accessing {file_path}")
 
     try:
+        # Read existing content
         with open(file_path, "r", encoding=config.default_encoding) as f:
             content_str = f.read()
 
         # Find section boundaries
         section_start, section_end = find_section_boundaries(content_str, section_title)
         if section_start == -1:
-            logger.error(LOG_SECTION_NOT_FOUND.format(section_title=section_title))
+            logger.error(
+                "Section '%s' not found in %s. Available sections: %s",
+                section_title,
+                file_path,
+                extract_section_titles(content_str)
+            )
             raise WriterError(ERROR_SECTION_NOT_FOUND.format(section_title=section_title))
 
         # Create updated content
@@ -600,30 +607,139 @@ def edit_section(
             content_str[section_end:]
         )
 
+        # Log content changes for debugging
+        logger.debug(
+            "Content update for section '%s':\nOriginal content length: %d\n"
+            "Updated content length: %d\nSection boundaries: %d to %d",
+            section_title,
+            len(content_str),
+            len(updated_content),
+            section_start,
+            section_end
+        )
+
         # Validate the updated content's section markers
         try:
             validate_section_markers(updated_content)
         except WriterError as e:
-            logger.error("Section marker validation failed after edit: %s", str(e))
-            raise WriterError(f"Edit would break document structure: {str(e)}")
-
-        # Write the updated content back to file
-        try:
-            with open(file_path, "w", encoding=config.default_encoding) as f:
-                f.write(updated_content)
-
-            logger.info(
-                "Successfully edited section '%s' in %s",
-                section_title,
-                file_path
+            # Extract and log the problematic sections
+            original_markers = extract_section_markers(content_str)
+            updated_markers = extract_section_markers(updated_content)
+            
+            logger.error(
+                "Section marker validation failed:\n"
+                "Original markers: %s\n"
+                "Updated markers: %s\n"
+                "Validation error: %s",
+                original_markers,
+                updated_markers,
+                str(e)
+            )
+            raise WriterError(
+                f"Edit would break document structure: {str(e)}\n"
+                f"Section '{section_title}' update failed validation"
             )
 
-        except PermissionError:
-            logger.error("Permission denied writing to file: %s", file_path)
-            raise WriterError(f"Permission denied when writing to {file_path}")
+        # Create temporary file in the same directory
+        temp_file = file_path.with_suffix(f"{file_path.suffix}.tmp")
+        try:
+            # Write to temporary file first
+            with open(temp_file, "w", encoding=config.default_encoding) as f:
+                f.write(updated_content)
+
+            # Ensure temporary file was written completely
+            if not temp_file.exists() or temp_file.stat().st_size == 0:
+                raise WriterError("Failed to write temporary file")
+
+            # Replace original file with temporary file
+            try:
+                # On Windows, we need to remove the target file first
+                if os.name == 'nt' and file_path.exists():
+                    file_path.unlink()
+                temp_file.replace(file_path)
+                
+                logger.info(
+                    "Successfully edited section '%s' in %s",
+                    section_title,
+                    file_path
+                )
+
+            except OSError as e:
+                logger.error("Failed to replace original file: %s", str(e))
+                raise WriterError(f"Failed to update file: {str(e)}")
+
+        except Exception as e:
+            # Clean up temporary file if something went wrong
+            if temp_file.exists():
+                try:
+                    temp_file.unlink()
+                except OSError:
+                    logger.warning("Failed to clean up temporary file: %s", temp_file)
+            raise e
+
+        finally:
+            # Ensure temporary file is cleaned up
+            if temp_file.exists():
+                try:
+                    temp_file.unlink()
+                except OSError:
+                    logger.warning("Failed to clean up temporary file: %s", temp_file)
 
     except Exception as e:
         logger.error("Error editing section: %s - %s", file_path, str(e))
         if isinstance(e, WriterError):
             raise
         raise WriterError(f"Failed to edit section: {str(e)}")
+
+
+def extract_section_titles(content: str) -> list[str]:
+    """Extract all section titles from the content.
+    
+    Args:
+        content: The document content to analyze
+        
+    Returns:
+        List of section titles found in the document
+    """
+    marker_pattern = re.compile(SECTION_MARKER_PATTERN)
+    matches = marker_pattern.finditer(content)
+    return [
+        match.group(MARKER_TITLE_GROUP).strip()
+        for match in matches
+    ]
+
+def extract_section_markers(content: str) -> dict[str, str]:
+    """Extract all section markers and their associated headers.
+    
+    Args:
+        content: The document content to analyze
+        
+    Returns:
+        Dictionary mapping section titles to their headers
+    """
+    markers = {}
+    
+    # Find all section markers
+    marker_matches = re.finditer(SECTION_MARKER_PATTERN, content)
+    header_matches = re.finditer(HEADER_PATTERN, content)
+    
+    # Build marker to header mapping
+    for marker in marker_matches:
+        marker_title = marker.group(MARKER_TITLE_GROUP).strip()
+        marker_pos = marker.start()
+        
+        # Find the nearest header before this marker
+        nearest_header = None
+        nearest_distance = float('inf')
+        
+        for header in header_matches:
+            header_pos = header.start()
+            distance = marker_pos - header_pos
+            
+            if 0 <= distance < nearest_distance:
+                nearest_distance = distance
+                nearest_header = header.group(0).strip()
+        
+        markers[marker_title] = nearest_header or "No associated header"
+    
+    return markers

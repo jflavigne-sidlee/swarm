@@ -344,3 +344,6 @@ LOG_PERMISSION_ERROR: Final = "Permission error checking path: %s - %s"
 LOG_DOCUMENT_CREATED: Final = "Successfully created document: %s"
 LOG_CLEANUP_PARTIAL_FILE: Final = "Exception occurred, cleaning up partial file: %s"
 LOG_UNEXPECTED_ERROR: Final = "Unexpected error: %s (%s)"
+
+# Error messages for section operations
+ERROR_SECTION_NOT_FOUND: Final = "Section '{section_title}' not found in document"
