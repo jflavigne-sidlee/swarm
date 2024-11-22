@@ -410,11 +410,24 @@ def validate_section_markers(content: str) -> None:
         content: Document content to validate
 
     Raises:
-        WriterError: If markers are malformed or misplaced
+        WriterError: If markers are malformed, misplaced, or duplicated
     """
     logger.debug("Validating section markers...")
+    
+    # Track seen markers to detect duplicates
+    seen_markers = set()
 
-    # Find all headers and their following lines
+    # Find all section markers first to check for duplicates
+    marker_pattern = r'<!-- Section: (.+?) -->'
+    markers = re.finditer(marker_pattern, content)
+    for marker in markers:
+        marker_title = marker.group(1)
+        if marker_title in seen_markers:
+            logger.error("Duplicate section marker found: %s", marker_title)
+            raise WriterError(f"Duplicate section marker found: '{marker_title}'")
+        seen_markers.add(marker_title)
+
+    # Then validate headers and their markers
     sections = re.finditer(
         r"^(#{1,6})\s+(.+?)\n(.*?)(?=\n#{1,6}\s|$)",
         content,

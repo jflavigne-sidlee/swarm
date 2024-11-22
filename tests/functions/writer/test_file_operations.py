@@ -614,4 +614,37 @@ class TestAppendSection:
         ):
             validate_section_markers(document_content)
 
+    def test_validate_section_markers_duplicate_markers(self, sample_document, test_config):
+        """Test validation fails when duplicate section markers exist."""
+        # Create a document with duplicate section markers
+        content = (
+            "---\n"
+            "title: Test Document\n"
+            "author: Test Author\n"
+            "date: 2024-03-21\n"
+            "---\n\n"
+            "# Introduction\n"
+            "<!-- Section: Introduction -->\n"
+            "Content of the introduction.\n\n"
+            "# Another Section\n"
+            "<!-- Section: Introduction -->\n"  # Duplicate marker
+            "Additional content.\n"
+        )
+        
+        # Write the content to the test document
+        with open(sample_document, "w", encoding=test_config.default_encoding) as f:
+            f.write(content)
+        
+        # Read the content
+        with open(sample_document, "r", encoding=test_config.default_encoding) as f:
+            document_content = f.read()
+        
+        # Validation should raise an error
+        from src.functions.writer.file_operations import validate_section_markers
+        with pytest.raises(
+            WriterError, 
+            match="Duplicate section marker found: 'Introduction'"
+        ):
+            validate_section_markers(document_content)
+
 # pytest tests/functions/writer/test_file_operations.py
