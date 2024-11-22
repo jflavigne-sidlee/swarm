@@ -349,4 +349,33 @@ paths:
 - Temporary File Management:
     - Use a library like tempfile for managing temporary files dynamically, ensuring cleanup even after crashes.  
 
-    
+## String Handling Rules
+**NEVER modify content**
+- No .strip()
+- No .rstrip()
+- No .lstrip()
+- No newline normalization
+- No whitespace "fixing"
+**Preserve EXACT content**
+- Keep all newlines exactly as found
+- Keep all whitespace exactly as found
+- Keep all trailing spaces exactly as found
+- Keep all blank lines exactly as found
+**Pattern Matching**
+- Match patterns exactly as they appear
+- Don't try to "clean up" or "normalize" matches
+- Use raw strings (r"pattern") for regex to avoid escaping issues
+**Content Boundaries**
+- When finding sections, preserve ALL content between markers
+- Don't add or remove newlines at section boundaries
+- Don't modify spacing between sections
+**Document Structure**
+- The document's exact structure is the caller's responsibility
+- Our job is to find and replace content, not format it
+- Let the tests define the expected format
+**Remember**
+- We are a FINDER and REPLACER
+- We are NOT a formatter
+- We are NOT a normalizer
+- We are NOT a cleaner
+This will help avoid future issues where we try to be "helpful" by cleaning up content when we should just be preserving it exactly as is.  

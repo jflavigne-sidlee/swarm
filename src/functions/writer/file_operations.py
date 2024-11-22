@@ -5,6 +5,7 @@ from typing import Dict, Optional
 import os
 import re
 import logging
+from types import SimpleNamespace
 
 from .config import WriterConfig
 from .exceptions import WriterError
@@ -66,7 +67,7 @@ from .constants import (
     LOG_DOCUMENT_CREATED,
     LOG_CLEANUP_PARTIAL_FILE,
     LOG_UNEXPECTED_ERROR,
-    ERROR_SECTION_NOT_FOUND
+    ERROR_SECTION_NOT_FOUND,
 )
 
 # Set up module logger
@@ -256,7 +257,7 @@ def append_section(
     config: Optional[WriterConfig] = None,
     allow_append: bool = False,
     header_level: Optional[int] = None,
-    insert_after: Optional[str] = None
+    insert_after: Optional[str] = None,
 ) -> None:
     """Append a new section to a Markdown document."""
     if config is None:
@@ -344,39 +345,43 @@ def append_section(
         if insert_after:
             target_marker = f"<!-- Section: {insert_after} -->"
             target_pos = content_str.find(target_marker)
-            
+
             if target_pos == -1:
                 logger.error("Section to insert after not found: %s", insert_after)
                 raise WriterError(f"Section '{insert_after}' not found")
-                
+
             # Find the end of the target marker
             marker_end = target_pos + len(target_marker)
-            
+
             # Find the start of the next section (if any)
-            next_marker_match = re.search(r'<!-- Section: .* -->', content_str[marker_end:])
-            
+            next_marker_match = re.search(
+                r"<!-- Section: .* -->", content_str[marker_end:]
+            )
+
             # Calculate insertion position
             if next_marker_match:
                 # Find the start of the header preceding this marker
-                header_start = content_str[marker_end:marker_end + next_marker_match.start()].rfind('\n##')
+                header_start = content_str[
+                    marker_end : marker_end + next_marker_match.start()
+                ].rfind("\n##")
                 if header_start != -1:
                     insert_pos = marker_end + header_start
                 else:
                     insert_pos = marker_end + next_marker_match.start()
             else:
                 insert_pos = len(content_str)
-                
+
             # Insert the new section
             updated_content = (
-                content_str[:insert_pos].rstrip() +
-                new_section +
-                content_str[insert_pos:].lstrip()
+                content_str[:insert_pos].rstrip()
+                + new_section
+                + content_str[insert_pos:].lstrip()
             )
-            
+
             # Write updated content
             with open(file_path, "w", encoding=config.default_encoding) as f:
                 f.write(updated_content)
-                
+
             logger.info(
                 "Successfully inserted section '%s' after '%s' in %s",
                 section_title,
@@ -413,19 +418,23 @@ def append_to_existing_section(
     config: WriterConfig,
 ) -> None:
     """Append content to an existing section."""
-    section_start, section_end = find_section_boundaries(existing_content, section_title)
-    
+    section_start, section_end = find_section_boundaries(
+        existing_content, section_title
+    )
+
     if section_start == -1:
         logger.error(LOG_SECTION_NOT_FOUND.format(section_title=section_title))
-        raise WriterError(ERROR_SECTION_MARKER_NOT_FOUND.format(section_title=section_title))
+        raise WriterError(
+            ERROR_SECTION_MARKER_NOT_FOUND.format(section_title=section_title)
+        )
 
     # Insert new content before the next section
     updated_content = (
-        existing_content[:section_end] +
-        SECTION_CONTENT_SPACING +
-        new_content.strip() +
-        SECTION_CONTENT_SPACING +
-        existing_content[section_end:]
+        existing_content[:section_end]
+        + SECTION_CONTENT_SPACING
+        + new_content.strip()
+        + SECTION_CONTENT_SPACING
+        + existing_content[section_end:]
     )
 
     # Write updated content back to file
@@ -451,7 +460,9 @@ def validate_section_markers(content: str) -> None:
         marker_title = marker.group(MARKER_TITLE_GROUP).strip()
         if marker_title in seen_markers:
             logger.error(LOG_DUPLICATE_MARKER.format(marker_title=marker_title))
-            raise WriterError(ERROR_DUPLICATE_SECTION_MARKER.format(marker_title=marker_title))
+            raise WriterError(
+                ERROR_DUPLICATE_SECTION_MARKER.format(marker_title=marker_title)
+            )
         seen_markers.add(marker_title)
 
     # Validate markers match their headers
@@ -464,20 +475,26 @@ def validate_section_markers(content: str) -> None:
         first_line = following_content.split("\n")[0] if following_content else ""
 
         expected_marker = SECTION_MARKER_TEMPLATE.format(section_title=header_title)
-        
+
         # Check if any marker format is present
         if not re.match(SECTION_CONTENT_PATTERN, first_line):
             logger.error(LOG_MISSING_MARKER.format(header_title=header_title))
-            raise WriterError(ERROR_MISSING_SECTION_MARKER.format(header_title=header_title))
+            raise WriterError(
+                ERROR_MISSING_SECTION_MARKER.format(header_title=header_title)
+            )
 
         # Check if the marker matches exactly
         if first_line != expected_marker:
-            logger.error(LOG_MISMATCHED_MARKER.format(
-                header_title=header_title,
-                expected=expected_marker,
-                found=first_line
-            ))
-            raise WriterError(ERROR_MISMATCHED_SECTION_MARKER.format(header_title=header_title))
+            logger.error(
+                LOG_MISMATCHED_MARKER.format(
+                    header_title=header_title,
+                    expected=expected_marker,
+                    found=first_line,
+                )
+            )
+            raise WriterError(
+                ERROR_MISMATCHED_SECTION_MARKER.format(header_title=header_title)
+            )
 
     # Check for orphaned markers (markers without headers)
     header_titles = {header.group(HEADER_TITLE_GROUP).strip() for header in headers}
@@ -485,184 +502,186 @@ def validate_section_markers(content: str) -> None:
         marker_title = marker.group(MARKER_TITLE_GROUP).strip()
         if marker_title not in header_titles:
             logger.error(LOG_ORPHANED_MARKER.format(marker_title=marker_title))
-            raise WriterError(ERROR_ORPHANED_SECTION_MARKER.format(marker_title=marker_title))
+            raise WriterError(
+                ERROR_ORPHANED_SECTION_MARKER.format(marker_title=marker_title)
+            )
 
     logger.info(LOG_SECTION_MARKER_VALID)
 
 
 def find_section_boundaries(content: str, section_title: str) -> tuple[int, int]:
     """Find the start and end positions of a section in the content.
-    
+
     Args:
         content: The document content to search
         section_title: The title of the section to find
-        
+
     Returns:
         tuple[int, int]: (section_start, section_end) positions, (-1, -1) if not found
-        
+
     Note:
         section_start points to the start of the section marker
         section_end points to the start of the next section or end of content
     """
     section_marker = SECTION_MARKER_TEMPLATE.format(section_title=section_title)
     section_start = content.find(section_marker)
-    
+
     if section_start == -1:
         logger.debug("Section marker not found: %s", section_title)
         return -1, -1
-        
+
     marker_end = section_start + len(section_marker)
-    
+
     # Find the next section marker or EOF
-    next_section = re.search(
-        HEADER_NEXT_PATTERN,
-        content[marker_end:]
-    )
-    
-    section_end = (
-        next_section.start() + marker_end
-        if next_section
-        else len(content)
-    )
-    
+    next_section = re.search(HEADER_NEXT_PATTERN, content[marker_end:])
+
+    section_end = next_section.start() + marker_end if next_section else len(content)
+
     logger.debug(
         "Found section boundaries for '%s': start=%d, end=%d",
         section_title,
         section_start,
-        section_end
+        section_end,
     )
-    
+
     return section_start, section_end
 
-
 def find_section(content: str, section_title: str) -> Optional[re.Match]:
-    """Find a section in the document content.
+    """Find a section by title in the document content."""
+    # First find the exact marker
+    marker = f"<!-- Section: {section_title} -->"
+    marker_match = re.search(re.escape(marker) + r"\n", content)
+    if not marker_match:
+        return None
 
-    Args:
-        content: The document content to search
-        section_title: Title of the section to find
+    # Find the nearest header before the marker
+    content_before_marker = content[:marker_match.start()]
+    header_pattern = r"^(#{1,6}\s+.+\n)"  # Match Markdown headers with newline
+    headers = list(re.finditer(header_pattern, content_before_marker, re.MULTILINE))
+    if not headers:
+        return None
 
-    Returns:
-        Match object if section is found, None otherwise
+    # Get the last header before the marker
+    last_header = headers[-1]
+    header_text = content[last_header.start():last_header.end()]
 
-    Note:
-        The match groups will contain:
-        1. The header line
-        2. The section content
-    """
-    section_pattern = (
-        # Previously tried and failed: r"(^#{1,6}\s.*\n)"  # Header at the start of the line
-        r"(^#{1,6}\s[^\n]*\n)"  # Header at the start of the line, up to the end of the line
-        r"<!-- Section: " + re.escape(section_title) + r" -->\n"
-        r"(.*?)"  # Non-greedy match of content
-        r"(?=^#{1,6}\s|\Z)"  # Lookahead for next header or end of file
+    # Find the content that follows the marker until the next header
+    content_after_marker = content[marker_match.end():]
+    next_header_match = re.search(r"^#{1,6}\s", content_after_marker, re.MULTILINE)
+    
+    # If there's no next header, capture until the end
+    if next_header_match:
+        section_content = content_after_marker[:next_header_match.start()]
+    else:
+        section_content = content_after_marker
+
+    # Return a match-like object
+    return SimpleNamespace(
+        group=lambda x: {
+            "header": header_text,
+            "marker": marker_match.group(0),
+            "section_content": section_content,
+        }[x],
+        start=lambda: last_header.start(),
+        end=lambda: marker_match.end() + len(section_content),
     )
 
-    return re.search(section_pattern, content, re.MULTILINE | re.DOTALL)
-
-
-def edit_section(
-    file_name: str,
-    section_title: str,
-    new_content: str,
-    config: Optional[WriterConfig] = None
-) -> None:
-    """Edit a specific section in a document."""
-    config = config or WriterConfig()
+def edit_section(file_name: str, section_title: str, new_content: str, config: WriterConfig):
+    """Edit an existing section in the document."""
     file_path = config.drafts_dir / file_name
     temp_file = config.temp_dir / f"temp_{file_name}"
-    
+
     try:
         # Read the original content
         with open(file_path, "r", encoding=config.default_encoding) as f:
             content = f.read()
-        
+
         # Find the section to edit
         section_match = find_section(content, section_title)
         if not section_match:
-            logger.error(LOG_SECTION_NOT_FOUND, section_title)
+            logger.error(LOG_SECTION_NOT_FOUND.format(section_title=section_title))
             raise WriterError(ERROR_SECTION_NOT_FOUND.format(section_title=section_title))
-        
-        # Preserve the header
-        header = section_match.group(1)
-        marker = f"<!-- Section: {section_title} -->"
-        
-        # Create the replacement text with proper spacing
-        replacement = f"{header}{marker}\n{new_content.strip()}\n\n"
-        
-        # Replace the section while preserving document structure
-        updated_content = content[:section_match.start()] + replacement + content[section_match.end():]
-        
+
+        # Preserve exact header and marker formatting
+        replacement = (
+            section_match.group('header')
+            + section_match.group('marker')
+            + new_content  # Use content exactly as provided
+        )
+
+        updated_content = (
+            content[: section_match.start()]
+            + replacement
+            + content[section_match.end() :]
+        )
+
         # Validate the updated content
         try:
             validate_section_markers(updated_content)
         except WriterError as e:
             logger.error("Edit would break document structure: %s", str(e))
             raise
-        
+
         # Write to temporary file first
         config.temp_dir.mkdir(parents=True, exist_ok=True)
         with open(temp_file, "w", encoding=config.default_encoding) as f:
             f.write(updated_content)
-        
+
         # Move temporary file to final location
         os.replace(temp_file, file_path)
-        
+
     except (OSError, IOError) as e:
         logger.error("File operation error: %s", str(e))
         if temp_file.exists():
             temp_file.unlink()
         raise WriterError(str(e)) from e
 
-
 def extract_section_titles(content: str) -> list[str]:
     """Extract all section titles from the content.
-    
+
     Args:
         content: The document content to analyze
-        
+
     Returns:
         List of section titles found in the document
     """
     marker_pattern = re.compile(SECTION_MARKER_PATTERN)
     matches = marker_pattern.finditer(content)
-    return [
-        match.group(MARKER_TITLE_GROUP).strip()
-        for match in matches
-    ]
+    return [match.group(MARKER_TITLE_GROUP).strip() for match in matches]
+
 
 def extract_section_markers(content: str) -> dict[str, str]:
     """Extract all section markers and their associated headers.
-    
+
     Args:
         content: The document content to analyze
-        
+
     Returns:
         Dictionary mapping section titles to their headers
     """
     markers = {}
-    
+
     # Find all section markers
     marker_matches = re.finditer(SECTION_MARKER_PATTERN, content)
     header_matches = re.finditer(HEADER_PATTERN, content)
-    
+
     # Build marker to header mapping
     for marker in marker_matches:
         marker_title = marker.group(MARKER_TITLE_GROUP).strip()
         marker_pos = marker.start()
-        
+
         # Find the nearest header before this marker
         nearest_header = None
-        nearest_distance = float('inf')
-        
+        nearest_distance = float("inf")
+
         for header in header_matches:
             header_pos = header.start()
             distance = marker_pos - header_pos
-            
+
             if 0 <= distance < nearest_distance:
                 nearest_distance = distance
                 nearest_header = header.group(0).strip()
-        
+
         markers[marker_title] = nearest_header or "No associated header"
-    
+
     return markers
