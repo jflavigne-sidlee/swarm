@@ -414,27 +414,27 @@ def validate_section_markers(content: str) -> None:
     """
     logger.debug("Validating section markers...")
 
-    # Find all headers and their markers
+    # Find all headers and verify their immediate markers
     sections = re.finditer(
-        r"^(#{1,6})\s+(.+?)\n(<!-- Section: .+? -->)?", content, re.MULTILINE
+        r"^(#{1,6})\s+(.+?)\n(?!<!-- Section:)(.+)?", content, re.MULTILINE
     )
 
     for section in sections:
         header_level = len(section.group(1))
         header_title = section.group(2).strip()
-        marker = section.group(3)
+        next_line = section.group(3)
 
-        if not marker:
-            logger.error("Missing marker for header: %s", header_title)
+        if next_line and not next_line.startswith("<!-- Section:"):
+            logger.error("Misplaced marker for header: %s", header_title)
             raise WriterError(f"Header '{header_title}' is missing its section marker")
 
         expected_marker = f"<!-- Section: {header_title} -->"
-        if marker.strip() != expected_marker:
+        if next_line and next_line.strip() != expected_marker:
             logger.error(
                 "Mismatched marker for header '%s': expected '%s', found '%s'",
                 header_title,
                 expected_marker,
-                marker.strip(),
+                next_line.strip(),
             )
             raise WriterError(
                 f"Section marker for '{header_title}' does not match header title"
