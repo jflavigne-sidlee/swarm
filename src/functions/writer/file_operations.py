@@ -55,6 +55,10 @@ from .constants import (
     LOG_DIR_CREATION_ERROR,
     LOG_INVALID_METADATA_TYPES,
     LOG_MISSING_METADATA_FIELDS,
+    LOG_FILE_VALIDATION,
+    LOG_YAML_SERIALIZATION,
+    LOG_WRITING_FILE,
+    LOG_SECTION_NOT_FOUND,
 )
 
 # Set up module logger
@@ -119,23 +123,23 @@ def ensure_directory_exists(dir_path: Path) -> None:
 def write_document(file_path: Path, metadata: Dict[str, str], encoding: str) -> None:
     """Write metadata and frontmatter to file."""
     try:
-        logger.debug("Serializing metadata to YAML")
+        logger.debug(LOG_YAML_SERIALIZATION)
         yaml_content = yaml.dump(metadata, default_flow_style=False, sort_keys=False)
 
-        logger.debug("Writing content to file: %s", file_path)
+        logger.debug(LOG_WRITING_FILE.format(path=file_path))
         with open(file_path, "w", encoding=encoding) as f:
             f.write(YAML_FRONTMATTER_START)
             f.write(yaml_content)
             f.write(YAML_FRONTMATTER_END)
 
     except yaml.YAMLError as e:
-        logger.error("YAML serialization error: %s", str(e))
+        logger.error(ERROR_YAML_SERIALIZATION.format(error=str(e)))
         raise WriterError(ERROR_YAML_SERIALIZATION.format(error=str(e)))
     except PermissionError:
-        logger.error("Permission denied writing file: %s", file_path)
+        logger.error(ERROR_PERMISSION_DENIED_FILE.format(path=file_path))
         raise WriterError(ERROR_PERMISSION_DENIED_FILE.format(path=file_path))
     except OSError as e:
-        logger.error("File writing error: %s - %s", file_path, str(e))
+        logger.error(ERROR_FILE_WRITE.format(error=str(e)))
         raise WriterError(ERROR_FILE_WRITE.format(error=str(e)))
 
 
@@ -143,7 +147,7 @@ def create_document(
     file_name: str, metadata: Dict[str, str], config: Optional[WriterConfig] = None
 ) -> Path:
     """Create a new Markdown document with YAML frontmatter metadata."""
-    logger.debug("Creating document with filename: %s", file_name)
+    logger.debug(LOG_FILE_VALIDATION.format(file_name))
 
     # Use default config if none provided
     if config is None:
@@ -405,7 +409,7 @@ def append_to_existing_section(
     section_start = existing_content.find(section_marker)
 
     if section_start == -1:
-        logger.error(LOG_SECTION_MARKER_NOT_FOUND.format(section_title=section_title))
+        logger.error(LOG_SECTION_NOT_FOUND.format(section_title=section_title))
         raise WriterError(ERROR_SECTION_MARKER_NOT_FOUND.format(section_title=section_title))
 
     # Find the end of the section (next section marker or EOF)
