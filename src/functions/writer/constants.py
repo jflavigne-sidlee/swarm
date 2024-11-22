@@ -329,3 +329,7 @@ LOG_SECTION_VALIDATION_ERROR: Final = "Section validation failed: %s"
 # Error messages
 ERROR_SECTION_VALIDATION_FAILED: Final = "Section validation failed: {error}"
 ERROR_SECTION_MARKER_MISMATCH: Final = "Section marker mismatch: expected '{expected}', found '{found}'"
+
+# Metadata validation logs
+LOG_INVALID_METADATA_TYPES: Final = "Invalid metadata types detected in: %s"
+LOG_MISSING_METADATA_FIELDS: Final = "Missing required metadata fields: %s"

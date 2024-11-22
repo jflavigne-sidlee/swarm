@@ -49,6 +49,12 @@ from .constants import (
     ERROR_DUPLICATE_SECTION_MARKER,
     HEADER_TITLE_GROUP,
     MARKER_TITLE_GROUP,
+    LOG_CREATING_DIRECTORY,
+    ERROR_DIRECTORY_EXISTS,
+    ERROR_DIRECTORY_PERMISSION,
+    LOG_DIR_CREATION_ERROR,
+    LOG_INVALID_METADATA_TYPES,
+    LOG_MISSING_METADATA_FIELDS,
 )
 
 # Set up module logger
@@ -83,12 +89,12 @@ def validate_metadata(metadata: Dict[str, str], config: WriterConfig) -> None:
         isinstance(key, str) and isinstance(value, str)
         for key, value in metadata.items()
     ):
-        logger.warning("Invalid metadata types detected in: %s", metadata)
+        logger.warning(LOG_INVALID_METADATA_TYPES, metadata)
         raise WriterError(ERROR_INVALID_METADATA_TYPE)
 
     missing_fields = [field for field in config.metadata_keys if field not in metadata]
     if missing_fields:
-        logger.warning("Missing required metadata fields: %s", missing_fields)
+        logger.warning(LOG_MISSING_METADATA_FIELDS, missing_fields)
         raise WriterError(
             ERROR_MISSING_METADATA.format(fields=", ".join(missing_fields))
         )
@@ -97,16 +103,16 @@ def validate_metadata(metadata: Dict[str, str], config: WriterConfig) -> None:
 def ensure_directory_exists(dir_path: Path) -> None:
     """Create directory if it doesn't exist."""
     try:
-        logger.debug("Creating directory: %s", dir_path)
+        logger.debug(LOG_CREATING_DIRECTORY.format(path=dir_path))
         dir_path.mkdir(parents=True, exist_ok=True)
     except FileExistsError:
-        logger.error("Cannot create directory (file exists): %s", dir_path)
+        logger.error(ERROR_DIRECTORY_EXISTS % dir_path)
         raise WriterError(ERROR_DIR_EXISTS.format(path=dir_path))
     except PermissionError:
-        logger.error("Permission denied creating directory: %s", dir_path)
+        logger.error(ERROR_DIRECTORY_PERMISSION % dir_path)
         raise WriterError(ERROR_PERMISSION_DENIED_DIR.format(path=dir_path))
     except OSError as e:
-        logger.error("Directory creation error: %s - %s", dir_path, str(e))
+        logger.error(LOG_DIR_CREATION_ERROR.format(path=dir_path, error=str(e)))
         raise WriterError(ERROR_DIR_CREATION.format(error=str(e)))
 
 
