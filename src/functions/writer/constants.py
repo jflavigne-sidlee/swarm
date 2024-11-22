@@ -337,3 +337,10 @@ LOG_MISSING_METADATA_FIELDS: Final = "Missing required metadata fields: %s"
 # Configuration logs
 LOG_USING_DEFAULT_CONFIG: Final = "Using default configuration"
 LOG_CONFIG_DEBUG: Final = "Debug configuration: %s"
+
+# File Operation Logs
+LOG_FILE_EXISTS: Final = "File already exists: %s"
+LOG_PERMISSION_ERROR: Final = "Permission error checking path: %s - %s"
+LOG_DOCUMENT_CREATED: Final = "Successfully created document: %s"
+LOG_CLEANUP_PARTIAL_FILE: Final = "Exception occurred, cleaning up partial file: %s"
+LOG_UNEXPECTED_ERROR: Final = "Unexpected error: %s (%s)"
