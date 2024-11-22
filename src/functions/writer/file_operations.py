@@ -194,7 +194,8 @@ def append_section(
     content: str,
     config: Optional[WriterConfig] = None,
     allow_append: bool = False,
-    header_level: Optional[int] = None
+    header_level: Optional[int] = None,
+    insert_after: Optional[str] = None
 ) -> None:
     """Append a new section to a Markdown document."""
     if config is None:
@@ -271,6 +272,44 @@ def append_section(
             f"{content.strip()}\n"
         )
         
+        # Handle insertion after specific section
+        if insert_after:
+            # Find the target section header instead of marker
+            target_pattern = rf"^#+\s+{re.escape(insert_after)}\n<!-- Section: {re.escape(insert_after)} -->"
+            target_match = re.search(target_pattern, content_str, re.MULTILINE)
+            
+            if not target_match:
+                logger.error("Section to insert after not found: %s", insert_after)
+                raise WriterError(f"Section '{insert_after}' not found")
+                
+            # Find the next section header after the target
+            next_section = re.search(
+                r'^#+\s+.*\n<!-- Section: .* -->', 
+                content_str[target_match.end():],
+                re.MULTILINE
+            )
+            
+            # Calculate insertion position
+            if next_section:
+                insert_pos = target_match.end() + next_section.start()
+            else:
+                insert_pos = len(content_str)
+                
+            # Insert the new section
+            updated_content = (
+                content_str[:insert_pos].rstrip() +
+                new_section +
+                content_str[insert_pos:].lstrip()
+            )
+            
+            # Write updated content
+            with open(file_path, "w", encoding=config.default_encoding) as f:
+                f.write(updated_content)
+                
+            logger.info("Successfully inserted section '%s' after '%s' in %s", 
+                       section_title, insert_after, file_path)
+            return
+            
         # Append the new section
         try:
             with open(file_path, "a", encoding=config.default_encoding) as f:

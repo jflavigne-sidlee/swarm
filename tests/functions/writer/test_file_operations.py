@@ -2,6 +2,7 @@ import pytest
 from pathlib import Path
 import yaml
 from datetime import datetime
+import re
 
 from src.functions.writer.file_operations import create_document, append_section
 from src.functions.writer.config import WriterConfig
@@ -392,4 +393,90 @@ class TestAppendSection:
         assert "\n\n## First" in content
         assert "\n\n## Second" in content
     
+    def test_insert_after_section(self, sample_document, test_config):
+        """Test inserting a section after a specific section."""
+        # Create initial sections
+        append_section("test_doc.md", "First", "Content 1", test_config)
+        append_section("test_doc.md", "Last", "Content 3", test_config)
+        
+        # Insert section between First and Last
+        append_section(
+            "test_doc.md", 
+            "Middle", 
+            "Content 2", 
+            test_config, 
+            insert_after="First"
+        )
+        
+        content = sample_document.read_text()
+        sections = re.findall(r'##\s+(.*?)\n', content)
+        assert sections == ["First", "Middle", "Last"]
+
+    def test_insert_after_nonexistent_section(self, sample_document, test_config):
+        """Test error when inserting after a section that doesn't exist."""
+        with pytest.raises(WriterError, match="Section 'Nonexistent' not found"):
+            append_section(
+                "test_doc.md", 
+                "New Section", 
+                "Content", 
+                test_config, 
+                insert_after="Nonexistent"
+            )
+
+    def test_insert_after_with_existing_content(self, sample_document, test_config):
+        """Test that existing content is preserved when inserting sections."""
+        # Create initial content
+        append_section("test_doc.md", "First", "Content 1", test_config)
+        original_content = sample_document.read_text()
+        
+        # Insert new section
+        append_section(
+            "test_doc.md", 
+            "Second", 
+            "Content 2", 
+            test_config, 
+            insert_after="First"
+        )
+        
+        new_content = sample_document.read_text()
+        assert original_content.strip() in new_content
+        assert "Content 2" in new_content
+
+    def test_insert_after_preserves_formatting(self, sample_document, test_config):
+        """Test that section formatting is preserved when inserting."""
+        # Create sections with specific formatting
+        append_section("test_doc.md", "First", "Content 1\n\nWith paragraphs", test_config)
+        append_section(
+            "test_doc.md", 
+            "Middle", 
+            "- List item 1\n- List item 2", 
+            test_config,
+            insert_after="First"
+        )
+        
+        content = sample_document.read_text()
+        assert "Content 1\n\nWith paragraphs" in content
+        assert "- List item 1\n- List item 2" in content
+        
+    def test_insert_after_with_nested_sections(self, sample_document, test_config):
+        """Test inserting sections with different header levels."""
+        # Create nested structure
+        append_section("test_doc.md", "Main", "Main content", test_config, header_level=2)
+        append_section("test_doc.md", "Sub", "Sub content", test_config, header_level=3)
+        
+        # Insert between sections
+        append_section(
+            "test_doc.md",
+            "Between",
+            "Between content",
+            test_config,
+            header_level=3,
+            insert_after="Main"
+        )
+        
+        content = sample_document.read_text()
+        assert "## Main" in content
+        assert "### Between" in content
+        assert "### Sub" in content
+
 # pytest tests/functions/writer/test_file_operations.py
