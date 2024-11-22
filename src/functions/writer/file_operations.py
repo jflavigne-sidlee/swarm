@@ -407,43 +407,40 @@ def validate_section_markers(content: str) -> None:
     Validate section markers in the document.
 
     Args:
-        content: Document content to validate
+        content: Document content to validate.
 
     Raises:
-        WriterError: If markers are malformed, misplaced, or duplicated
+        WriterError: If markers are malformed, misplaced, or duplicated.
     """
     logger.debug("Validating section markers...")
-    
-    # Track seen markers to detect duplicates
-    seen_markers = set()
 
-    # Find all section markers first to check for duplicates
-    marker_pattern = r'<!-- Section: (.+?) -->'
-    markers = re.finditer(marker_pattern, content)
+    # Regular expressions to identify headers and markers
+    header_pattern = re.compile(r"^(#{1,6})\s+(.+?)$", re.MULTILINE)
+    marker_pattern = re.compile(r"<!-- Section: (.+?) -->")
+
+    # Extract headers and markers
+    headers = list(header_pattern.finditer(content))
+    markers = list(marker_pattern.finditer(content))
+
+    # Check for duplicate markers
+    seen_markers = set()
     for marker in markers:
-        marker_title = marker.group(1)
+        marker_title = marker.group(1).strip()
         if marker_title in seen_markers:
-            logger.error("Duplicate section marker found: %s", marker_title)
+            logger.error("Duplicate section marker found: '%s'", marker_title)
             raise WriterError(f"Duplicate section marker found: '{marker_title}'")
         seen_markers.add(marker_title)
 
-    # Then validate headers and their markers
-    sections = re.finditer(
-        r"^(#{1,6})\s+(.+?)\n(.*?)(?=\n#{1,6}\s|$)",
-        content,
-        re.MULTILINE | re.DOTALL
-    )
+    # Validate markers match their headers
+    for header in headers:
+        header_title = header.group(2).strip()
+        header_position = header.end()
 
-    for section in sections:
-        header_level = len(section.group(1))
-        header_title = section.group(2).strip()
-        following_content = section.group(3).strip()
+        # Find the marker immediately following the header
+        following_content = content[header_position:].strip()
+        first_line = following_content.split("\n")[0] if following_content else ""
 
-        # Get the first line after the header
-        first_line = following_content.split('\n')[0] if following_content else ''
-
-        # Check if the first line is a marker
-        if not first_line.startswith('<!-- Section:'):
+        if not first_line.startswith("<!-- Section:"):
             logger.error("Missing marker for header: %s", header_title)
             raise WriterError(f"Header '{header_title}' is missing its section marker")
 
@@ -458,3 +455,13 @@ def validate_section_markers(content: str) -> None:
             raise WriterError(
                 f"Section marker for '{header_title}' does not match header title"
             )
+
+    # Check for orphaned markers (markers without headers)
+    header_titles = {header.group(2).strip() for header in headers}
+    for marker in markers:
+        marker_title = marker.group(1).strip()
+        if marker_title not in header_titles:
+            logger.error("Found marker without header: %s", marker_title)
+            raise WriterError(f"Found marker '{marker_title}' without a corresponding header")
+
+    logger.info("All markers are valid.")
