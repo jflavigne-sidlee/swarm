@@ -4,7 +4,11 @@ import yaml
 from datetime import datetime
 import re
 
-from src.functions.writer.file_operations import create_document, append_section
+from src.functions.writer.file_operations import (
+    create_document, 
+    append_section,
+    validate_section_markers
+)
 from src.functions.writer.config import WriterConfig
 from src.functions.writer.exceptions import WriterError
 from src.functions.writer.constants import MAX_PATH_LENGTH
@@ -897,5 +901,56 @@ class TestAppendSection:
         # Validation should succeed without raising any errors
         from src.functions.writer.file_operations import validate_section_markers
         validate_section_markers(document_content)  # Should not raise any exceptions
+
+    def test_append_section_with_marker_validation(self, sample_document, test_config):
+        """Test appending a new section validates and adds markers correctly."""
+        # Create initial document with existing sections
+        initial_content = (
+            "---\n"
+            "title: Test Document\n"
+            "author: Test Author\n"
+            "date: 2024-03-21\n"
+            "---\n\n"
+            "# Main Section\n"
+            "<!-- Section: Main Section -->\n"
+            "Initial content.\n\n"
+            "## First Subsection\n"
+            "<!-- Section: First Subsection -->\n"
+            "Some content.\n\n"
+        )
+        
+        # Write initial content
+        with open(sample_document, "w", encoding=test_config.default_encoding) as f:
+            f.write(initial_content)
+        
+        # Append new section
+        append_section(
+            file_name=sample_document.name,  # Just the filename, not the full path
+            section_title="New Section",
+            content="Content for the new section.",
+            config=test_config,  # Config contains the directory information
+            header_level=2,  # ## level
+        )
+        
+        # Read the updated content
+        with open(sample_document, "r", encoding=test_config.default_encoding) as f:
+            updated_content = f.read()
+        
+        # Verify the new section was added with correct marker
+        expected_new_section = (
+            "## New Section\n"
+            "<!-- Section: New Section -->\n"
+            "Content for the new section.\n"
+        )
+        assert expected_new_section in updated_content
+        
+        # Validate all markers in the updated document
+        validate_section_markers(updated_content)  # Should not raise any exceptions
+        
+        # Verify the original content is preserved
+        assert "# Main Section" in updated_content
+        assert "<!-- Section: Main Section -->" in updated_content
+        assert "## First Subsection" in updated_content
+        assert "<!-- Section: First Subsection -->" in updated_content
 
 # pytest tests/functions/writer/test_file_operations.py
