@@ -412,31 +412,19 @@ def append_to_existing_section(
     config: WriterConfig,
 ) -> None:
     """Append content to an existing section."""
-    section_marker = SECTION_MARKER_TEMPLATE.format(section_title=section_title)
-    section_start = existing_content.find(section_marker)
-
+    section_start, section_end = find_section_boundaries(existing_content, section_title)
+    
     if section_start == -1:
         logger.error(LOG_SECTION_NOT_FOUND.format(section_title=section_title))
         raise WriterError(ERROR_SECTION_MARKER_NOT_FOUND.format(section_title=section_title))
 
-    # Find the end of the section (next section marker or EOF)
-    next_section = re.search(
-        HEADER_NEXT_PATTERN,
-        existing_content[section_start + len(section_marker):]
-    )
-    section_end = (
-        next_section.start() + section_start + len(section_marker)
-        if next_section
-        else len(existing_content)
-    )
-
     # Insert new content before the next section
     updated_content = (
-        existing_content[:section_end]
-        + SECTION_CONTENT_SPACING
-        + new_content.strip()
-        + SECTION_CONTENT_SPACING
-        + existing_content[section_end:]
+        existing_content[:section_end] +
+        SECTION_CONTENT_SPACING +
+        new_content.strip() +
+        SECTION_CONTENT_SPACING +
+        existing_content[section_end:]
     )
 
     # Write updated content back to file
@@ -499,3 +487,143 @@ def validate_section_markers(content: str) -> None:
             raise WriterError(ERROR_ORPHANED_SECTION_MARKER.format(marker_title=marker_title))
 
     logger.info(LOG_SECTION_MARKER_VALID)
+
+
+def find_section_boundaries(content: str, section_title: str) -> tuple[int, int]:
+    """Find the start and end positions of a section in the content.
+    
+    Args:
+        content: The document content to search
+        section_title: The title of the section to find
+        
+    Returns:
+        tuple[int, int]: (section_start, section_end) positions, (-1, -1) if not found
+        
+    Note:
+        section_start points to the start of the section marker
+        section_end points to the start of the next section or end of content
+    """
+    section_marker = SECTION_MARKER_TEMPLATE.format(section_title=section_title)
+    section_start = content.find(section_marker)
+    
+    if section_start == -1:
+        logger.debug("Section marker not found: %s", section_title)
+        return -1, -1
+        
+    marker_end = section_start + len(section_marker)
+    
+    # Find the next section marker or EOF
+    next_section = re.search(
+        HEADER_NEXT_PATTERN,
+        content[marker_end:]
+    )
+    
+    section_end = (
+        next_section.start() + marker_end
+        if next_section
+        else len(content)
+    )
+    
+    logger.debug(
+        "Found section boundaries for '%s': start=%d, end=%d",
+        section_title,
+        section_start,
+        section_end
+    )
+    
+    return section_start, section_end
+
+
+def edit_section(
+    file_name: str,
+    section_title: str,
+    new_content: str,
+    config: Optional[WriterConfig] = None
+) -> None:
+    """Edit a specific section in a Markdown document.
+    
+    Args:
+        file_name: Name of the Markdown file to edit
+        section_title: Title of the section to edit
+        new_content: New content to replace the existing section content
+        config: Optional configuration settings
+        
+    Raises:
+        WriterError: If section not found, file not found, or other errors occur
+    """
+    if config is None:
+        config = WriterConfig()
+        logger.debug(LOG_USING_DEFAULT_CONFIG)
+
+    # Validate inputs
+    if not new_content or not isinstance(new_content, str):
+        logger.error("Invalid content provided: %s", new_content)
+        raise WriterError("Content must be a non-empty string")
+
+    if not section_title or not isinstance(section_title, str):
+        logger.error("Invalid section title: %s", section_title)
+        raise WriterError("Section title must be a non-empty string")
+
+    # Validate filename and get full path
+    file_path = validate_filename(file_name, config)
+
+    # Validate file exists and is readable
+    try:
+        if not file_path.exists():
+            logger.error("File not found: %s", file_path)
+            raise WriterError(f"Document does not exist: {file_path}")
+
+        # Verify file is a Markdown file
+        if not file_path.suffix.lower() == ".md":
+            logger.error("Invalid file format: %s", file_path)
+            raise WriterError(f"File must be a Markdown document: {file_path}")
+
+    except (OSError, PermissionError) as e:
+        logger.error("Permission error checking file: %s - %s", file_path, str(e))
+        raise WriterError(f"Permission denied when accessing {file_path}")
+
+    try:
+        with open(file_path, "r", encoding=config.default_encoding) as f:
+            content_str = f.read()
+
+        # Find section boundaries
+        section_start, section_end = find_section_boundaries(content_str, section_title)
+        if section_start == -1:
+            logger.error(LOG_SECTION_NOT_FOUND.format(section_title=section_title))
+            raise WriterError(ERROR_SECTION_NOT_FOUND.format(section_title=section_title))
+
+        # Create updated content
+        section_marker = SECTION_MARKER_TEMPLATE.format(section_title=section_title)
+        updated_content = (
+            content_str[:section_start + len(section_marker)] +
+            "\n" + new_content.strip() + "\n" +
+            content_str[section_end:]
+        )
+
+        # Validate the updated content's section markers
+        try:
+            validate_section_markers(updated_content)
+        except WriterError as e:
+            logger.error("Section marker validation failed after edit: %s", str(e))
+            raise WriterError(f"Edit would break document structure: {str(e)}")
+
+        # Write the updated content back to file
+        try:
+            with open(file_path, "w", encoding=config.default_encoding) as f:
+                f.write(updated_content)
+
+            logger.info(
+                "Successfully edited section '%s' in %s",
+                section_title,
+                file_path
+            )
+
+        except PermissionError:
+            logger.error("Permission denied writing to file: %s", file_path)
+            raise WriterError(f"Permission denied when writing to {file_path}")
+
+    except Exception as e:
+        logger.error("Error editing section: %s - %s", file_path, str(e))
+        if isinstance(e, WriterError):
+            raise
+        raise WriterError(f"Failed to edit section: {str(e)}")
