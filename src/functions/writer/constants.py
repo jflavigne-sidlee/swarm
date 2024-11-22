@@ -2,6 +2,7 @@
 from enum import Enum, auto
 from typing import Set, List, Dict, Type, Final
 import os
+import re
 
 # Metadata keys
 METADATA_KEY_VALIDATION: Final = "validation"
@@ -197,3 +198,134 @@ ERROR_YAML_SERIALIZATION: Final = "YAML serialization error: {error}"
 ERROR_FILE_WRITE: Final = "File writing error: {error}"
 ERROR_PERMISSION_DENIED_FILE: Final = "Permission denied writing file: {path}"
 ERROR_PATH_TOO_LONG: Final = "Full path exceeds maximum length of {max_length} characters: {path}"
+
+# Section marker patterns
+SECTION_MARKER_TEMPLATE: Final = "<!-- Section: {section_title} -->"
+SECTION_MARKER_PATTERN: Final = r"<!--\s*(?:Section|SECTION):\s*(.+?)\s*-->"
+HEADER_PATTERN: Final = r"^(#{1,6})\s+(.+?)$"
+NEXT_HEADER_PATTERN: Final = r"^#{1,6}\s+.*$"
+
+# Error messages for section operations
+ERROR_SECTION_MARKER_NOT_FOUND: Final = "Section '{section_title}' marker not found"
+ERROR_DUPLICATE_SECTION_MARKER: Final = "Duplicate section marker found: '{marker_title}'"
+ERROR_MISSING_SECTION_MARKER: Final = "Header '{header_title}' is missing its section marker"
+ERROR_MISMATCHED_SECTION_MARKER: Final = "Section marker for '{header_title}' does not match header title"
+ERROR_ORPHANED_SECTION_MARKER: Final = "Found marker '{marker_title}' without a corresponding header"
+ERROR_APPEND_SECTION_FAILED: Final = "Failed to append section: {error}"
+
+# Logging messages
+LOG_SECTION_MARKER_VALIDATION: Final = "Starting section marker validation..."
+LOG_SECTION_MARKER_VALID: Final = "All section markers are valid"
+LOG_SECTION_NOT_FOUND: Final = "Section marker not found: {section_title}"
+LOG_APPEND_SECTION_SUCCESS: Final = "Successfully appended section '%s' to %s"
+LOG_PERMISSION_DENIED_APPEND: Final = "Permission denied appending to file: %s"
+LOG_APPEND_SECTION_ERROR: Final = "Error appending section: %s - %s"
+
+# Section Validation Logs
+LOG_VALIDATE_SECTION_START: Final = "Starting section validation for: %s"
+LOG_SECTION_UPDATE_START: Final = "Updating section '%s' in %s"
+LOG_SECTION_VALIDATION_ERROR: Final = "Section validation failed: %s"
+LOG_MISSING_MARKER: Final = "Missing marker for header: {header_title}"
+LOG_MISMATCHED_MARKER: Final = "Mismatched marker for header '{header_title}': expected '{expected}', found '{found}'"
+LOG_ORPHANED_MARKER: Final = "Found marker without header: {marker_title}"
+LOG_DUPLICATE_MARKER: Final = "Duplicate section marker found: '{marker_title}'"
+
+# File content formatting
+DEFAULT_NEWLINE: Final = "\n"
+DOUBLE_NEWLINE: Final = "\n\n"
+
+# Regular expression patterns
+HEADER_NEXT_PATTERN: Final = r"^#{1,6}\s+.*$"  # For finding next header
+SECTION_CONTENT_PATTERN: Final = r"<!--\s*(?:Section|SECTION):"  # For checking marker format
+
+# Additional log messages
+LOG_APPEND_SECTION_SUCCESS: Final = "Successfully appended section '%s' to %s"
+LOG_PERMISSION_DENIED_APPEND: Final = "Permission denied appending to file: %s"
+LOG_APPEND_SECTION_ERROR: Final = "Error appending section: %s - %s"
+
+# Additional error messages
+ERROR_PERMISSION_DENIED_APPEND: Final = "Permission denied when writing to {file_path}"
+ERROR_APPEND_GENERAL: Final = "Failed to append section: {error}"
+
+# File operation constants
+DEFAULT_HEADER_LEVEL: Final = 1
+HEADER_LEVEL_RANGE: Final = range(1, 7)  # Valid header levels (1-6)
+SECTION_CONTENT_SPACING: Final = "\n\n"  # Spacing between sections
+
+# Regular expression patterns
+HEADER_PATTERN_MULTILINE: Final = re.compile(HEADER_PATTERN, re.MULTILINE)
+MARKER_PATTERN_MULTILINE: Final = re.compile(SECTION_MARKER_PATTERN)
+YAML_CONTENT_PATTERN: Final = r"^---\n.*?\n---\n"  # For finding YAML frontmatter
+
+# Additional logging messages
+LOG_VALIDATE_FILENAME: Final = "Invalid filename rejected: %s"
+LOG_ADDED_EXTENSION: Final = "Added .md extension: %s"
+LOG_PATH_TOO_LONG: Final = "Path too long: {path}"
+LOG_YAML_SERIALIZATION: Final = "Serializing metadata to YAML"
+LOG_WRITING_FILE: Final = "Writing content to file: {path}"
+LOG_CREATING_DIRECTORY: Final = "Creating directory: {path}"
+LOG_DIR_CREATION_ERROR: Final = "Directory creation error: {path} - {error}"
+
+# File operation constants
+MD_EXTENSION: Final = ".md"
+YAML_DUMP_SETTINGS: Final[Dict[str, bool]] = {
+    "default_flow_style": False,
+    "sort_keys": False
+}
+
+# Additional error messages
+ERROR_SECTION_APPEND_FAILED: Final = "Failed to append section: %s"
+ERROR_SECTION_PERMISSION_DENIED: Final = "Permission denied when writing to %s"
+ERROR_DIRECTORY_EXISTS: Final = "Cannot create directory (file exists): %s"
+ERROR_DIRECTORY_PERMISSION: Final = "Permission denied creating directory: %s"
+ERROR_DIRECTORY_CREATION_FAILED: Final = "Directory creation error: %s"
+
+# Regular Expression Patterns
+SECTION_START_PATTERN: Final = r"^#{1,6}\s+.*$"  # For finding section headers
+SECTION_END_PATTERN: Final = r"\n#{1,6}\s+"  # For finding the next section
+CONTENT_SPACING_PATTERN: Final = r"\n\n"  # For normalizing spacing between sections
+YAML_FRONTMATTER_PATTERN: Final = r"^---\n.*?\n---\n\s*"  # For matching YAML frontmatter
+
+# File Operation Messages
+LOG_DIRECTORY_VALIDATION: Final = "Validating directory: %s"
+LOG_FILE_VALIDATION: Final = "Validating file: %s"
+LOG_CONTENT_UPDATE: Final = "Updating content in file: %s"
+LOG_SECTION_FOUND: Final = "Found section '%s' in file %s"
+LOG_SECTION_UPDATE: Final = "Updating section '%s' in file %s"
+LOG_SECTION_REPLACE: Final = "Replacing content in section '%s'"
+LOG_CONTENT_WRITE: Final = "Writing updated content to file: %s"
+
+# Error Messages
+ERROR_SECTION_UPDATE_FAILED: Final = "Failed to update section: {error}"
+ERROR_SECTION_NOT_FOUND: Final = "Section '{section_title}' not found in file"
+ERROR_INVALID_SECTION_FORMAT: Final = "Invalid section format in file: {file_path}"
+ERROR_CONTENT_UPDATE_FAILED: Final = "Failed to update content: {error}"
+
+# File Operation Constants
+DEFAULT_CONTENT_BUFFER: Final = "\n\n"  # Default spacing between sections
+SECTION_HEADER_PREFIX: Final = "#"  # Markdown header prefix
+MIN_SECTION_LEVEL: Final = 1  # Minimum header level
+MAX_SECTION_LEVEL: Final = 6  # Maximum header level
+FRONTMATTER_MARKER: Final = "---"  # YAML frontmatter delimiter
+
+# Validation Constants
+FILENAME_MAX_LENGTH: Final = 255  # Maximum filename length
+PATH_MAX_LENGTH: Final = 4096  # Maximum path length for most filesystems
+VALID_HEADER_LEVELS: Final = range(1, 7)  # Valid markdown header levels
+
+# Log messages for section operations
+LOG_SECTION_NOT_FOUND: Final = "Section marker not found: {section_title}"
+
+# Validation patterns
+HEADER_TITLE_GROUP: Final = 2  # Index of the header title group in regex match
+MARKER_TITLE_GROUP: Final = 1  # Index of the marker title group in regex match
+
+# Log messages
+LOG_VALIDATE_SECTION_START: Final = "Starting section validation for: %s"
+LOG_SECTION_APPEND_SUCCESS: Final = "Successfully appended section '%s' to %s"
+LOG_SECTION_UPDATE_START: Final = "Updating section '%s' in %s"
+LOG_SECTION_VALIDATION_ERROR: Final = "Section validation failed: %s"
+
+# Error messages
+ERROR_SECTION_VALIDATION_FAILED: Final = "Section validation failed: {error}"
+ERROR_SECTION_MARKER_MISMATCH: Final = "Section marker mismatch: expected '{expected}', found '{found}'"

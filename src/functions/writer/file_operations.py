@@ -27,6 +27,28 @@ from .constants import (
     ERROR_PERMISSION_DENIED_FILE,
     MAX_PATH_LENGTH,
     ERROR_PATH_TOO_LONG,
+    SECTION_MARKER_TEMPLATE,
+    SECTION_MARKER_PATTERN,
+    HEADER_PATTERN,
+    ERROR_SECTION_MARKER_NOT_FOUND,
+    LOG_SECTION_MARKER_VALIDATION,
+    HEADER_NEXT_PATTERN,
+    SECTION_CONTENT_PATTERN,
+    SECTION_CONTENT_SPACING,
+    LOG_VALIDATE_FILENAME,
+    LOG_ADDED_EXTENSION,
+    MD_EXTENSION,
+    LOG_MISSING_MARKER,
+    LOG_MISMATCHED_MARKER,
+    LOG_ORPHANED_MARKER,
+    LOG_DUPLICATE_MARKER,
+    LOG_SECTION_MARKER_VALID,
+    ERROR_MISSING_SECTION_MARKER,
+    ERROR_MISMATCHED_SECTION_MARKER,
+    ERROR_ORPHANED_SECTION_MARKER,
+    ERROR_DUPLICATE_SECTION_MARKER,
+    HEADER_TITLE_GROUP,
+    MARKER_TITLE_GROUP,
 )
 
 # Set up module logger
@@ -36,13 +58,13 @@ logger = logging.getLogger(__name__)
 def validate_filename(file_name: str, config: WriterConfig) -> Path:
     """Validate filename and return full path."""
     if not file_name or not is_valid_filename(file_name):
-        logger.warning("Invalid filename rejected: %s", file_name)
+        logger.warning(LOG_VALIDATE_FILENAME, file_name)
         raise WriterError(ERROR_INVALID_FILENAME)
 
     # Ensure .md extension
-    if not file_name.endswith(".md"):
-        file_name += ".md"
-        logger.debug("Added .md extension: %s", file_name)
+    if not file_name.endswith(MD_EXTENSION):
+        file_name += MD_EXTENSION
+        logger.debug(LOG_ADDED_EXTENSION, file_name)
 
     # Check path length
     full_path = config.drafts_dir / file_name
@@ -373,16 +395,17 @@ def append_to_existing_section(
     config: WriterConfig,
 ) -> None:
     """Append content to an existing section."""
-    section_marker = f"<!-- Section: {section_title} -->"
+    section_marker = SECTION_MARKER_TEMPLATE.format(section_title=section_title)
     section_start = existing_content.find(section_marker)
 
     if section_start == -1:
-        logger.error("Section marker not found: %s", section_title)
-        raise WriterError(f"Section '{section_title}' marker not found")
+        logger.error(LOG_SECTION_MARKER_NOT_FOUND.format(section_title=section_title))
+        raise WriterError(ERROR_SECTION_MARKER_NOT_FOUND.format(section_title=section_title))
 
     # Find the end of the section (next section marker or EOF)
     next_section = re.search(
-        r"<!-- Section: .* -->", existing_content[section_start + len(section_marker) :]
+        HEADER_NEXT_PATTERN,
+        existing_content[section_start + len(section_marker):]
     )
     section_end = (
         next_section.start() + section_start + len(section_marker)
@@ -393,7 +416,9 @@ def append_to_existing_section(
     # Insert new content before the next section
     updated_content = (
         existing_content[:section_end]
-        + f"\n{new_content.strip()}\n"
+        + SECTION_CONTENT_SPACING
+        + new_content.strip()
+        + SECTION_CONTENT_SPACING
         + existing_content[section_end:]
     )
 
@@ -403,20 +428,12 @@ def append_to_existing_section(
 
 
 def validate_section_markers(content: str) -> None:
-    """
-    Validate section markers in the document.
-
-    Args:
-        content: Document content to validate.
-
-    Raises:
-        WriterError: If markers are malformed, misplaced, or duplicated.
-    """
-    logger.debug("Validating section markers...")
+    """Validate section markers in the document."""
+    logger.debug(LOG_SECTION_MARKER_VALIDATION)
 
     # Regular expressions to identify headers and markers
-    header_pattern = re.compile(r"^(#{1,6})\s+(.+?)$", re.MULTILINE)
-    marker_pattern = re.compile(r"<!--\s*(?:Section|SECTION):\s*(.+?)\s*-->")
+    header_pattern = re.compile(HEADER_PATTERN, re.MULTILINE)
+    marker_pattern = re.compile(SECTION_MARKER_PATTERN)
 
     # Extract headers and markers
     headers = list(header_pattern.finditer(content))
@@ -425,46 +442,43 @@ def validate_section_markers(content: str) -> None:
     # Check for duplicate markers
     seen_markers = set()
     for marker in markers:
-        marker_title = marker.group(1).strip()
+        marker_title = marker.group(MARKER_TITLE_GROUP).strip()
         if marker_title in seen_markers:
-            logger.error("Duplicate section marker found: '%s'", marker_title)
-            raise WriterError(f"Duplicate section marker found: '{marker_title}'")
+            logger.error(LOG_DUPLICATE_MARKER.format(marker_title=marker_title))
+            raise WriterError(ERROR_DUPLICATE_SECTION_MARKER.format(marker_title=marker_title))
         seen_markers.add(marker_title)
 
     # Validate markers match their headers
     for header in headers:
-        header_title = header.group(2).strip()
+        header_title = header.group(HEADER_TITLE_GROUP).strip()
         header_position = header.end()
 
         # Find the marker immediately following the header
         following_content = content[header_position:].strip()
         first_line = following_content.split("\n")[0] if following_content else ""
 
-        expected_marker = f"<!-- Section: {header_title} -->"
+        expected_marker = SECTION_MARKER_TEMPLATE.format(section_title=header_title)
         
         # Check if any marker format is present
-        if not re.match(r"<!--\s*(?:Section|SECTION):", first_line):
-            logger.error("Missing marker for header: %s", header_title)
-            raise WriterError(f"Header '{header_title}' is missing its section marker")
+        if not re.match(SECTION_CONTENT_PATTERN, first_line):
+            logger.error(LOG_MISSING_MARKER.format(header_title=header_title))
+            raise WriterError(ERROR_MISSING_SECTION_MARKER.format(header_title=header_title))
 
         # Check if the marker matches exactly
         if first_line != expected_marker:
-            logger.error(
-                "Mismatched marker for header '%s': expected '%s', found '%s'",
-                header_title,
-                expected_marker,
-                first_line,
-            )
-            raise WriterError(
-                f"Section marker for '{header_title}' does not match header title"
-            )
+            logger.error(LOG_MISMATCHED_MARKER.format(
+                header_title=header_title,
+                expected=expected_marker,
+                found=first_line
+            ))
+            raise WriterError(ERROR_MISMATCHED_SECTION_MARKER.format(header_title=header_title))
 
     # Check for orphaned markers (markers without headers)
-    header_titles = {header.group(2).strip() for header in headers}
+    header_titles = {header.group(HEADER_TITLE_GROUP).strip() for header in headers}
     for marker in markers:
-        marker_title = marker.group(1).strip()
+        marker_title = marker.group(MARKER_TITLE_GROUP).strip()
         if marker_title not in header_titles:
-            logger.error("Found marker without header: %s", marker_title)
-            raise WriterError(f"Found marker '{marker_title}' without a corresponding header")
+            logger.error(LOG_ORPHANED_MARKER.format(marker_title=marker_title))
+            raise WriterError(ERROR_ORPHANED_SECTION_MARKER.format(marker_title=marker_title))
 
-    logger.info("All markers are valid.")
+    logger.info(LOG_SECTION_MARKER_VALID)
