@@ -1058,5 +1058,67 @@ class TestFindSection:
         # Attempt to find a non-existent section
         section_match_none = find_section(content, "Discussion")
         assert section_match_none is None, "The section 'Discussion' should not be found."
+        
+    def test_find_section_with_empty_content(self):
+        """Test finding a section that has no content."""
+        content = (
+            "# Introduction\n"
+            "<!-- Section: Introduction -->\n"
+            "Some content.\n\n"
+            "## Empty Section\n"
+            "<!-- Section: Empty -->\n"
+            "\n"
+            "## Next Section\n"
+            "<!-- Section: Next -->\n"
+            "More content.\n\n"
+        )
+        
+        section_match = find_section(content, "Empty")
+        assert section_match is not None
+        assert section_match.group(2).strip() == ""
+        
+    def test_find_section_at_end_of_file(self):
+        """Test finding a section that appears at the end of the file."""
+        content = (
+            "# First Section\n"
+            "<!-- Section: First -->\n"
+            "First content.\n\n"
+            "## Last Section\n"
+            "<!-- Section: Last -->\n"
+            "Final content.\n"  # No trailing newlines
+        )
+        
+        section_match = find_section(content, "Last")
+        assert section_match is not None
+        assert section_match.group(2).strip() == "Final content."
+        
+    def test_find_section_with_special_characters(self):
+        """Test finding sections with special characters in title."""
+        content = (
+            "# Special (Test) Section!\n"
+            "<!-- Section: Special (Test)! -->\n"
+            "Special content.\n\n"
+            "## Next\n"
+            "<!-- Section: Next -->\n"
+            "Next content.\n\n"
+        )
+        
+        section_match = find_section(content, "Special (Test)!")
+        assert section_match is not None
+        assert section_match.group(1) == "# Special (Test) Section!\n"
+        
+    def test_find_section_case_sensitivity(self):
+        """Test that section finding is case-sensitive."""
+        content = (
+            "# Methods\n"
+            "<!-- Section: Methods -->\n"
+            "Method content.\n\n"
+        )
+        
+        # Should find exact match
+        assert find_section(content, "Methods") is not None
+        # Should not find different case
+        assert find_section(content, "methods") is None
+        assert find_section(content, "METHODS") is None
 
 # pytest tests/functions/writer/test_file_operations.py
