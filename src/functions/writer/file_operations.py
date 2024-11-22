@@ -414,27 +414,33 @@ def validate_section_markers(content: str) -> None:
     """
     logger.debug("Validating section markers...")
 
-    # Find all headers and verify their immediate markers
+    # Find all headers and their following lines
     sections = re.finditer(
-        r"^(#{1,6})\s+(.+?)\n(?!<!-- Section:)(.+)?", content, re.MULTILINE
+        r"^(#{1,6})\s+(.+?)\n(.*?)(?=\n#{1,6}\s|$)",
+        content,
+        re.MULTILINE | re.DOTALL
     )
 
     for section in sections:
         header_level = len(section.group(1))
         header_title = section.group(2).strip()
-        next_line = section.group(3)
+        following_content = section.group(3).strip()
 
-        if next_line and not next_line.startswith("<!-- Section:"):
-            logger.error("Misplaced marker for header: %s", header_title)
+        # Get the first line after the header
+        first_line = following_content.split('\n')[0] if following_content else ''
+
+        # Check if the first line is a marker
+        if not first_line.startswith('<!-- Section:'):
+            logger.error("Missing marker for header: %s", header_title)
             raise WriterError(f"Header '{header_title}' is missing its section marker")
 
         expected_marker = f"<!-- Section: {header_title} -->"
-        if next_line and next_line.strip() != expected_marker:
+        if first_line != expected_marker:
             logger.error(
                 "Mismatched marker for header '%s': expected '%s', found '%s'",
                 header_title,
                 expected_marker,
-                next_line.strip(),
+                first_line,
             )
             raise WriterError(
                 f"Section marker for '{header_title}' does not match header title"
