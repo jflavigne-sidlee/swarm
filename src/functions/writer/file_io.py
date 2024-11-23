@@ -227,13 +227,13 @@ def generate_temp_filename(original_name: str) -> str:
 
 
 def check_path_exists(path: Path) -> None:
-    """Check if path exists.
+    """Verify path exists.
 
     Args:
-        path: Path to validate
+        path: Path to check
 
     Raises:
-        FileNotFoundError: If path doesn't exist
+        FileNotFoundError: If path does not exist
     """
     if not path.exists():
         msg = ERROR_PATH_NOT_EXIST.format(name="Path", path=path)
@@ -242,13 +242,13 @@ def check_path_exists(path: Path) -> None:
 
 
 def check_read_permissions(path: Path) -> None:
-    """Check if path has read permissions.
+    """Verify read permissions for path.
 
     Args:
-        path: Path to validate
+        path: Path to check
 
     Raises:
-        PermissionError: If path can't be read
+        PermissionError: If path is not readable
     """
     if not os.access(path, os.R_OK):
         msg = ERROR_PATH_NO_READ.format(name="Path", path=path)
@@ -257,13 +257,13 @@ def check_read_permissions(path: Path) -> None:
 
 
 def check_write_permissions(path: Path) -> None:
-    """Check if path has write permissions.
+    """Verify write permissions for path.
 
     Args:
-        path: Path to validate
+        path: Path to check
 
     Raises:
-        PermissionError: If path can't be written
+        PermissionError: If path is not writable
     """
     if not os.access(path, os.W_OK):
         msg = ERROR_PATH_NO_WRITE.format(name="Path", path=path)
@@ -272,14 +272,14 @@ def check_write_permissions(path: Path) -> None:
 
 
 def validate_path_permissions(path: Path, require_write: bool = False) -> None:
-    """Validate path permissions.
+    """Validate existence and permissions for path.
 
     Args:
         path: Path to validate
-        require_write: Whether write permission is required
+        require_write: If True, verify write permissions
 
     Raises:
-        FileNotFoundError: If path doesn't exist
+        FileNotFoundError: If path does not exist
         PermissionError: If required permissions are not available
     """
     check_path_exists(path)
