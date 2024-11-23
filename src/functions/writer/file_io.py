@@ -183,12 +183,12 @@ def validate_path_permissions(path: Path, require_write: bool = False) -> None:
         raise FileNotFoundError(f"Path not found: {path}")
         
     if not os.access(path, os.R_OK):
-        logger.error(f"Path not readable: {path}")
-        raise PermissionError(f"Path not readable: {path}")
+        logger.error(f"No read permission for path: {path}")
+        raise PermissionError(f"No read permission for path: {path}")
         
     if require_write and not os.access(path, os.W_OK):
-        logger.error(f"Path not writable: {path}")
-        raise PermissionError(f"Path not writable: {path}")
+        logger.error(f"No write permission for path: {path}")
+        raise PermissionError(f"No write permission for path: {path}")
 
 def atomic_write(file_path: Path, content: str, encoding: str, temp_dir: Path) -> None:
     """Write content atomically using a temporary file.
@@ -207,10 +207,11 @@ def atomic_write(file_path: Path, content: str, encoding: str, temp_dir: Path) -
         temp_dir: Directory for temporary files (must exist and be writable)
         
     Raises:
-        FileNotFoundError: If temp_dir doesn't exist
+        FileNotFoundError: If temp_dir doesn't exist or can't create parent directory
         PermissionError: If temp_dir or target location can't be written
+        LookupError: If encoding is not supported
         UnicodeError: If content can't be encoded with specified encoding
-        OSError: If directory creation or move fails
+        OSError: If atomic move fails or other I/O errors occur
     """
     temp_filename = generate_temp_filename(file_path.name)
     temp_file = temp_dir / temp_filename
@@ -220,27 +221,66 @@ def atomic_write(file_path: Path, content: str, encoding: str, temp_dir: Path) -
         f"using temp file: {temp_file}"
     )
     
-    # Validate temp directory
-    validate_path_permissions(temp_dir, require_write=True)
-    
     try:
-        # Ensure parent directory exists for target file
-        ensure_parent_directory_exists(file_path)
-        
-        # If target file exists, check if we can write to it
-        if file_path.exists():
-            validate_path_permissions(file_path, require_write=True)
+        # Validate temp directory
+        try:
+            validate_path_permissions(temp_dir, require_write=True)
+        except FileNotFoundError:
+            logger.error(f"Temporary directory not found: {temp_dir}")
+            raise
+        except PermissionError:
+            logger.error(f"No write permission for temporary directory: {temp_dir}")
+            raise
             
+        # Validate encoding
+        if not validate_encoding(encoding):
+            logger.error(f"Unsupported encoding: {encoding}")
+            raise LookupError(f"Unsupported encoding: {encoding}")
+        
+        # Ensure parent directory exists
+        try:
+            ensure_parent_directory_exists(file_path)
+        except PermissionError:
+            logger.error(f"No permission to create parent directory for: {file_path}")
+            raise
+        except OSError as e:
+            logger.error(f"Failed to create parent directory for {file_path}: {e}")
+            raise
+            
+        # Check target file permissions if it exists
+        if file_path.exists():
+            try:
+                validate_path_permissions(file_path, require_write=True)
+            except PermissionError:
+                logger.error(f"No write permission for target file: {file_path}")
+                raise
+                
         # Write to temporary file
-        write_file(temp_file, content, encoding)
-        
+        try:
+            write_file(temp_file, content, encoding)
+        except UnicodeError as e:
+            logger.error(f"Encoding error writing content with {encoding}: {e}")
+            raise
+        except PermissionError:
+            logger.error(f"Permission denied writing temporary file: {temp_file}")
+            raise
+        except OSError as e:
+            logger.error(f"Failed to write temporary file {temp_file}: {e}")
+            raise
+            
         # Atomic move/replace
-        logger.debug(f"Moving {temp_file} to {file_path}")
-        shutil.move(str(temp_file), str(file_path))
-        logger.info(f"Successfully completed atomic write to {file_path}")
-        
+        try:
+            logger.debug(f"Moving {temp_file} to {file_path}")
+            shutil.move(str(temp_file), str(file_path))
+            logger.info(f"Successfully completed atomic write to {file_path}")
+        except PermissionError:
+            logger.error(f"Permission denied moving temp file to target: {file_path}")
+            raise
+        except OSError as e:
+            logger.error(f"Failed to move temp file to target {file_path}: {e}")
+            raise
+            
     except Exception as e:
-        logger.error(f"Error during atomic write to {file_path}: {e}")
         # Clean up temp file if something goes wrong
         if temp_file.exists():
             try:
