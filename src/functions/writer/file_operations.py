@@ -559,15 +559,13 @@ def validate_section_markers(content: str) -> None:
                 ERROR_MISMATCHED_SECTION_MARKER.format(header_title=header_title)
             )
 
-    # Build a set of normalized header titles for comparison
-    header_titles = {header.group(HEADER_TITLE_GROUP).strip() for header in header_matches}
-
     # Check for orphaned markers (markers without headers)
+    header_titles = {header.group(HEADER_TITLE_GROUP).strip() for header in header_matches}
+    
     for start, end in marker_positions:
         marker_match = re.match(PATTERN_SECTION_MARKER, content[start:end])
         marker_title = marker_match.group(MARKER_TITLE_GROUP).strip()
         
-        # Check if this marker title matches any header title
         if not any(marker_title == header_title for header_title in header_titles):
             logger.error(LOG_ORPHANED_MARKER.format(marker_title=marker_title))
             raise WriterError(
