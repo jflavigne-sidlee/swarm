@@ -1,7 +1,7 @@
 import pytest
 from pathlib import Path
 import os
-from src.functions.writer.file_io import read_file, write_file, atomic_write
+from src.functions.writer.file_io import read_file, write_file, atomic_write, validate_encoding
 import shutil
 
 @pytest.fixture
@@ -117,6 +117,27 @@ class TestWriteFile:
         
         assert "Permission denied" in str(exc_info.value)
 
+    def test_validate_encoding_supported(self):
+        """Test validation of supported encodings."""
+        assert validate_encoding('utf-8')
+        assert validate_encoding('ascii')
+        assert validate_encoding('utf-16')
+
+    def test_validate_encoding_unsupported(self):
+        """Test validation of unsupported encodings."""
+        assert not validate_encoding('invalid-encoding')
+        assert not validate_encoding('not-real')
+
+    def test_write_file_unsupported_encoding(self, tmp_path):
+        """Test write_file with unsupported encoding."""
+        file_path = tmp_path / "test.txt"
+        
+        with pytest.raises(LookupError) as exc_info:
+            write_file(file_path, "test", 'invalid-encoding')
+        
+        assert "Unsupported encoding" in str(exc_info.value)
+        assert not file_path.exists()
+
 class TestAtomicWrite:
     def test_atomic_write_success(self, tmp_path):
         """Test successful atomic write operation."""
@@ -221,5 +242,19 @@ class TestAtomicWrite:
         
         assert "Path not writable" in str(exc_info.value)
         assert file_path.read_text() == "original"  # Content unchanged
+
+    def test_atomic_write_unsupported_encoding(self, tmp_path):
+        """Test atomic_write with unsupported encoding."""
+        file_path = tmp_path / "test.txt"
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        
+        with pytest.raises(LookupError) as exc_info:
+            atomic_write(file_path, "test", 'invalid-encoding', temp_dir)
+        
+        assert "Unsupported encoding" in str(exc_info.value)
+        assert not file_path.exists()
+        # Verify no temp files were left behind
+        assert len(list(temp_dir.iterdir())) == 0
 
 # pytest tests/functions/writer/test_file_io.py -v

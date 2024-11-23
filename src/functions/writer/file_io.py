@@ -76,6 +76,28 @@ def read_file(file_path: Path, encoding: str) -> str:
         logger.error(f"Unexpected error reading {file_path}: {e}")
         raise
 
+def validate_encoding(encoding: str) -> bool:
+    """Validate if an encoding is supported by Python.
+    
+    Args:
+        encoding: Encoding name to validate
+        
+    Returns:
+        bool: True if encoding is supported, False otherwise
+        
+    Example:
+        >>> validate_encoding('utf-8')
+        True
+        >>> validate_encoding('invalid-encoding')
+        False
+    """
+    try:
+        "test".encode(encoding)
+        return True
+    except LookupError:
+        logger.error(f"Unsupported encoding: {encoding}")
+        return False
+
 def write_file(file_path: Path, content: str, encoding: str) -> None:
     """Write content to file with strict content preservation.
     
@@ -94,8 +116,12 @@ def write_file(file_path: Path, content: str, encoding: str) -> None:
     Raises:
         PermissionError: If file can't be written
         UnicodeError: If content can't be encoded with specified encoding
+        LookupError: If encoding is not supported
         OSError: If directory creation fails
     """
+    if not validate_encoding(encoding):
+        raise LookupError(f"Unsupported encoding: {encoding}")
+        
     logger.debug(f"Writing {len(content)} characters to file: {file_path}")
     
     try:
