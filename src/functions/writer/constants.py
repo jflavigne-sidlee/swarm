@@ -477,3 +477,6 @@ ERROR_ENVIRONMENT_CHECK_FAILED: Final = (
 ERROR_PYTHON_VERSION: Final = (
     "Python 3.7 or higher is required for proper Path object support"
 )
+
+# Warning messages
+WARNING_PATH_TOO_LONG: Final = "Path too long: {path}"

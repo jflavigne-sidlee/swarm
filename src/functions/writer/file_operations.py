@@ -68,6 +68,7 @@ from .constants import (
     LOG_CLEANUP_PARTIAL_FILE,
     LOG_UNEXPECTED_ERROR,
     ERROR_SECTION_NOT_FOUND,
+    LOG_PATH_TOO_LONG,
 )
 from .file_io import read_file, write_file, atomic_write
 
@@ -89,7 +90,7 @@ def validate_filename(file_name: str, config: WriterConfig) -> Path:
     # Check path length
     full_path = config.drafts_dir / file_name
     if len(str(full_path)) > MAX_PATH_LENGTH:
-        logger.warning("Path too long: %s", full_path)
+        logger.warning(LOG_PATH_TOO_LONG.format(path=full_path))
         raise WriterError(
             ERROR_PATH_TOO_LONG.format(max_length=MAX_PATH_LENGTH, path=full_path)
         )
@@ -120,10 +121,10 @@ def ensure_directory_exists(dir_path: Path) -> None:
         logger.debug(LOG_CREATING_DIRECTORY.format(path=dir_path))
         dir_path.mkdir(parents=True, exist_ok=True)
     except FileExistsError:
-        logger.error(ERROR_DIRECTORY_EXISTS % dir_path)
+        logger.error(ERROR_DIRECTORY_EXISTS.format(path=dir_path))
         raise WriterError(ERROR_DIR_EXISTS.format(path=dir_path))
     except PermissionError:
-        logger.error(ERROR_DIRECTORY_PERMISSION % dir_path)
+        logger.error(ERROR_DIRECTORY_PERMISSION.format(path=dir_path))
         raise WriterError(ERROR_PERMISSION_DENIED_DIR.format(path=dir_path))
     except OSError as e:
         logger.error(LOG_DIR_CREATION_ERROR.format(path=dir_path, error=str(e)))
@@ -160,7 +161,7 @@ def create_document(
     file_name: str, metadata: Dict[str, str], config: Optional[WriterConfig] = None
 ) -> Path:
     """Create a new Markdown document with YAML frontmatter metadata."""
-    logger.debug(LOG_FILE_VALIDATION, file_name)
+    logger.debug(LOG_FILE_VALIDATION.format(file_name=file_name))
 
     # Use default config if none provided
     if config is None:
@@ -175,10 +176,10 @@ def create_document(
         # Check if file exists
         try:
             if os.path.exists(str(full_path)):
-                logger.warning(LOG_FILE_EXISTS, full_path)
+                logger.warning(LOG_FILE_EXISTS.format(path=full_path))
                 raise WriterError(ERROR_FILE_EXISTS.format(path=full_path))
         except (OSError, PermissionError) as e:
-            logger.error(LOG_PERMISSION_ERROR, full_path, str(e))
+            logger.error(LOG_PERMISSION_ERROR.format(path=full_path, error=str(e)))
             raise WriterError(ERROR_PERMISSION_DENIED_PATH.format(path=full_path))
 
         # Create directories if needed
@@ -187,19 +188,19 @@ def create_document(
 
         # Write document
         write_document(full_path, metadata, config.default_encoding)
-        logger.info(LOG_DOCUMENT_CREATED, full_path)
+        logger.info(LOG_DOCUMENT_CREATED.format(path=full_path))
         return full_path
 
     except Exception as e:
         # Clean up if file was partially written
-        logger.debug(LOG_CLEANUP_PARTIAL_FILE, full_path)
+        logger.debug(LOG_CLEANUP_PARTIAL_FILE.format(path=full_path))
         cleanup_partial_file(full_path)
 
         if isinstance(e, WriterError):
             raise
 
         # Log and re-raise unexpected errors with original type
-        logger.error(LOG_UNEXPECTED_ERROR, str(e), type(e).__name__)
+        logger.error(LOG_UNEXPECTED_ERROR.format(error=str(e), error_type=type(e).__name__))
         raise
 
 
