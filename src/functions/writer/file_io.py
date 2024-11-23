@@ -226,6 +226,51 @@ def generate_temp_filename(original_name: str) -> str:
     return f"temp_{timestamp}_{unique_id}_{original_name}"
 
 
+def check_path_exists(path: Path) -> None:
+    """Check if path exists.
+
+    Args:
+        path: Path to validate
+
+    Raises:
+        FileNotFoundError: If path doesn't exist
+    """
+    if not path.exists():
+        msg = ERROR_PATH_NOT_EXIST.format(name="Path", path=path)
+        logger.error(msg)
+        raise FileNotFoundError(msg)
+
+
+def check_read_permissions(path: Path) -> None:
+    """Check if path has read permissions.
+
+    Args:
+        path: Path to validate
+
+    Raises:
+        PermissionError: If path can't be read
+    """
+    if not os.access(path, os.R_OK):
+        msg = ERROR_PATH_NO_READ.format(name="Path", path=path)
+        logger.error(msg)
+        raise PermissionError(msg)
+
+
+def check_write_permissions(path: Path) -> None:
+    """Check if path has write permissions.
+
+    Args:
+        path: Path to validate
+
+    Raises:
+        PermissionError: If path can't be written
+    """
+    if not os.access(path, os.W_OK):
+        msg = ERROR_PATH_NO_WRITE.format(name="Path", path=path)
+        logger.error(msg)
+        raise PermissionError(msg)
+
+
 def validate_path_permissions(path: Path, require_write: bool = False) -> None:
     """Validate path permissions.
 
@@ -237,17 +282,11 @@ def validate_path_permissions(path: Path, require_write: bool = False) -> None:
         FileNotFoundError: If path doesn't exist
         PermissionError: If required permissions are not available
     """
-    if not path.exists():
-        logger.error(ERROR_PATH_NOT_EXIST.format(name="Path", path=path))
-        raise FileNotFoundError(ERROR_PATH_NOT_EXIST.format(name="Path", path=path))
-
-    if not os.access(path, os.R_OK):
-        logger.error(ERROR_PATH_NO_READ.format(name="Path", path=path))
-        raise PermissionError(ERROR_PATH_NO_READ.format(name="Path", path=path))
-
-    if require_write and not os.access(path, os.W_OK):
-        logger.error(ERROR_PATH_NO_WRITE.format(name="Path", path=path))
-        raise PermissionError(ERROR_PATH_NO_WRITE.format(name="Path", path=path))
+    check_path_exists(path)
+    check_read_permissions(path)
+    
+    if require_write:
+        check_write_permissions(path)
 
 
 def atomic_write(file_path: Path, content: str, encoding: str, temp_dir: Path) -> None:
