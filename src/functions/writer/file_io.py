@@ -31,7 +31,7 @@ def ensure_directory_exists(directory: Path) -> None:
         logger.error(f"Failed to create directory {directory}: {e}")
         raise
 
-def ensure_parent_directory_exists(file_path: Path) -> None:
+def ensure_parent_exists(file_path: Path) -> None:
     """Ensure the parent directory of the file exists.
     
     Args:
@@ -41,8 +41,7 @@ def ensure_parent_directory_exists(file_path: Path) -> None:
         PermissionError: If directory can't be created due to permissions
         OSError: If directory creation fails for other reasons
     """
-    parent_dir = file_path.parent
-    ensure_directory_exists(parent_dir)
+    ensure_directory_exists(file_path.parent)
 
 def read_file(file_path: Path, encoding: str) -> str:
     """Read file content with strict content preservation.
@@ -127,7 +126,7 @@ def write_file(file_path: Path, content: str, encoding: str) -> None:
     
     try:
         # Ensure parent directory exists
-        ensure_parent_directory_exists(file_path)
+        ensure_parent_exists(file_path)
         
         # Validate write permissions if file exists
         if file_path.exists():
@@ -240,7 +239,7 @@ def atomic_write(file_path: Path, content: str, encoding: str, temp_dir: Path) -
         
         # Ensure parent directory exists
         try:
-            ensure_parent_directory_exists(file_path)
+            ensure_parent_exists(file_path)
         except PermissionError:
             logger.error(f"No permission to create parent directory for: {file_path}")
             raise
