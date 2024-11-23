@@ -223,3 +223,6 @@ text = "Hello, 世界"
     
     result = validate_markdown(temp_md_file)
     assert result.is_valid  # Should handle special characters correctly 
+    
+    
+# pytest -v tests/functions/writer/test_validation.py
