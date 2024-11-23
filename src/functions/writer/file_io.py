@@ -3,6 +3,8 @@
 import logging
 from pathlib import Path
 from typing import Optional
+from uuid import uuid4
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -67,12 +69,29 @@ def write_file(file_path: Path, content: str, encoding: str) -> None:
         logger.error(f"Unexpected error writing to {file_path}: {e}")
         raise
 
+def generate_temp_filename(original_name: str) -> str:
+    """Generate a unique temporary filename.
+    
+    Uses both UUID and timestamp to ensure uniqueness:
+    - UUID for process/thread uniqueness
+    - Timestamp for debugging/cleanup purposes
+    
+    Args:
+        original_name: Original filename
+        
+    Returns:
+        Unique temporary filename
+    """
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    unique_id = str(uuid4())
+    return f"temp_{timestamp}_{unique_id}_{original_name}"
+
 def atomic_write(file_path: Path, content: str, encoding: str, temp_dir: Path) -> None:
     """Write content atomically using a temporary file.
     
     Rules:
     - Same content preservation rules as write_file
-    - Uses temporary file for safety
+    - Uses temporary file with UUID for safety
     - Atomic replacement of target file
     
     Raises:
@@ -80,8 +99,13 @@ def atomic_write(file_path: Path, content: str, encoding: str, temp_dir: Path) -
         PermissionError: If temp_dir or target location can't be written
         UnicodeError: If content can't be encoded with specified encoding
     """
-    temp_file = temp_dir / f"temp_{file_path.name}"
-    logger.debug(f"Starting atomic write to {file_path} using temp file: {temp_file}")
+    temp_filename = generate_temp_filename(file_path.name)
+    temp_file = temp_dir / temp_filename
+    
+    logger.debug(
+        f"Starting atomic write to {file_path} "
+        f"using temp file: {temp_file}"
+    )
     
     try:
         # Verify temp directory exists
@@ -105,5 +129,7 @@ def atomic_write(file_path: Path, content: str, encoding: str, temp_dir: Path) -
                 temp_file.unlink()
                 logger.debug(f"Cleaned up temporary file: {temp_file}")
             except Exception as cleanup_error:
-                logger.warning(f"Failed to clean up temporary file {temp_file}: {cleanup_error}")
+                logger.warning(
+                    f"Failed to clean up temporary file {temp_file}: {cleanup_error}"
+                )
         raise
