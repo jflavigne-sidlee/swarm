@@ -215,7 +215,7 @@ def create_document(
         logger.debug(LOG_USING_DEFAULT_CONFIG)
 
     # Validate inputs
-    full_path = validate_filename(file_name, config)
+    full_path = validate_filename(file_name, config)  # This returns a Path object
     validate_metadata(metadata, config)
 
     try:
@@ -743,3 +743,23 @@ def validate_file(file_path: Path, require_write: bool = False) -> None:
     except PermissionError:
         logger.error(LOG_PERMISSION_ERROR.format(path=file_path))
         raise WriterError(ERROR_PERMISSION_DENIED_FILE.format(path=file_path))
+
+
+def create_frontmatter(metadata: Dict[str, str]) -> str:
+    """Create YAML frontmatter from metadata.
+
+    Args:
+        metadata: Dictionary of metadata key-value pairs
+
+    Returns:
+        Formatted YAML frontmatter string
+
+    Raises:
+        WriterError: If YAML serialization fails
+    """
+    try:
+        yaml_content = yaml.dump(metadata, default_flow_style=False, sort_keys=False)
+        return f"{YAML_FRONTMATTER_START}{yaml_content}{YAML_FRONTMATTER_END}"
+    except yaml.YAMLError as e:
+        logger.error(ERROR_YAML_SERIALIZATION.format(error=str(e)))
+        raise WriterError(ERROR_YAML_SERIALIZATION.format(error=str(e)))
