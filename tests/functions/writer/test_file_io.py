@@ -91,6 +91,31 @@ class TestWriteFile:
         with pytest.raises(PermissionError):
             write_file(readonly_file, "test", 'utf-8')
 
+    def test_write_file_creates_parent_directory(self, tmp_path):
+        """Test write_file creates parent directories as needed."""
+        deep_path = tmp_path / "a" / "b" / "c" / "test.txt"
+        content = "test content"
+        
+        write_file(deep_path, content, 'utf-8')
+        
+        assert deep_path.exists()
+        assert deep_path.read_text(encoding='utf-8') == content
+        assert deep_path.parent.is_dir()
+
+    def test_write_file_parent_directory_not_writable(self, tmp_path):
+        """Test write_file when parent directory can't be created."""
+        # Create a read-only directory
+        readonly_dir = tmp_path / "readonly"
+        readonly_dir.mkdir()
+        os.chmod(readonly_dir, 0o444)
+        
+        file_path = readonly_dir / "subdir" / "test.txt"
+        
+        with pytest.raises(PermissionError) as exc_info:
+            write_file(file_path, "test", 'utf-8')
+        
+        assert "Permission denied" in str(exc_info.value)
+
 class TestAtomicWrite:
     def test_atomic_write_success(self, tmp_path):
         """Test successful atomic write operation."""

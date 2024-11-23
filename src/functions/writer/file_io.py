@@ -83,21 +83,41 @@ def write_file(file_path: Path, content: str, encoding: str) -> None:
     - No content modification
     - No whitespace normalization
     - No newline manipulation
+    - Creates parent directories if they don't exist
     
+    Args:
+        file_path: Path to file to write
+        content: Content to write
+        encoding: File encoding to use
+        
     Raises:
         PermissionError: If file can't be written
         UnicodeError: If content can't be encoded with specified encoding
+        OSError: If directory creation fails
     """
     logger.debug(f"Writing {len(content)} characters to file: {file_path}")
+    
     try:
+        # Ensure parent directory exists
+        ensure_parent_directory_exists(file_path)
+        
+        # Validate write permissions if file exists
+        if file_path.exists():
+            validate_path_permissions(file_path, require_write=True)
+            
+        # Write the file
         with open(file_path, "w", encoding=encoding) as f:
             f.write(content)
             logger.debug(f"Successfully wrote to {file_path}")
+            
     except PermissionError:
         logger.error(f"Permission denied writing to file: {file_path}")
         raise
     except UnicodeError as e:
         logger.error(f"Encoding error writing to {file_path} with {encoding}: {e}")
+        raise
+    except OSError as e:
+        logger.error(f"Failed to write to {file_path}: {e}")
         raise
     except Exception as e:
         logger.error(f"Unexpected error writing to {file_path}: {e}")
