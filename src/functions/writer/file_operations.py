@@ -337,7 +337,9 @@ def append_section(
         with open(file_path, FILE_MODE_READ, encoding=config.default_encoding) as f:
             content_str = f.read()
 
-        if section_marker in content_str:
+        # Use new utility to check if section exists
+        section_start, _ = get_section_marker_position(content_str, section_title)
+        if section_start != -1:
             if not allow_append:
                 logger.error(LOG_SECTION_EXISTS, section_title, file_path)
                 raise WriterError(ERROR_SECTION_EXISTS.format(section_title=section_title))
@@ -379,18 +381,14 @@ def append_section(
             section_marker=section_marker,
             content=content.strip()
         )
+
         # Handle insertion after specific section
         if insert_after:
-            #target_marker = f"<!-- Section: {insert_after} -->"
-            target_marker = INSERT_AFTER_MARKER.format(insert_after=insert_after)
-            target_pos = content_str.find(target_marker)
-
-            if target_pos == -1:
+            # Use new utility to find the section to insert after
+            _, marker_end = get_section_marker_position(content_str, insert_after)
+            if marker_end == -1:
                 logger.error(ERROR_SECTION_INSERT_AFTER_NOT_FOUND.format(insert_after=insert_after))
                 raise WriterError(ERROR_SECTION_INSERT_AFTER_NOT_FOUND.format(insert_after=insert_after))
-
-            # Find the end of the target marker
-            marker_end = target_pos + len(target_marker)
 
             # Find the start of the next section (if any)
             next_marker_match = re.search(
@@ -491,18 +489,15 @@ def validate_section_markers(content: str) -> None:
     """Validate section markers in the document."""
     logger.debug(LOG_SECTION_MARKER_VALIDATION)
 
-    # Regular expressions to identify headers and markers
-    header_pattern = re.compile(PATTERN_HEADER, re.MULTILINE)
-    marker_pattern = re.compile(PATTERN_SECTION_MARKER)
-
-    # Extract headers and markers
-    headers = list(header_pattern.finditer(content))
-    markers = list(marker_pattern.finditer(content))
+    # Extract headers and markers using utility function
+    header_matches = list(re.finditer(PATTERN_HEADER, content, re.MULTILINE))
+    marker_positions = find_marker_positions(content, PATTERN_SECTION_MARKER)
 
     # Check for duplicate markers
     seen_markers = set()
-    for marker in markers:
-        marker_title = marker.group(MARKER_TITLE_GROUP).strip()
+    for start, end in marker_positions:
+        marker_match = re.match(PATTERN_SECTION_MARKER, content[start:end])
+        marker_title = marker_match.group(MARKER_TITLE_GROUP).strip()
         if marker_title in seen_markers:
             logger.error(LOG_DUPLICATE_MARKER.format(marker_title=marker_title))
             raise WriterError(
@@ -511,7 +506,7 @@ def validate_section_markers(content: str) -> None:
         seen_markers.add(marker_title)
 
     # Validate markers match their headers
-    for header in headers:
+    for header in header_matches:
         header_title = header.group(HEADER_TITLE_GROUP).strip()
         header_position = header.end()
 
@@ -541,11 +536,16 @@ def validate_section_markers(content: str) -> None:
                 ERROR_MISMATCHED_SECTION_MARKER.format(header_title=header_title)
             )
 
+    # Build a set of normalized header titles for comparison
+    header_titles = {header.group(HEADER_TITLE_GROUP).strip() for header in header_matches}
+
     # Check for orphaned markers (markers without headers)
-    header_titles = {header.group(HEADER_TITLE_GROUP).strip() for header in headers}
-    for marker in markers:
-        marker_title = marker.group(MARKER_TITLE_GROUP).strip()
-        if marker_title not in header_titles:
+    for start, end in marker_positions:
+        marker_match = re.match(PATTERN_SECTION_MARKER, content[start:end])
+        marker_title = marker_match.group(MARKER_TITLE_GROUP).strip()
+        
+        # Check if this marker title matches any header title
+        if not any(marker_title == header_title for header_title in header_titles):
             logger.error(LOG_ORPHANED_MARKER.format(marker_title=marker_title))
             raise WriterError(
                 ERROR_ORPHANED_SECTION_MARKER.format(marker_title=marker_title)
@@ -556,7 +556,7 @@ def validate_section_markers(content: str) -> None:
 
 def find_section_boundaries(content: str, section_title: str) -> tuple[int, int]:
     """Find the start and end positions of a section in the content.
-
+    
     Args:
         content: The document content to search
         section_title: The title of the section to find
@@ -568,18 +568,15 @@ def find_section_boundaries(content: str, section_title: str) -> tuple[int, int]
         section_start points to the start of the section marker
         section_end points to the start of the next section or end of content
     """
-    section_marker = SECTION_MARKER_TEMPLATE.format(section_title=section_title)
-    section_start = content.find(section_marker)
+    # Find the section marker position using the new utility
+    section_start, marker_end = get_section_marker_position(content, section_title)
 
     if section_start == -1:
         logger.debug(LOG_SECTION_MARKER_NOT_FOUND.format(section_title=section_title))
         return -1, -1
 
-    marker_end = section_start + len(section_marker)
-
     # Find the next section marker or EOF
     next_section = re.search(HEADER_NEXT_PATTERN, content[marker_end:])
-
     section_end = next_section.start() + marker_end if next_section else len(content)
 
     logger.debug(
@@ -777,3 +774,34 @@ def create_frontmatter(metadata: Dict[str, str]) -> str:
     except yaml.YAMLError as e:
         logger.error(ERROR_YAML_SERIALIZATION.format(error=str(e)))
         raise WriterError(ERROR_YAML_SERIALIZATION.format(error=str(e)))
+
+
+def find_marker_positions(content: str, marker_pattern: str) -> list[tuple[int, int]]:
+    """Find the start and end positions of all markers matching a pattern.
+
+    Args:
+        content: The content to search
+        marker_pattern: Regular expression pattern for the marker
+
+    Returns:
+        List of tuples containing (start, end) positions for each marker found
+    """
+    matches = re.finditer(marker_pattern, content)
+    return [(match.start(), match.end()) for match in matches]
+
+
+def get_section_marker_position(content: str, section_title: str) -> tuple[int, int]:
+    """Find the start and end positions of a specific section marker.
+
+    Args:
+        content: The content to search
+        section_title: Title of the section to find
+
+    Returns:
+        Tuple of (start, end) positions, (-1, -1) if not found
+    """
+    section_marker = SECTION_MARKER_TEMPLATE.format(section_title=section_title)
+    start = content.find(section_marker)
+    if start == -1:
+        return -1, -1
+    return start, start + len(section_marker)
