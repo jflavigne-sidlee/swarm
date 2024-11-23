@@ -137,9 +137,16 @@ class TestAtomicWrite:
         """Test atomic write when temp directory doesn't exist."""
         file_path = tmp_path / "target.txt"
         temp_dir = tmp_path / "nonexistent"
-
-        with pytest.raises(FileNotFoundError):
+        
+        # Ensure temp_dir doesn't exist
+        if temp_dir.exists():
+            temp_dir.rmdir()
+        
+        with pytest.raises(FileNotFoundError) as exc_info:
             atomic_write(file_path, "test", 'utf-8', temp_dir)
+        
+        assert "Temporary directory not found" in str(exc_info.value)
+        assert not file_path.exists()  # Target file should not be created
 
     def test_atomic_write_concurrent_access(self, tmp_path):
         """Test atomic write with concurrent access simulation."""

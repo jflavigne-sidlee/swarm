@@ -8,6 +8,39 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+def ensure_directory_exists(directory: Path) -> None:
+    """Ensure a directory exists, creating it if necessary.
+    
+    Args:
+        directory: Directory path to ensure exists
+        
+    Raises:
+        PermissionError: If directory can't be created due to permissions
+        OSError: If directory creation fails for other reasons
+    """
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        logger.debug(f"Ensured directory exists: {directory}")
+    except PermissionError:
+        logger.error(f"Permission denied creating directory: {directory}")
+        raise
+    except OSError as e:
+        logger.error(f"Failed to create directory {directory}: {e}")
+        raise
+
+def ensure_parent_directory_exists(file_path: Path) -> None:
+    """Ensure the parent directory of the file exists.
+    
+    Args:
+        file_path: Path to file whose parent directory should exist
+        
+    Raises:
+        PermissionError: If directory can't be created due to permissions
+        OSError: If directory creation fails for other reasons
+    """
+    parent_dir = file_path.parent
+    ensure_directory_exists(parent_dir)
+
 def read_file(file_path: Path, encoding: str) -> str:
     """Read file content with strict content preservation.
     
@@ -93,11 +126,19 @@ def atomic_write(file_path: Path, content: str, encoding: str, temp_dir: Path) -
     - Same content preservation rules as write_file
     - Uses temporary file with UUID for safety
     - Atomic replacement of target file
+    - Creates parent directories if they don't exist
     
+    Args:
+        file_path: Target file path
+        content: Content to write
+        encoding: File encoding to use
+        temp_dir: Directory for temporary files (must exist)
+        
     Raises:
         FileNotFoundError: If temp_dir doesn't exist
         PermissionError: If temp_dir or target location can't be written
         UnicodeError: If content can't be encoded with specified encoding
+        OSError: If directory creation fails
     """
     temp_filename = generate_temp_filename(file_path.name)
     temp_file = temp_dir / temp_filename
@@ -107,11 +148,14 @@ def atomic_write(file_path: Path, content: str, encoding: str, temp_dir: Path) -
         f"using temp file: {temp_file}"
     )
     
+    # Verify temp directory exists first
+    if not temp_dir.exists():
+        logger.error(f"Temporary directory not found: {temp_dir}")
+        raise FileNotFoundError(f"Temporary directory not found: {temp_dir}")
+    
     try:
-        # Verify temp directory exists
-        if not temp_dir.exists():
-            logger.error(f"Temporary directory not found: {temp_dir}")
-            raise FileNotFoundError(f"Temporary directory not found: {temp_dir}")
+        # Ensure parent directory exists for target file
+        ensure_parent_directory_exists(file_path)
             
         # Write to temporary file
         write_file(temp_file, content, encoding)
