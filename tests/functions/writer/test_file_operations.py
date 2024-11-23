@@ -449,13 +449,13 @@ class TestAppendSection:
 
     def test_insert_after_nonexistent_section(self, sample_document, test_config):
         """Test error when inserting after a section that doesn't exist."""
-        with pytest.raises(WriterError, match="Section 'Nonexistent' not found"):
+        with pytest.raises(WriterError, match="Section to insert after not found: Nonexistent"):
             append_section(
-                "test_doc.md",
-                "New Section",
-                "Content",
-                test_config,
-                insert_after="Nonexistent",
+                file_name="test_doc.md",
+                section_title="New Section",
+                content="Content",
+                config=test_config,
+                insert_after="Nonexistent"
             )
 
     def test_insert_after_with_existing_content(self, sample_document, test_config):

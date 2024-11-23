@@ -70,6 +70,31 @@ from .constants import (
     LOG_PATH_TOO_LONG,
     LOG_REMOVING_PARTIAL_FILE,
     LOG_CLEANUP_FAILED,
+    LOG_INVALID_CONTENT,
+    LOG_INVALID_SECTION_TITLE,
+    LOG_FILE_NOT_FOUND,
+    LOG_INVALID_FILE_FORMAT,
+    LOG_PERMISSION_ERROR_CHECKING_FILE,
+    ERROR_INVALID_CONTENT,
+    ERROR_INVALID_SECTION_TITLE,
+    ERROR_DOCUMENT_NOT_EXIST,
+    ERROR_INVALID_MARKDOWN_FILE,
+    ERROR_PERMISSION_DENIED_ACCESS,
+    LOG_SECTION_EXISTS,
+    LOG_APPEND_TO_EXISTING_SECTION,
+    LOG_INVALID_HEADER_LEVEL,
+    LOG_HEADER_LEVEL_ERROR,
+    LOG_USING_HEADER_LEVEL,
+    ERROR_SECTION_EXISTS,
+    ERROR_INVALID_HEADER_LEVEL,
+    ERROR_HEADER_LEVEL,
+    INSERT_AFTER_MARKER,
+    SECTION_HEADER_PREFIX,
+    MD_EXTENSION,
+    ERROR_SECTION_INSERT_AFTER_NOT_FOUND,
+    FILE_MODE_READ,
+    FILE_MODE_WRITE,
+    FILE_MODE_APPEND,
 )
 from .file_io import read_file, write_file, atomic_write
 
@@ -271,12 +296,12 @@ def append_section(
 
     # Validate inputs
     if not content or not isinstance(content, str):
-        logger.error("Invalid content provided: %s", content)
-        raise WriterError("Content must be a non-empty string")
+        logger.error(LOG_INVALID_CONTENT, content)
+        raise WriterError(ERROR_INVALID_CONTENT)
 
     if not section_title or not isinstance(section_title, str):
-        logger.error("Invalid section title: %s", section_title)
-        raise WriterError("Section title must be a non-empty string")
+        logger.error(LOG_INVALID_SECTION_TITLE, section_title)
+        raise WriterError(ERROR_INVALID_SECTION_TITLE)
 
     # Validate filename and get full path
     file_path = validate_filename(file_name, config)
@@ -284,34 +309,34 @@ def append_section(
     # Validate file exists and is readable
     try:
         if not file_path.exists():
-            logger.error("File not found: %s", file_path)
-            raise WriterError(f"Document does not exist: {file_path}")
+            logger.error(LOG_FILE_NOT_FOUND, file_path)
+            raise WriterError(ERROR_DOCUMENT_NOT_EXIST.format(file_path=file_path))
 
         # Verify file is a Markdown file
-        if not file_path.suffix.lower() == ".md":
-            logger.error("Invalid file format: %s", file_path)
-            raise WriterError(f"File must be a Markdown document: {file_path}")
+        if not file_path.suffix.lower() == MD_EXTENSION:
+            logger.error(LOG_INVALID_FILE_FORMAT, file_path)
+            raise WriterError(ERROR_INVALID_MARKDOWN_FILE.format(file_path=file_path))
 
     except (OSError, PermissionError) as e:
-        logger.error("Permission error checking file: %s - %s", file_path, str(e))
-        raise WriterError(f"Permission denied when accessing {file_path}")
+        logger.error(LOG_PERMISSION_ERROR_CHECKING_FILE, file_path, str(e))
+        raise WriterError(ERROR_PERMISSION_DENIED_ACCESS.format(file_path=file_path))
 
     # Create section marker
-    section_marker = f"<!-- Section: {section_title} -->"
+    # section_marker = f"<!-- Section: {section_title} -->"
+    # Create section marker using the constant
+    section_marker = INSERT_AFTER_MARKER.format(insert_after=section_title)
 
     try:
         # Read existing content and check for section
-        with open(file_path, "r", encoding=config.default_encoding) as f:
+        with open(file_path, FILE_MODE_READ, encoding=config.default_encoding) as f:
             content_str = f.read()
 
         if section_marker in content_str:
             if not allow_append:
-                logger.error(
-                    "Section already exists: %s in %s", section_title, file_path
-                )
-                raise WriterError(f"Section '{section_title}' already exists")
+                logger.error(LOG_SECTION_EXISTS, section_title, file_path)
+                raise WriterError(ERROR_SECTION_EXISTS.format(section_title=section_title))
             else:
-                logger.info("Appending to existing section: %s", section_title)
+                logger.info(LOG_APPEND_TO_EXISTING_SECTION, section_title)
                 return append_to_existing_section(
                     file_path, section_title, content, content_str, config
                 )
@@ -325,16 +350,16 @@ def append_section(
                 not isinstance(final_header_level, int)
                 or not 1 <= final_header_level <= 6
             ):
-                logger.error("Invalid header level: %s", final_header_level)
-                raise WriterError("Header level must be an integer between 1 and 6")
+                logger.error(LOG_INVALID_HEADER_LEVEL, final_header_level)
+                raise WriterError(ERROR_INVALID_HEADER_LEVEL)
         except ValueError as e:
-            logger.error("Header level error: %s", str(e))
-            raise WriterError(f"Header level error: {str(e)}")
+            logger.error(LOG_HEADER_LEVEL_ERROR, str(e))
+            raise WriterError(ERROR_HEADER_LEVEL.format(error=str(e)))
 
-        header_prefix = "#" * final_header_level
+        header_prefix = SECTION_HEADER_PREFIX * final_header_level
 
         logger.debug(
-            "Using header level %d for section '%s' in %s",
+            LOG_USING_HEADER_LEVEL,
             final_header_level,
             section_title,
             file_path,
@@ -349,12 +374,13 @@ def append_section(
 
         # Handle insertion after specific section
         if insert_after:
-            target_marker = f"<!-- Section: {insert_after} -->"
+            #target_marker = f"<!-- Section: {insert_after} -->"
+            target_marker = INSERT_AFTER_MARKER.format(insert_after=insert_after)
             target_pos = content_str.find(target_marker)
 
             if target_pos == -1:
-                logger.error("Section to insert after not found: %s", insert_after)
-                raise WriterError(f"Section '{insert_after}' not found")
+                logger.error(ERROR_SECTION_INSERT_AFTER_NOT_FOUND.format(insert_after=insert_after))
+                raise WriterError(ERROR_SECTION_INSERT_AFTER_NOT_FOUND.format(insert_after=insert_after))
 
             # Find the end of the target marker
             marker_end = target_pos + len(target_marker)
@@ -385,7 +411,7 @@ def append_section(
             )
 
             # Write updated content
-            with open(file_path, "w", encoding=config.default_encoding) as f:
+            with open(file_path, FILE_MODE_WRITE, encoding=config.default_encoding) as f:
                 f.write(updated_content)
 
             logger.info(
@@ -398,7 +424,7 @@ def append_section(
 
         # Append the new section
         try:
-            with open(file_path, "a", encoding=config.default_encoding) as f:
+            with open(file_path, FILE_MODE_APPEND, encoding=config.default_encoding) as f:
                 f.write(new_section)
 
             logger.info(
@@ -444,7 +470,7 @@ def append_to_existing_section(
     )
 
     # Write updated content back to file
-    with open(file_path, "w", encoding=config.default_encoding) as f:
+    with open(file_path, FILE_MODE_WRITE, encoding=config.default_encoding) as f:
         f.write(updated_content)
 
 

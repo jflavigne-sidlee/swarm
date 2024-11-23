@@ -33,6 +33,7 @@ DEFAULT_PATHS: Final[Dict[str, str]] = {
 # Markdown settings
 DEFAULT_METADATA_FIELDS: Final[List[str]] = ["title", "author", "date"]
 DEFAULT_SECTION_MARKER: Final = "<!-- Section: {section_title} -->"
+INSERT_AFTER_MARKER: Final = "<!-- Section: {insert_after} -->"
 DEFAULT_ENCODING: Final = "utf-8"
 VALID_MARKDOWN_FLAVORS: Final[Set[str]] = {"github", "commonmark", "strict"}
 MIN_HEADER_DEPTH: Final = 1
@@ -484,3 +485,40 @@ WARNING_PATH_TOO_LONG: Final = "Path too long: {path}"
 # Log messages for file cleanup
 LOG_REMOVING_PARTIAL_FILE: Final = "Removing partial file: %s"
 LOG_CLEANUP_FAILED: Final = "Failed to clean up partial file: %s - %s"
+
+# Log messages for append_section
+LOG_INVALID_CONTENT: Final = "Invalid content provided: %s"
+LOG_INVALID_SECTION_TITLE: Final = "Invalid section title: %s"
+LOG_FILE_NOT_FOUND: Final = "File not found: %s"
+LOG_INVALID_FILE_FORMAT: Final = "Invalid file format: %s"
+LOG_PERMISSION_ERROR_CHECKING_FILE: Final = "Permission error checking file: %s - %s"
+
+# Error messages for append_section
+ERROR_INVALID_CONTENT: Final = "Content must be a non-empty string"
+ERROR_INVALID_SECTION_TITLE: Final = "Section title must be a non-empty string"
+ERROR_DOCUMENT_NOT_EXIST: Final = "Document does not exist: {file_path}"
+ERROR_INVALID_MARKDOWN_FILE: Final = "File must be a Markdown document: {file_path}"
+ERROR_PERMISSION_DENIED_ACCESS: Final = "Permission denied when accessing {file_path}"
+
+# Log messages for section operations
+LOG_SECTION_EXISTS: Final = "Section already exists: %s in %s"
+LOG_APPEND_TO_EXISTING_SECTION: Final = "Appending to existing section: %s"
+LOG_INVALID_HEADER_LEVEL: Final = "Invalid header level: %s"
+LOG_HEADER_LEVEL_ERROR: Final = "Header level error: %s"
+LOG_USING_HEADER_LEVEL: Final = "Using header level %d for section '%s' in %s"
+
+# Error messages for section operations
+ERROR_SECTION_EXISTS: Final = "Section '{section_title}' already exists"
+ERROR_INVALID_HEADER_LEVEL: Final = "Header level must be an integer between 1 and 6"
+ERROR_HEADER_LEVEL: Final = "Header level error: {error}"
+
+# Error messages for section operations
+ERROR_SECTION_INSERT_AFTER_NOT_FOUND: Final = "Section to insert after not found: {insert_after}"
+
+# File mode constants
+FILE_MODE_READ: Final = "r"
+FILE_MODE_WRITE: Final = "w"
+FILE_MODE_APPEND: Final = "a"
+FILE_MODE_READ_BINARY: Final = "rb"
+FILE_MODE_WRITE_BINARY: Final = "wb"
+FILE_MODE_APPEND_BINARY: Final = "ab"
