@@ -480,3 +480,7 @@ ERROR_PYTHON_VERSION: Final = (
 
 # Warning messages
 WARNING_PATH_TOO_LONG: Final = "Path too long: {path}"
+
+# Log messages for file cleanup
+LOG_REMOVING_PARTIAL_FILE: Final = "Removing partial file: %s"
+LOG_CLEANUP_FAILED: Final = "Failed to clean up partial file: %s - %s"

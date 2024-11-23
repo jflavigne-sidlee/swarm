@@ -61,7 +61,6 @@ from .constants import (
     LOG_WRITING_FILE,
     LOG_SECTION_NOT_FOUND,
     LOG_USING_DEFAULT_CONFIG,
-    LOG_CONFIG_DEBUG,
     LOG_FILE_EXISTS,
     LOG_PERMISSION_ERROR,
     LOG_DOCUMENT_CREATED,
@@ -69,6 +68,8 @@ from .constants import (
     LOG_UNEXPECTED_ERROR,
     ERROR_SECTION_NOT_FOUND,
     LOG_PATH_TOO_LONG,
+    LOG_REMOVING_PARTIAL_FILE,
+    LOG_CLEANUP_FAILED,
 )
 from .file_io import read_file, write_file, atomic_write
 
@@ -249,10 +250,10 @@ def cleanup_partial_file(file_path: Path) -> None:
     """Clean up partially written files in case of errors."""
     try:
         if os.path.exists(str(file_path)):
-            logger.debug("Removing partial file: %s", file_path)
+            logger.debug(LOG_REMOVING_PARTIAL_FILE, file_path)
             os.remove(str(file_path))
     except (OSError, PermissionError) as e:
-        logger.warning("Failed to clean up partial file: %s - %s", file_path, str(e))
+        logger.warning(LOG_CLEANUP_FAILED, file_path, str(e))
 
 
 def append_section(
