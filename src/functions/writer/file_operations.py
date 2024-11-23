@@ -509,17 +509,64 @@ def validate_section_markers(content: str) -> None:
         content: The document content to validate
 
     Raises:
-        WriterError: If any validation check fails, with specific error messages for:
-            - Duplicate section markers
-            - Missing section markers after headers
-            - Mismatched section marker titles
-            - Orphaned section markers
+        WriterError: If any validation check fails:
+            - DuplicateSectionError: When the same section marker appears multiple times
+            - MissingMarkerError: When a header lacks its required section marker
+            - MismatchedMarkerError: When a marker's title doesn't match its header
+            - OrphanedMarkerError: When a marker exists without a corresponding header
 
-    Example:
-        >>> content = "# Introduction\\n<!-- Section: Introduction -->\\nContent"
+    Examples:
+        Valid document:
+        >>> content = '''
+        ... # Introduction
+        ... <!-- Section: Introduction -->
+        ... Content here
+        ... 
+        ... # Conclusion
+        ... <!-- Section: Conclusion -->
+        ... More content
+        ... '''
         >>> validate_section_markers(content)  # No error raised
-        >>> bad_content = "# Intro\\n<!-- Section: Different -->\\nContent"
-        >>> validate_section_markers(bad_content)  # Raises WriterError
+
+        Missing marker:
+        >>> bad_content = '''
+        ... # Introduction
+        ... Content without marker
+        ... '''
+        >>> validate_section_markers(bad_content)  # Raises MissingMarkerError
+
+        Mismatched marker:
+        >>> bad_content = '''
+        ... # Introduction
+        ... <!-- Section: Different -->
+        ... Content
+        ... '''
+        >>> validate_section_markers(bad_content)  # Raises MismatchedMarkerError
+
+        Duplicate marker:
+        >>> bad_content = '''
+        ... # Section One
+        ... <!-- Section: Duplicate -->
+        ... # Section Two
+        ... <!-- Section: Duplicate -->
+        ... '''
+        >>> validate_section_markers(bad_content)  # Raises DuplicateSectionError
+
+        Orphaned marker:
+        >>> bad_content = '''
+        ... <!-- Section: NoHeader -->
+        ... Content without header
+        ... '''
+        >>> validate_section_markers(bad_content)  # Raises OrphanedMarkerError
+
+        Empty section:
+        >>> content = '''
+        ... # Empty Section
+        ... <!-- Section: Empty Section -->
+        ... 
+        ... # Next Section
+        ... '''
+        >>> validate_section_markers(content)  # Valid - empty sections are allowed
     """
     logger.debug(LOG_SECTION_MARKER_VALIDATION)
 
@@ -830,20 +877,56 @@ def create_frontmatter(metadata: Dict[str, str]) -> str:
 
 
 def find_marker_positions(content: str, marker_pattern: str) -> list[tuple[int, int]]:
-    """Find the start and end positions of all markers matching a pattern.
+    """Find the start and end positions of all section markers matching a pattern.
+
+    Uses regex pattern matching to locate section markers in the content. The pattern
+    should capture the entire marker including delimiters.
 
     Args:
-        content: The content to search through
-        marker_pattern: Regular expression pattern to match markers
+        content: The document content to search through
+        marker_pattern: Regular expression pattern to match markers. Should handle:
+            - HTML-style comment delimiters <!-- -->
+            - Section identifier and title
+            - Optional whitespace
+            - Multiline content
 
     Returns:
-        List of tuples containing (start_position, end_position) for each marker found
+        List of tuples containing (start_position, end_position) for each marker found.
+        Empty list if no markers are found.
 
-    Example:
+    Examples:
+        Basic marker:
         >>> content = "Some text <!-- Section: Intro --> more text"
         >>> positions = find_marker_positions(content, r"<!-- Section: .* -->")
         >>> positions
         [(10, 32)]  # Start and end positions of the marker
+
+        Multiple markers:
+        >>> content = '''
+        ... <!-- Section: First -->
+        ... Content
+        ... <!-- Section: Second -->
+        ... '''
+        >>> positions = find_marker_positions(content, r"<!-- Section: .* -->")
+        >>> positions
+        [(1, 22), (31, 53)]
+
+        Malformed markers (won't match):
+        >>> content = '''
+        ... <!- Missing dash Section: Bad -->
+        ... <!--Section:NoSpace-->
+        ... <!-- Section: Valid -->
+        ... '''
+        >>> positions = find_marker_positions(content, r"<!-- Section: .* -->")
+        >>> positions
+        [(57, 77)]  # Only finds the valid marker
+
+    Notes:
+        - The pattern should be anchored to match entire markers to avoid partial matches
+        - Whitespace in the marker title is preserved
+        - The search is case-sensitive
+        - Returns positions that can be used for slicing: content[start:end]
+        - Uses re.finditer() for memory-efficient iteration over matches
     """
     matches = re.finditer(marker_pattern, content)
     return [(match.start(), match.end()) for match in matches]
