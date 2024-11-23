@@ -195,68 +195,6 @@ def validate_links(content: str, md: MarkdownIt) -> List[ValidationError]:
 
     return errors
 
-def validate_tables(content: str) -> List[ValidationError]:
-    """Validate table syntax and structure."""
-    errors = []
-    lines = content.split('\n')
-    
-    for i, line in enumerate(lines):
-        # Detect potential table header
-        if line.startswith('|') and line.endswith('|'):
-            header_cols = len([cell for cell in line.split('|')[1:-1] if cell])
-            if i + 1 >= len(lines):
-                continue
-            
-            # Check for alignment row
-            align_row = lines[i + 1]  # Keep the alignment row intact
-            if not align_row.startswith('|') or not align_row.endswith('|'):
-                errors.append(ValidationError(
-                    line_number=i + 2,
-                    error_type="Table Format",
-                    message="Missing alignment row",
-                    suggestion="Add a valid alignment row (e.g., | --- | format)"
-                ))
-                continue
-            
-            # Validate alignment row syntax
-            align_cells = [cell.strip() for cell in align_row.split('|')[1:-1]]
-            if len(align_cells) != header_cols:
-                errors.append(ValidationError(
-                    line_number=i + 2,
-                    error_type="Table Format",
-                    message=f"Alignment row has {len(align_cells)} columns, expected {header_cols}",
-                    suggestion="Ensure alignment row matches header columns"
-                ))
-                continue
-            
-            # Updated regex to allow flexible alignment formats
-            if not all(re.match(r'^-+(:?-+:?)?$', cell) for cell in align_cells):
-                errors.append(ValidationError(
-                    line_number=i + 2,
-                    error_type="Table Format",
-                    message="Invalid alignment row format",
-                    suggestion="Ensure alignment row uses | --- |, | :--- |, | ---: |, or | :---: | format"
-                ))
-                continue
-            
-            # Validate table body rows
-            for j, body_row in enumerate(lines[i + 2:], start=i + 3):
-                if not body_row.startswith('|') or not body_row.endswith('|'):
-                    break  # Stop if a non-table row is encountered
-                
-                body_cols = len([cell for cell in body_row.split('|')[1:-1] if cell])
-                if body_cols != header_cols:
-                    errors.append(ValidationError(
-                        line_number=j,
-                        error_type="Table Row Structure",
-                        message=f"Table row at line {j} has {body_cols} columns, expected {header_cols}",
-                        suggestion="Ensure all rows have consistent column counts"
-                    ))
-                    continue  # Keep validating other rows
-            
-    return errors
-
-
 def validate_code_blocks(content: str) -> List[ValidationError]:
     """Validate code block syntax."""
     errors = []
@@ -345,3 +283,137 @@ def get_error_line(content: str, error_message: str) -> int:
 
     # If we can't determine the specific line, return line 1
     return 1
+
+
+import re
+from typing import List
+import logging
+
+# Configure logging for debugging
+logging.basicConfig(level=logging.DEBUG, format='%(message)s')
+logger = logging.getLogger(__name__)
+
+class ValidationError:
+    def __init__(self, line_number: int, error_type: str, message: str, suggestion: str):
+        self.line_number = line_number
+        self.error_type = error_type
+        self.message = message
+        self.suggestion = suggestion
+
+    def __repr__(self):
+        return (f"ValidationError(line_number={self.line_number}, error_type='{self.error_type}', "
+                f"message='{self.message}', suggestion='{self.suggestion}')")
+
+def validate_tables(content: str, debug: bool = False) -> List[ValidationError]:
+    """Validate table syntax and structure in Markdown."""
+    errors = []
+    lines = content.split('\n')
+
+    # Define potential regex patterns for alignment rows
+    alignment_regexes = [
+        r'^\s*-+:?-*\s*$',       # Matches --- | :--- | ---: | :---:
+        r'^\s*-+\s*$',           # Matches --- (no colons)
+        r'^\s*:?-+\s*:?\s*$',    # Matches :---, ---:, or :---:
+    ]
+
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        if line.startswith('|') and line.endswith('|'):
+            if debug:
+                logger.debug(f"Detected table header at line {i + 1}: {line}")
+
+            # Detect table header columns
+            header_cells = [cell.strip() for cell in line.split('|')[1:-1]]
+            header_cols = len(header_cells)
+            if debug:
+                logger.debug(f"Header has {header_cols} columns: {header_cells}")
+
+            # Check if the next line exists for alignment
+            if i + 1 >= len(lines):
+                if debug:
+                    logger.debug(f"No alignment row found after header at line {i + 1}")
+                i += 1
+                continue
+
+            align_row = lines[i + 1].strip()
+            if not (align_row.startswith('|') and align_row.endswith('|')):
+                errors.append(ValidationError(
+                    line_number=i + 2,
+                    error_type="Table Format",
+                    message="Missing alignment row",
+                    suggestion="Add a valid alignment row (e.g., | --- | format)"
+                ))
+                if debug:
+                    logger.debug(f"Missing alignment row at line {i + 2}")
+                i += 1
+                continue
+
+            # Validate alignment row columns
+            align_cells = [cell.strip() for cell in align_row.split('|')[1:-1]]
+            align_cols = len(align_cells)
+            if align_cols != header_cols:
+                errors.append(ValidationError(
+                    line_number=i + 2,
+                    error_type="Table Format",
+                    message=f"Alignment row has {align_cols} columns, expected {header_cols}",
+                    suggestion="Ensure alignment row matches header columns"
+                ))
+                if debug:
+                    logger.debug(f"Alignment row column count mismatch at line {i + 2}: {align_cols} vs {header_cols}")
+                i += 2
+                continue
+
+            # Test each regex pattern
+            match_found = False
+            for regex in alignment_regexes:
+                all_matches = all(re.match(regex, cell) for cell in align_cells)
+                if debug:
+                    logger.debug(f"Testing regex: {regex} | Matches: {all_matches}")
+                if all_matches:
+                    match_found = True
+                    if debug:
+                        logger.debug(f"Alignment row validated with regex: {regex} at line {i + 2}")
+                    break  # Stop testing further regexes
+
+            # Flag alignment row as invalid if no regex matched
+            if not match_found:
+                errors.append(ValidationError(
+                    line_number=i + 2,
+                    error_type="Table Format",
+                    message="Invalid alignment row format",
+                    suggestion="Ensure alignment row uses | --- |, | :--- |, | ---: |, or | :---: | format"
+                ))
+                if debug:
+                    logger.debug(f"Invalid alignment row format at line {i + 2}: {align_row}")
+                i += 2
+                continue
+
+            # Validate table body rows
+            j = i + 2
+            while j < len(lines):
+                body_row = lines[j].strip()
+                if not (body_row.startswith('|') and body_row.endswith('|')):
+                    break  # Stop if it's not a table row
+
+                body_cells = [cell.strip() for cell in body_row.split('|')[1:-1]]
+                body_cols = len(body_cells)
+                if body_cols != header_cols:
+                    errors.append(ValidationError(
+                        line_number=j + 1,
+                        error_type="Table Row Structure",
+                        message=f"Table row has {body_cols} columns, expected {header_cols}",
+                        suggestion="Ensure all rows have consistent column counts"
+                    ))
+                    if debug:
+                        logger.debug(f"Table row column count mismatch at line {j + 1}: {body_cols} vs {header_cols}")
+                if debug:
+                    logger.debug(f"Valid table row at line {j + 1}: {body_cells}")
+                j += 1
+
+            # Move the outer loop index to the line after the table
+            i = j
+        else:
+            i += 1
+
+    return errors
