@@ -233,9 +233,12 @@ ERROR_PATH_TOO_LONG: Final = (
 
 # Section marker patterns
 SECTION_MARKER_TEMPLATE: Final = "<!-- Section: {section_title} -->"
-SECTION_MARKER_PATTERN: Final = r"<!--\s*(?:Section|SECTION):\s*(.+?)\s*-->"
-HEADER_PATTERN: Final = r"^(#{1,6})\s+(.+?)$"
-NEXT_HEADER_PATTERN: Final = r"^#{1,6}\s+.*$"
+PATTERN_SECTION_MARKER: Final = r"<!--\s*(?:Section|SECTION):\s*(.+?)\s*-->"
+PATTERN_HEADER: Final = r"^(#{1,6})\s+(.+?)$"
+PATTERN_HEADER_WITH_NEWLINE: Final = r"^(#{1,6}\s+.+\n)"
+PATTERN_NEXT_HEADER: Final = r"^#{1,6}\s+.*$"
+PATTERN_UNTIL_NEXT_HEADER: Final = r"^#{1,6}\s"
+PATTERN_NEWLINE: Final = r"\n"
 
 # Error messages for section operations
 ERROR_SECTION_MARKER_NOT_FOUND: Final = "Section '{section_title}' marker not found"
@@ -297,8 +300,8 @@ HEADER_LEVEL_RANGE: Final = range(1, 7)  # Valid header levels (1-6)
 SECTION_CONTENT_SPACING: Final = "\n\n"  # Spacing between sections
 
 # Regular expression patterns
-HEADER_PATTERN_MULTILINE: Final = re.compile(HEADER_PATTERN, re.MULTILINE)
-MARKER_PATTERN_MULTILINE: Final = re.compile(SECTION_MARKER_PATTERN)
+HEADER_PATTERN_MULTILINE: Final = re.compile(PATTERN_HEADER, re.MULTILINE)
+MARKER_PATTERN_MULTILINE: Final = re.compile(PATTERN_SECTION_MARKER)
 YAML_CONTENT_PATTERN: Final = r"^---\n.*?\n---\n"  # For finding YAML frontmatter
 
 # Additional logging messages
@@ -532,3 +535,27 @@ LOG_ERROR_APPENDING_SECTION: Final = "Error appending section: %s - %s"
 # Error messages for file operations
 ERROR_PERMISSION_DENIED_WRITE: Final = "Permission denied when writing to {file_path}"
 ERROR_FAILED_APPEND_SECTION: Final = "Failed to append section: {error}"
+
+# Section content format
+SECTION_CONTENT_FORMAT: Final = "{spacing}{header_prefix} {section_title}\n{section_marker}\n{content}\n"
+
+# Regular expression pattern for section markers
+SECTION_MARKER_REGEX: Final = r"<!-- Section: .* -->"
+
+# Markdown header prefix for level 2
+HEADER_LEVEL_2_PREFIX: Final = "\n##"
+
+# Log messages for section operations
+LOG_SECTION_MARKER_NOT_FOUND: Final = "Section marker not found: {section_title}"
+LOG_FOUND_SECTION_BOUNDARIES: Final = "Found section boundaries for '{section_title}': start={start}, end={end}"
+
+# Keys for section data
+SECTION_HEADER_KEY: Final = "header"
+SECTION_MARKER_KEY: Final = "marker"
+SECTION_CONTENT_KEY: Final = "section_content"
+
+# Log messages for file operations
+LOG_FILE_OPERATION_ERROR: Final = "File operation error: {error}"
+
+# Message for when no associated header is found
+NO_ASSOCIATED_HEADER: Final = "No associated header"
