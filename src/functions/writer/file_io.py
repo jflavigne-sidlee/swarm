@@ -8,83 +8,119 @@ from typing import Optional
 from uuid import uuid4
 from datetime import datetime
 import errno
+from .constants import (
+    ERROR_DIR_CREATION,
+    ERROR_PERMISSION_DENIED_DIR,
+    ERROR_PATH_NOT_EXIST,
+    ERROR_PERMISSION_DENIED_PATH,
+    ERROR_UNEXPECTED,
+    PATH_CREATION_MSG,
+    LOG_READING_FILE,
+    LOG_READ_SUCCESS,
+    LOG_ENCODING_ERROR,
+    ERROR_UNSUPPORTED_ENCODING,
+    LOG_NO_WRITE_PERMISSION,
+    LOG_ENCODING_WRITE_ERROR,
+    LOG_PERMISSION_DENIED_TEMP,
+    LOG_TEMP_WRITE_FAILED,
+    LOG_MOVING_FILE,
+    LOG_ATOMIC_WRITE_SUCCESS,
+    LOG_MOVE_PERMISSION_DENIED,
+    LOG_MOVE_FAILED,
+    LOG_TEMP_CLEANUP,
+    LOG_CLEANUP_FAILED,
+    LOG_WRITING_FILE,
+    LOG_WRITE_SUCCESS,
+    LOG_ATOMIC_WRITE_START,
+    LOG_TEMP_DIR_NOT_FOUND,
+    LOG_NO_TEMP_DIR_PERMISSION,
+    LOG_PARENT_DIR_PERMISSION,
+    LOG_PARENT_DIR_ERROR,
+    ERROR_FILE_WRITE,
+    ERROR_PATH_NO_READ,
+    ERROR_PATH_NO_WRITE,
+)
 
 logger = logging.getLogger(__name__)
 
+
 def ensure_directory_exists(directory: Path) -> None:
     """Ensure a directory exists, creating it if necessary.
-    
+
     Args:
         directory: Directory path to ensure exists
-        
+
     Raises:
         PermissionError: If directory can't be created due to permissions
         OSError: If directory creation fails for other reasons
     """
     try:
         directory.mkdir(parents=True, exist_ok=True)
-        logger.debug(f"Ensured directory exists: {directory}")
+        logger.debug(PATH_CREATION_MSG.format(path=directory))
     except PermissionError:
-        logger.error(f"Permission denied creating directory: {directory}")
+        logger.error(ERROR_PERMISSION_DENIED_DIR.format(path=directory))
         raise
     except OSError as e:
-        logger.error(f"Failed to create directory {directory}: {e}")
+        logger.error(ERROR_DIR_CREATION.format(error=e))
         raise
+
 
 def ensure_parent_exists(file_path: Path) -> None:
     """Ensure the parent directory of the file exists.
-    
+
     Args:
         file_path: Path to file whose parent directory should exist
-        
+
     Raises:
         PermissionError: If directory can't be created due to permissions
         OSError: If directory creation fails for other reasons
     """
     ensure_directory_exists(file_path.parent)
 
+
 def read_file(file_path: Path, encoding: str) -> str:
     """Read file content with strict content preservation.
-    
+
     Rules:
     - No content modification
     - No whitespace normalization
     - No newline manipulation
     - Return exact content as found in file
-    
+
     Raises:
         FileNotFoundError: If file doesn't exist
         PermissionError: If file can't be accessed
         UnicodeError: If file can't be decoded with specified encoding
     """
-    logger.info(f"Reading file: {file_path} with encoding: {encoding}")
+    logger.info(LOG_READING_FILE.format(path=file_path, encoding=encoding))
     try:
         with open(file_path, "r", encoding=encoding) as f:
             content = f.read()
-            logger.info(f"Successfully read {len(content)} characters from {file_path}")
+            logger.info(LOG_READ_SUCCESS.format(count=len(content), path=file_path))
             return content
     except FileNotFoundError:
-        logger.error(f"File not found: {file_path}")
+        logger.error(ERROR_PATH_NOT_EXIST.format(name="File", path=file_path))
         raise
     except PermissionError:
-        logger.error(f"Permission denied reading file: {file_path}")
+        logger.error(ERROR_PERMISSION_DENIED_PATH.format(path=file_path))
         raise
     except UnicodeError as e:
-        logger.error(f"Encoding error reading {file_path} with {encoding}: {e}")
+        logger.error(LOG_ENCODING_ERROR.format(path=file_path, encoding=encoding, error=e))
         raise
     except Exception as e:
-        logger.error(f"Unexpected error reading {file_path}: {e}")
+        logger.error(ERROR_UNEXPECTED.format(name="file read", error=e))
         raise
+
 
 def validate_encoding(encoding: str) -> bool:
     """Validate if an encoding is supported by Python.
-    
+
     Args:
         encoding: Encoding name to validate
-        
+
     Returns:
         bool: True if encoding is supported, False otherwise
-        
+
     Example:
         >>> validate_encoding('utf-8')
         True
@@ -95,24 +131,25 @@ def validate_encoding(encoding: str) -> bool:
         "test".encode(encoding)
         return True
     except LookupError:
-        logger.error(f"Unsupported encoding: {encoding}")
+        logger.error(ERROR_UNSUPPORTED_ENCODING.format(encoding=encoding))
         return False
+
 
 def write_file(file_path: Path, content: str, encoding: str) -> None:
     """Write content to file with strict content preservation.
-    
+
     Rules:
     - Write content exactly as provided
     - No content modification
     - No whitespace normalization
     - No newline manipulation
     - Creates parent directories if they don't exist
-    
+
     Args:
         file_path: Path to file to write
         content: Content to write
         encoding: File encoding to use
-        
+
     Raises:
         PermissionError: If file can't be written
         UnicodeError: If content can't be encoded with specified encoding
@@ -120,46 +157,47 @@ def write_file(file_path: Path, content: str, encoding: str) -> None:
         OSError: If directory creation fails
     """
     if not validate_encoding(encoding):
-        raise LookupError(f"Unsupported encoding: {encoding}")
-        
-    logger.info(f"Writing {len(content)} characters to file: {file_path}")
-    
+        raise LookupError(ERROR_UNSUPPORTED_ENCODING.format(encoding=encoding))
+
+    logger.info(LOG_WRITING_FILE.format(count=len(content), path=file_path))
+
     try:
         # Ensure parent directory exists
         ensure_parent_exists(file_path)
-        
+
         # Validate write permissions if file exists
         if file_path.exists():
             validate_path_permissions(file_path, require_write=True)
-            
+
         # Write the file
         with open(file_path, "w", encoding=encoding) as f:
             f.write(content)
-            logger.info(f"Successfully wrote to {file_path}")
-            
+            logger.info(LOG_WRITE_SUCCESS.format(path=file_path))
+
     except PermissionError:
-        logger.error(f"Permission denied writing to file: {file_path}")
+        logger.error(ERROR_PERMISSION_DENIED_PATH.format(path=file_path))
         raise
     except UnicodeError as e:
-        logger.error(f"Encoding error writing to {file_path} with {encoding}: {e}")
+        logger.error(LOG_ENCODING_ERROR.format(path=file_path, encoding=encoding, error=e))
         raise
     except OSError as e:
-        logger.error(f"Failed to write to {file_path}: {e}")
+        logger.error(ERROR_FILE_WRITE.format(error=e))
         raise
     except Exception as e:
-        logger.error(f"Unexpected error writing to {file_path}: {e}")
+        logger.error(ERROR_UNEXPECTED.format(name="file write", error=e))
         raise
+
 
 def generate_temp_filename(original_name: str) -> str:
     """Generate a unique temporary filename.
-    
+
     Uses both UUID and timestamp to ensure uniqueness:
     - UUID for process/thread uniqueness
     - Timestamp for debugging/cleanup purposes
-    
+
     Args:
         original_name: Original filename
-        
+
     Returns:
         Unique temporary filename
     """
@@ -167,45 +205,47 @@ def generate_temp_filename(original_name: str) -> str:
     unique_id = str(uuid4())
     return f"temp_{timestamp}_{unique_id}_{original_name}"
 
+
 def validate_path_permissions(path: Path, require_write: bool = False) -> None:
     """Validate path permissions.
-    
+
     Args:
         path: Path to validate
         require_write: Whether write permission is required
-        
+
     Raises:
         FileNotFoundError: If path doesn't exist
         PermissionError: If required permissions are not available
     """
     if not path.exists():
-        logger.error(f"Path not found: {path}")
-        raise FileNotFoundError(f"Path not found: {path}")
-        
+        logger.error(ERROR_PATH_NOT_EXIST.format(name="Path", path=path))
+        raise FileNotFoundError(ERROR_PATH_NOT_EXIST.format(name="Path", path=path))
+
     if not os.access(path, os.R_OK):
-        logger.error(f"No read permission for path: {path}")
-        raise PermissionError(f"No read permission for path: {path}")
-        
+        logger.error(ERROR_PATH_NO_READ.format(name="Path", path=path))
+        raise PermissionError(ERROR_PATH_NO_READ.format(name="Path", path=path))
+
     if require_write and not os.access(path, os.W_OK):
-        logger.error(f"No write permission for path: {path}")
-        raise PermissionError(f"No write permission for path: {path}")
+        logger.error(ERROR_PATH_NO_WRITE.format(name="Path", path=path))
+        raise PermissionError(ERROR_PATH_NO_WRITE.format(name="Path", path=path))
+
 
 def atomic_write(file_path: Path, content: str, encoding: str, temp_dir: Path) -> None:
     """Write content atomically using a temporary file.
-    
+
     Rules:
     - Same content preservation rules as write_file
     - Uses temporary file with UUID for safety
     - Atomic replacement of target file
     - Creates parent directories if they don't exist
     - Handles cross-device moves
-    
+
     Args:
         file_path: Target file path
         content: Content to write
         encoding: File encoding to use
         temp_dir: Directory for temporary files (must exist and be writable)
-        
+
     Raises:
         FileNotFoundError: If temp_dir doesn't exist or can't create parent directory
         PermissionError: If temp_dir or target location can't be written
@@ -215,66 +255,63 @@ def atomic_write(file_path: Path, content: str, encoding: str, temp_dir: Path) -
     """
     temp_filename = generate_temp_filename(file_path.name)
     temp_file = temp_dir / temp_filename
-    
-    logger.info(
-        f"Starting atomic write to {file_path} "
-        f"using temp file: {temp_file}"
-    )
-    
+
+    logger.info(LOG_ATOMIC_WRITE_START.format(target=file_path, temp=temp_file))
+
     try:
         # Validate temp directory
         try:
             validate_path_permissions(temp_dir, require_write=True)
         except FileNotFoundError:
-            logger.error(f"Temporary directory not found: {temp_dir}")
+            logger.error(LOG_TEMP_DIR_NOT_FOUND.format(path=temp_dir))
             raise
         except PermissionError:
-            logger.error(f"No write permission for temporary directory: {temp_dir}")
+            logger.error(LOG_NO_TEMP_DIR_PERMISSION.format(path=temp_dir))
             raise
-            
+
         # Validate encoding
         if not validate_encoding(encoding):
-            logger.error(f"Unsupported encoding: {encoding}")
-            raise LookupError(f"Unsupported encoding: {encoding}")
-        
+            logger.error(ERROR_UNSUPPORTED_ENCODING.format(encoding=encoding))
+            raise LookupError(ERROR_UNSUPPORTED_ENCODING.format(encoding=encoding))
+
         # Ensure parent directory exists
         try:
             ensure_parent_exists(file_path)
         except PermissionError:
-            logger.error(f"No permission to create parent directory for: {file_path}")
+            logger.error(LOG_PARENT_DIR_PERMISSION.format(path=file_path))
             raise
         except OSError as e:
-            logger.error(f"Failed to create parent directory for {file_path}: {e}")
+            logger.error(LOG_PARENT_DIR_ERROR.format(path=file_path, error=e))
             raise
-            
+
         # Check target file permissions if it exists
         if file_path.exists():
             try:
                 validate_path_permissions(file_path, require_write=True)
             except PermissionError:
-                logger.error(f"No write permission for target file: {file_path}")
+                logger.error(LOG_NO_WRITE_PERMISSION.format(path=file_path))
                 raise
-                
+
         # Write to temporary file
         try:
             write_file(temp_file, content, encoding)
         except UnicodeError as e:
-            logger.error(f"Encoding error writing content with {encoding}: {e}")
+            logger.error(LOG_ENCODING_WRITE_ERROR.format(encoding=encoding, error=e))
             raise
         except PermissionError:
-            logger.error(f"Permission denied writing temporary file: {temp_file}")
+            logger.error(LOG_PERMISSION_DENIED_TEMP.format(path=temp_file))
             raise
         except OSError as e:
-            logger.error(f"Failed to write temporary file {temp_file}: {e}")
+            logger.error(LOG_TEMP_WRITE_FAILED.format(path=temp_file, error=e))
             raise
-            
+
         # Atomic move/replace
         try:
-            logger.debug(f"Moving {temp_file} to {file_path}")
+            logger.debug(LOG_MOVING_FILE.format(source=temp_file, target=file_path))
             shutil.move(str(temp_file), str(file_path))
-            logger.info(f"Successfully completed atomic write to {file_path}")
+            logger.info(LOG_ATOMIC_WRITE_SUCCESS.format(path=file_path))
         except PermissionError:
-            logger.error(f"Permission denied moving temp file to target: {file_path}")
+            logger.error(LOG_MOVE_PERMISSION_DENIED.format(path=file_path))
             raise
         except OSError as e:
             if e.errno == errno.EXDEV:  # Cross-device link error
@@ -282,17 +319,18 @@ def atomic_write(file_path: Path, content: str, encoding: str, temp_dir: Path) -
                 shutil.copy2(str(temp_file), str(file_path))
                 temp_file.unlink()
             else:
-                logger.error(f"Failed to move temp file to target {file_path}: {e}")
+                logger.error(LOG_MOVE_FAILED.format(path=file_path, error=e))
                 raise
-            
+
     except Exception as e:
         # Clean up temp file if something goes wrong
         if temp_file.exists():
             try:
                 temp_file.unlink()
-                logger.debug(f"Cleaned up temporary file: {temp_file}")
+                logger.debug(LOG_TEMP_CLEANUP.format(path=temp_file))
             except Exception as cleanup_error:
-                logger.warning(
-                    f"Failed to clean up temporary file {temp_file}: {cleanup_error}"
-                )
+                logger.warning(LOG_CLEANUP_FAILED.format(
+                    path=temp_file, 
+                    error=cleanup_error
+                ))
         raise

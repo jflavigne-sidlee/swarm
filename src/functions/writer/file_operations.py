@@ -136,7 +136,10 @@ def write_document(file_path: Path, metadata: Dict[str, str], encoding: str) -> 
         logger.debug(LOG_YAML_SERIALIZATION)
         yaml_content = yaml.dump(metadata, default_flow_style=False, sort_keys=False)
 
-        logger.debug(LOG_WRITING_FILE.format(path=file_path))
+        # Calculate total content length
+        content = YAML_FRONTMATTER_START + yaml_content + YAML_FRONTMATTER_END
+
+        logger.debug(LOG_WRITING_FILE.format(path=file_path, count=len(content)))
         with open(file_path, "w", encoding=encoding) as f:
             f.write(YAML_FRONTMATTER_START)
             f.write(yaml_content)
@@ -547,6 +550,7 @@ def find_section_boundaries(content: str, section_title: str) -> tuple[int, int]
 
     return section_start, section_end
 
+
 def find_section(content: str, section_title: str) -> Optional[re.Match]:
     """Find a section by title in the document content."""
     # First find the exact marker
@@ -556,7 +560,7 @@ def find_section(content: str, section_title: str) -> Optional[re.Match]:
         return None
 
     # Find the nearest header before the marker
-    content_before_marker = content[:marker_match.start()]
+    content_before_marker = content[: marker_match.start()]
     header_pattern = r"^(#{1,6}\s+.+\n)"  # Match Markdown headers with newline
     headers = list(re.finditer(header_pattern, content_before_marker, re.MULTILINE))
     if not headers:
@@ -564,15 +568,15 @@ def find_section(content: str, section_title: str) -> Optional[re.Match]:
 
     # Get the last header before the marker
     last_header = headers[-1]
-    header_text = content[last_header.start():last_header.end()]
+    header_text = content[last_header.start() : last_header.end()]
 
     # Find the content that follows the marker until the next header
-    content_after_marker = content[marker_match.end():]
+    content_after_marker = content[marker_match.end() :]
     next_header_match = re.search(r"^#{1,6}\s", content_after_marker, re.MULTILINE)
-    
+
     # If there's no next header, capture until the end
     if next_header_match:
-        section_content = content_after_marker[:next_header_match.start()]
+        section_content = content_after_marker[: next_header_match.start()]
     else:
         section_content = content_after_marker
 
@@ -587,7 +591,10 @@ def find_section(content: str, section_title: str) -> Optional[re.Match]:
         end=lambda: marker_match.end() + len(section_content),
     )
 
-def edit_section(file_name: str, section_title: str, new_content: str, config: WriterConfig):
+
+def edit_section(
+    file_name: str, section_title: str, new_content: str, config: WriterConfig
+):
     """Edit an existing section in the document."""
     file_path = config.drafts_dir / file_name
 
@@ -598,13 +605,13 @@ def edit_section(file_name: str, section_title: str, new_content: str, config: W
         section_match = find_section(content, section_title)
         if not section_match:
             logger.error(LOG_SECTION_NOT_FOUND.format(section_title=section_title))
-            raise WriterError(ERROR_SECTION_NOT_FOUND.format(section_title=section_title))
+            raise WriterError(
+                ERROR_SECTION_NOT_FOUND.format(section_title=section_title)
+            )
 
         # Create replacement preserving exact content
         replacement = (
-            section_match.group('header')
-            + section_match.group('marker')
-            + new_content
+            section_match.group("header") + section_match.group("marker") + new_content
         )
 
         updated_content = (
@@ -617,11 +624,14 @@ def edit_section(file_name: str, section_title: str, new_content: str, config: W
         validate_section_markers(updated_content)
 
         # Write using atomic operation
-        atomic_write(file_path, updated_content, config.default_encoding, config.temp_dir)
+        atomic_write(
+            file_path, updated_content, config.default_encoding, config.temp_dir
+        )
 
     except (OSError, IOError) as e:
         logger.error("File operation error: %s", str(e))
         raise WriterError(str(e)) from e
+
 
 def extract_section_titles(content: str) -> list[str]:
     """Extract all section titles from the content.

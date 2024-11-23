@@ -262,7 +262,7 @@ LOG_VALIDATE_FILENAME: Final = "Invalid filename rejected: %s"
 LOG_ADDED_EXTENSION: Final = "Added .md extension: %s"
 LOG_PATH_TOO_LONG: Final = "Path too long: {path}"
 LOG_YAML_SERIALIZATION: Final = "Serializing metadata to YAML"
-LOG_WRITING_FILE: Final = "Writing content to file: {path}"
+LOG_WRITING_FILE: Final = "Writing {count} characters to file: {path}"
 LOG_CREATING_DIRECTORY: Final = "Creating directory: {path}"
 LOG_DIR_CREATION_ERROR: Final = "Directory creation error: {path} - {error}"
 
@@ -347,3 +347,31 @@ LOG_UNEXPECTED_ERROR: Final = "Unexpected error: %s (%s)"
 
 # Error messages for section operations
 ERROR_SECTION_NOT_FOUND: Final = "Section '{section_title}' not found in document"
+
+# File I/O log messages
+LOG_READING_FILE: Final = "Reading file: {path} with encoding: {encoding}"
+LOG_READ_SUCCESS: Final = "Successfully read {count} characters from {path}"
+LOG_ENCODING_ERROR: Final = "Encoding error reading {path} with {encoding}: {error}"
+
+ERROR_UNSUPPORTED_ENCODING: Final = "Unsupported encoding: {encoding}"
+
+# File operation log messages
+LOG_NO_WRITE_PERMISSION: Final = "No write permission for target file: {path}"
+LOG_ENCODING_WRITE_ERROR: Final = "Encoding error writing content with {encoding}: {error}"
+LOG_PERMISSION_DENIED_TEMP: Final = "Permission denied writing temporary file: {path}"
+LOG_TEMP_WRITE_FAILED: Final = "Failed to write temporary file {path}: {error}"
+LOG_MOVING_FILE: Final = "Moving {source} to {target}"
+LOG_ATOMIC_WRITE_SUCCESS: Final = "Successfully completed atomic write to {path}"
+LOG_MOVE_PERMISSION_DENIED: Final = "Permission denied moving temp file to target: {path}"
+LOG_MOVE_FAILED: Final = "Failed to move temp file to target {path}: {error}"
+LOG_TEMP_CLEANUP: Final = "Cleaned up temporary file: {path}"
+LOG_CLEANUP_FAILED: Final = "Failed to clean up temporary file {path}: {error}"
+
+# File operation log messages
+LOG_WRITING_FILE: Final = "Writing {count} characters to file: {path}"
+LOG_WRITE_SUCCESS: Final = "Successfully wrote to {path}"
+LOG_ATOMIC_WRITE_START: Final = "Starting atomic write to {target} using temp file: {temp}"
+LOG_TEMP_DIR_NOT_FOUND: Final = "Temporary directory not found: {path}"
+LOG_NO_TEMP_DIR_PERMISSION: Final = "No write permission for temporary directory: {path}"
+LOG_PARENT_DIR_PERMISSION: Final = "No permission to create parent directory for: {path}"
+LOG_PARENT_DIR_ERROR: Final = "Failed to create parent directory for {path}: {error}"
