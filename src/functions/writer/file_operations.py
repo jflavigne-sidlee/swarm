@@ -95,6 +95,13 @@ from .constants import (
     FILE_MODE_READ,
     FILE_MODE_WRITE,
     FILE_MODE_APPEND,
+    LOG_SECTION_INSERT_SUCCESS,
+    LOG_SECTION_APPEND_SUCCESS,
+    LOG_PERMISSION_DENIED_APPEND,
+    LOG_ERROR_APPENDING_SECTION,
+    ERROR_PERMISSION_DENIED_WRITE,
+    ERROR_FAILED_APPEND_SECTION,
+    LOG_ERROR_APPENDING_SECTION,
 )
 from .file_io import read_file, write_file, atomic_write
 
@@ -415,7 +422,7 @@ def append_section(
                 f.write(updated_content)
 
             logger.info(
-                "Successfully inserted section '%s' after '%s' in %s",
+                LOG_SECTION_INSERT_SUCCESS,
                 section_title,
                 insert_after,
                 file_path,
@@ -428,19 +435,24 @@ def append_section(
                 f.write(new_section)
 
             logger.info(
-                "Successfully appended section '%s' to %s", section_title, file_path
+                LOG_SECTION_APPEND_SUCCESS, section_title, file_path
             )
 
         except PermissionError:
-            logger.error("Permission denied appending to file: %s", file_path)
-            raise WriterError(f"Permission denied when writing to {file_path}")
+            logger.error(LOG_PERMISSION_DENIED_APPEND, file_path)
+            raise WriterError(ERROR_PERMISSION_DENIED_WRITE.format(file_path=file_path))
+
+        except Exception as e:
+            logger.error(LOG_ERROR_APPENDING_SECTION, file_path, str(e))
+            if isinstance(e, WriterError):
+                raise
+            raise WriterError(ERROR_FAILED_APPEND_SECTION.format(error=str(e)))
 
     except Exception as e:
-        logger.error("Error appending section: %s - %s", file_path, str(e))
+        logger.error(LOG_ERROR_APPENDING_SECTION, file_path, str(e))
         if isinstance(e, WriterError):
             raise
-        raise WriterError(f"Failed to append section: {str(e)}")
-
+        raise WriterError(ERROR_FAILED_APPEND_SECTION.format(error=str(e)))
 
 def append_to_existing_section(
     file_path: Path,

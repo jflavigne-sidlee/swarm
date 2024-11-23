@@ -522,3 +522,13 @@ FILE_MODE_APPEND: Final = "a"
 FILE_MODE_READ_BINARY: Final = "rb"
 FILE_MODE_WRITE_BINARY: Final = "wb"
 FILE_MODE_APPEND_BINARY: Final = "ab"
+
+# Log messages for section operations
+LOG_SECTION_INSERT_SUCCESS: Final = "Successfully inserted section '%s' after '%s' in %s"
+LOG_SECTION_APPEND_SUCCESS: Final = "Successfully appended section '%s' to %s"
+LOG_PERMISSION_DENIED_APPEND: Final = "Permission denied appending to file: %s"
+LOG_ERROR_APPENDING_SECTION: Final = "Error appending section: %s - %s"
+
+# Error messages for file operations
+ERROR_PERMISSION_DENIED_WRITE: Final = "Permission denied when writing to {file_path}"
+ERROR_FAILED_APPEND_SECTION: Final = "Failed to append section: {error}"
