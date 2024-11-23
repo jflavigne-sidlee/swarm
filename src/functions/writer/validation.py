@@ -330,3 +330,37 @@ def get_yaml_error_line(error: yaml.YAMLError) -> int:
     if hasattr(error, 'problem_mark'):
         return error.problem_mark.line + 1
     return 1
+
+def get_error_line(content: str, error_message: str) -> int:
+    """Extract line number from content based on error message context.
+    
+    Args:
+        content: The full document content
+        error_message: The error message that may contain context
+        
+    Returns:
+        int: Best guess at the line number where the error occurred
+        
+    Example:
+        >>> content = "line1\\nline2\\n<!-- Section: Test -->\\nline4"
+        >>> msg = "Invalid section marker: Test"
+        >>> get_error_line(content, msg)
+        3  # Returns the line number where "Test" appears
+    """
+    # Try to extract any quoted text from error message
+    quoted_text = re.findall(r'"([^"]*)"', error_message)
+    
+    # If we found quoted text, try to find it in the content
+    for text in quoted_text:
+        pos = content.find(text)
+        if pos != -1:
+            return get_line_number(content, pos)
+    
+    # If no quoted text or text not found, try to find any section marker reference
+    if "section" in error_message.lower():
+        marker_match = re.search(PATTERN_SECTION_MARKER, content)
+        if marker_match:
+            return get_line_number(content, marker_match.start())
+    
+    # If we can't determine the specific line, return line 1
+    return 1
