@@ -306,7 +306,7 @@ YAML_CONTENT_PATTERN: Final = r"^---\n.*?\n---\n"  # For finding YAML frontmatte
 
 # Additional logging messages
 LOG_VALIDATE_FILENAME: Final = "Invalid filename rejected: {filename}"
-LOG_ADDED_EXTENSION: Final = "Added .md extension: %s"
+LOG_ADDED_EXTENSION: Final = "Added .md extension: {filename}"
 LOG_PATH_TOO_LONG: Final = "Path too long: {path}"
 LOG_YAML_SERIALIZATION: Final = "Serializing metadata to YAML"
 LOG_WRITING_FILE: Final = "Writing {count} characters to file: {path}"

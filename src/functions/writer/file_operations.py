@@ -133,7 +133,7 @@ def validate_filename(file_name: str, config: WriterConfig) -> Path:
     # Ensure .md extension
     if not file_name.endswith(MD_EXTENSION):
         file_name += MD_EXTENSION
-        logger.debug(LOG_ADDED_EXTENSION, file_name)
+        logger.debug(LOG_ADDED_EXTENSION.format(filename=file_name))
 
     # Check path length
     full_path = config.drafts_dir / file_name
