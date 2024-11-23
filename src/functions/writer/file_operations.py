@@ -116,7 +116,7 @@ from .constants import (
     LOG_FILE_OPERATION_ERROR,
     NO_ASSOCIATED_HEADER,
 )
-from .file_io import read_file, write_file, atomic_write
+from .file_io import read_file, write_file, atomic_write, validate_path_permissions
 
 # Set up module logger
 logger = logging.getLogger(__name__)
@@ -326,24 +326,10 @@ def append_section(
     # Validate filename and get full path
     file_path = validate_filename(file_name, config)
 
-    # Validate file exists and is readable
-    try:
-        if not file_path.exists():
-            logger.error(LOG_FILE_NOT_FOUND, file_path)
-            raise WriterError(ERROR_DOCUMENT_NOT_EXIST.format(file_path=file_path))
-
-        # Verify file is a Markdown file
-        if not file_path.suffix.lower() == MD_EXTENSION:
-            logger.error(LOG_INVALID_FILE_FORMAT, file_path)
-            raise WriterError(ERROR_INVALID_MARKDOWN_FILE.format(file_path=file_path))
-
-    except (OSError, PermissionError) as e:
-        logger.error(LOG_PERMISSION_ERROR_CHECKING_FILE, file_path, str(e))
-        raise WriterError(ERROR_PERMISSION_DENIED_ACCESS.format(file_path=file_path))
+    # Validate file exists and is readable/writable
+    validate_file(file_path, require_write=True)
 
     # Create section marker
-    # section_marker = f"<!-- Section: {section_title} -->"
-    # Create section marker using the constant
     section_marker = INSERT_AFTER_MARKER.format(insert_after=section_title)
 
     try:
@@ -738,3 +724,22 @@ def extract_section_markers(content: str) -> dict[str, str]:
         markers[marker_title] = nearest_header or NO_ASSOCIATED_HEADER
 
     return markers
+
+
+def validate_file(file_path: Path, require_write: bool = False) -> None:
+    """Validate that the file exists, has the correct format, and meets permission requirements."""
+    try:
+        # Check if file exists and has correct permissions
+        validate_path_permissions(file_path, require_write=require_write)
+        
+        # Verify file extension
+        if file_path.suffix.lower() != MD_EXTENSION:
+            logger.error(LOG_INVALID_FILE_FORMAT.format(path=file_path))
+            raise WriterError(ERROR_INVALID_MARKDOWN_FILE.format(path=file_path))
+
+    except FileNotFoundError:
+        logger.error(LOG_FILE_NOT_FOUND.format(path=file_path))
+        raise WriterError(ERROR_DOCUMENT_NOT_EXIST.format(file_path=file_path))
+    except PermissionError:
+        logger.error(LOG_PERMISSION_ERROR.format(path=file_path))
+        raise WriterError(ERROR_PERMISSION_DENIED_FILE.format(path=file_path))
