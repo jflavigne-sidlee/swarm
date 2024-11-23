@@ -57,11 +57,11 @@ def read_file(file_path: Path, encoding: str) -> str:
         PermissionError: If file can't be accessed
         UnicodeError: If file can't be decoded with specified encoding
     """
-    logger.debug(f"Reading file: {file_path} with encoding: {encoding}")
+    logger.info(f"Reading file: {file_path} with encoding: {encoding}")
     try:
         with open(file_path, "r", encoding=encoding) as f:
             content = f.read()
-            logger.debug(f"Successfully read {len(content)} characters from {file_path}")
+            logger.info(f"Successfully read {len(content)} characters from {file_path}")
             return content
     except FileNotFoundError:
         logger.error(f"File not found: {file_path}")
@@ -122,7 +122,7 @@ def write_file(file_path: Path, content: str, encoding: str) -> None:
     if not validate_encoding(encoding):
         raise LookupError(f"Unsupported encoding: {encoding}")
         
-    logger.debug(f"Writing {len(content)} characters to file: {file_path}")
+    logger.info(f"Writing {len(content)} characters to file: {file_path}")
     
     try:
         # Ensure parent directory exists
@@ -135,7 +135,7 @@ def write_file(file_path: Path, content: str, encoding: str) -> None:
         # Write the file
         with open(file_path, "w", encoding=encoding) as f:
             f.write(content)
-            logger.debug(f"Successfully wrote to {file_path}")
+            logger.info(f"Successfully wrote to {file_path}")
             
     except PermissionError:
         logger.error(f"Permission denied writing to file: {file_path}")
@@ -215,7 +215,7 @@ def atomic_write(file_path: Path, content: str, encoding: str, temp_dir: Path) -
     temp_filename = generate_temp_filename(file_path.name)
     temp_file = temp_dir / temp_filename
     
-    logger.debug(
+    logger.info(
         f"Starting atomic write to {file_path} "
         f"using temp file: {temp_file}"
     )
@@ -237,7 +237,7 @@ def atomic_write(file_path: Path, content: str, encoding: str, temp_dir: Path) -
         # Atomic move/replace
         logger.debug(f"Moving {temp_file} to {file_path}")
         shutil.move(str(temp_file), str(file_path))
-        logger.debug(f"Successfully completed atomic write to {file_path}")
+        logger.info(f"Successfully completed atomic write to {file_path}")
         
     except Exception as e:
         logger.error(f"Error during atomic write to {file_path}: {e}")
