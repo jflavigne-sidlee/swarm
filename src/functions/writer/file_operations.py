@@ -486,7 +486,30 @@ def append_to_existing_section(
 
 
 def validate_section_markers(content: str) -> None:
-    """Validate section markers in the document."""
+    """Validate all section markers in a document.
+
+    Performs several validation checks:
+    1. No duplicate section markers
+    2. Each header has a matching marker immediately following it
+    3. Each marker matches its header's title exactly
+    4. No orphaned markers (markers without corresponding headers)
+
+    Args:
+        content: The document content to validate
+
+    Raises:
+        WriterError: If any validation check fails, with specific error messages for:
+            - Duplicate section markers
+            - Missing section markers after headers
+            - Mismatched section marker titles
+            - Orphaned section markers
+
+    Example:
+        >>> content = "# Introduction\\n<!-- Section: Introduction -->\\nContent"
+        >>> validate_section_markers(content)  # No error raised
+        >>> bad_content = "# Intro\\n<!-- Section: Different -->\\nContent"
+        >>> validate_section_markers(bad_content)  # Raises WriterError
+    """
     logger.debug(LOG_SECTION_MARKER_VALIDATION)
 
     # Extract headers and markers using utility function
@@ -780,11 +803,17 @@ def find_marker_positions(content: str, marker_pattern: str) -> list[tuple[int, 
     """Find the start and end positions of all markers matching a pattern.
 
     Args:
-        content: The content to search
-        marker_pattern: Regular expression pattern for the marker
+        content: The content to search through
+        marker_pattern: Regular expression pattern to match markers
 
     Returns:
-        List of tuples containing (start, end) positions for each marker found
+        List of tuples containing (start_position, end_position) for each marker found
+
+    Example:
+        >>> content = "Some text <!-- Section: Intro --> more text"
+        >>> positions = find_marker_positions(content, r"<!-- Section: .* -->")
+        >>> positions
+        [(10, 32)]  # Start and end positions of the marker
     """
     matches = re.finditer(marker_pattern, content)
     return [(match.start(), match.end()) for match in matches]
@@ -794,11 +823,17 @@ def get_section_marker_position(content: str, section_title: str) -> tuple[int, 
     """Find the start and end positions of a specific section marker.
 
     Args:
-        content: The content to search
-        section_title: Title of the section to find
+        content: The document content to search through
+        section_title: The title of the section to find
 
     Returns:
-        Tuple of (start, end) positions, (-1, -1) if not found
+        Tuple of (start_position, end_position), or (-1, -1) if marker not found
+
+    Example:
+        >>> content = "# Intro\\n<!-- Section: Intro -->\\nContent"
+        >>> start, end = get_section_marker_position(content, "Intro")
+        >>> content[start:end]
+        '<!-- Section: Intro -->'
     """
     section_marker = SECTION_MARKER_TEMPLATE.format(section_title=section_title)
     start = content.find(section_marker)
