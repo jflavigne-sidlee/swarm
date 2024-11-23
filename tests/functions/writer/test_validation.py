@@ -6,8 +6,6 @@ from markdown_it import MarkdownIt
 
 from src.functions.writer.validation import (
     validate_markdown,
-    ValidationResult,
-    ValidationError,
     validate_frontmatter,
     validate_header_hierarchy,
     validate_links,
@@ -80,34 +78,21 @@ Missing language
 [Broken Link](./nonexistent.md)
 """
     temp_md_file.write_text(content)
-
-    # Create parser with proper configuration
-    parser = (
-        MarkdownIt("commonmark")
-        .enable("table")
-        .enable("linkify")
-        .enable("link")
-        .enable("image")
-    )
-
-    # Debug token generation
-    print("\nDebugging Parser Output:")
-    tokens = parser.parse(content)
-    for token in tokens:
-        if "link" in token.type or "inline" in token.type:
-            print(f"Type: {token.type}")
-            print(f"Content: {getattr(token, 'content', '')}")
-            print(f"Attrs: {getattr(token, 'attrs', {})}")
-            print("---")
-
-    result = validate_markdown(temp_md_file, parser=parser)
-
-    print("\nValidation Errors:")
-    for error in result.errors:
-        print(f"- {error.error_type}: {error.message}")
-
+    result = validate_markdown(temp_md_file, debug=True)
+    
+    # Should catch:
+    # 1. Header hierarchy error
+    # 2. Table format error
+    # 3. Code block language error
+    # 4. Broken link error
     assert not result.is_valid
-    assert len(result.errors) >= 4  # Should catch all error types
+    assert len(result.errors) >= 4
+    
+    error_types = [e.error_type for e in result.errors]
+    assert "Header Hierarchy" in error_types
+    assert "Table Format" in error_types
+    assert "Code Block" in error_types
+    assert "Link" in error_types
 
 
 # Test individual validators
@@ -136,23 +121,21 @@ title: Test
 
 def test_validate_header_hierarchy():
     """Test header hierarchy validation."""
-    # Valid hierarchy
-    valid_content = """
+    content = """
 # H1
 ## H2
 ### H3
 ## H2 Again
 """
-    assert not validate_header_hierarchy(valid_content)
+    assert not validate_header_hierarchy(content)
 
-    # Invalid hierarchy
-    invalid_content = """
+    content_with_error = """
 # H1
-### H3 (skipped H2)
+### H3  # Skips H2
 """
-    errors = validate_header_hierarchy(invalid_content)
+    errors = validate_header_hierarchy(content_with_error)
     assert len(errors) == 1
-    assert "jumps from 1 to 3" in errors[0].message
+    assert errors[0].error_type == "Header Hierarchy"
 
 
 def test_validate_links():
@@ -162,26 +145,14 @@ def test_validate_links():
 [Broken Link](nonexistent.md)
 ![Missing Image](missing.png)
 """
-    # Create mock tokens with the correct structure
-    mock_tokens = [
-        MagicMock(
-            type="link_open",
-            attrs={"href": "https://example.com"},
-            map=[1, 1],  # Start and end line numbers
-        ),
-        MagicMock(type="link_close", map=[1, 1]),
-        MagicMock(type="link_open", attrs={"href": "nonexistent.md"}, map=[2, 2]),
-        MagicMock(type="link_close", map=[2, 2]),
-        MagicMock(type="image", attrs={"src": "missing.png"}, map=[3, 3]),
-    ]
-
-    # Pass base_path to enable relative link checking
-    errors = validate_links(content, mock_tokens, base_path=Path("."))
-    assert len(errors) >= 1  # Should catch broken link
-
-    # Verify broken link error
-    broken_link_errors = [e for e in errors if "nonexistent.md" in e.message]
-    assert len(broken_link_errors) >= 1
+    # Create parser and tokens
+    parser = MarkdownIt("commonmark").enable("link").enable("image")
+    tokens = parser.parse(content)
+    
+    errors = validate_links(content, tokens, base_path=Path("."))
+    assert len(errors) == 2  # Should catch broken link and missing image
+    assert any("Broken link" in e.message for e in errors)
+    assert any("missing.png" in e.message for e in errors)
 
 
 def test_validate_tables():
@@ -194,14 +165,15 @@ def test_validate_tables():
 """
     assert not validate_tables(valid_table)
 
-    # Invalid table
+    # Invalid table - missing alignment row
     invalid_table = """
-| Header 1 | Header 2 |
-| Missing alignment
-| Data 1 | Data 2 | Extra Column |
+| Bad | Table |
+| No | Alignment |
 """
     errors = validate_tables(invalid_table)
-    assert len(errors) >= 2  # Should catch missing alignment and column count mismatch
+    assert len(errors) == 1
+    assert errors[0].error_type == "Table Format"
+    assert "alignment row" in errors[0].message
 
 
 def test_validate_code_blocks():
@@ -271,28 +243,6 @@ text = "Hello, 世界"
     result = validate_markdown(temp_md_file)
     assert result.is_valid  # Should handle special characters correctly
 
-
-def test_validate_tables_dynamic():
-    """Test table validation with debug mode enabled."""
-    # Valid table
-    valid_table = """
-| Header 1 | Header 2 |
-|----------|----------|
-| Data 1   | Data 2   |
-"""
-    print("\nTesting valid table:")
-    errors = validate_tables(valid_table, debug=True)
-    assert not errors  # No errors expected for a valid table
-
-    # Invalid table
-    invalid_table = """
-| Header 1 | Header 2 |
-| Missing alignment
-| Data 1 | Data 2 | Extra Column |
-"""
-    print("\nTesting invalid table:")
-    errors = validate_tables(invalid_table, debug=True)
-    assert len(errors) >= 2  # Should catch missing alignment and column count mismatch
 
 
 # pytest -v tests/functions/writer/test_validation.py

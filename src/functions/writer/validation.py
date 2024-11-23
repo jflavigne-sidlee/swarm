@@ -40,12 +40,12 @@ class ValidationResult(NamedTuple):
     errors: List[ValidationError]
 
 
-def validate_markdown(file_path: Path, parser: Optional[MarkdownIt] = None) -> ValidationResult:
+def validate_markdown(
+    file_path: Path, parser: Optional[MarkdownIt] = None, debug: bool = False
+) -> ValidationResult:
     """Validate a markdown file."""
-    config = get_config()
-    errors: List[ValidationError] = []
-
     try:
+        config = get_config()
         validate_file(file_path, require_write=False)
 
         with open(file_path, "r", encoding=config.default_encoding) as f:
@@ -64,48 +64,44 @@ def validate_markdown(file_path: Path, parser: Optional[MarkdownIt] = None) -> V
                 ],
             )
 
-        # Create default parser if none provided
+        # Single parsing step
         if parser is None:
             parser = (
-                MarkdownIt("commonmark")
-                .enable("table")
-                .enable("link")
-                .enable("image")
-                # Use the linkify plugin properly if needed
-                # .use(mdit_py_plugins.linkify)  # Would need to import the plugin
+                MarkdownIt("commonmark").enable("table").enable("link").enable("image")
             )
 
-        # Parse content for validation
         tokens = parser.parse(content)
 
-        # Debug only relevant tokens
-        print("\nDebugging Parser Output:")
-        for token in tokens:
-            if token.type in [
-                "link_open",
-                "link_close",
-                "image",
-                "heading_open",
-                "heading_close",
-                "fence",
-            ]:
-                print(f"Type: {token.type}")
-                print(f"Content: {getattr(token, 'content', '')}")
-                print(f"Attrs: {getattr(token, 'attrs', {})}")
-                print("---")
+        if debug:
+            print("\nToken Summary:")
+            token_counts = {}
+            for token in tokens:
+                if token.type in ["link_open", "image", "heading_open", "fence"]:
+                    token_counts[token.type] = token_counts.get(token.type, 0) + 1
+                    if token.type in ["link_open", "image"]:
+                        attrs = dict(token.attrs) if token.attrs else {}
+                        print(f"\n{token.type}:")
+                        print(f"  href/src: {attrs.get('href') or attrs.get('src')}")
+                        print(f"  line: {token.map[0] + 1 if token.map else 'unknown'}")
 
-        # Collect all validation errors
+            print("\nToken Counts:")
+            for token_type, count in token_counts.items():
+                print(f"  {token_type}: {count}")
+
+        # Collect all validation errors using parsed tokens
         errors = []
-        errors.extend(validate_frontmatter(content) or [])
-        errors.extend(validate_header_hierarchy(content) or [])
-        errors.extend(validate_tables(content) or [])
-        errors.extend(validate_code_blocks(content) or [])
-        errors.extend(validate_links(content, tokens, base_path=file_path) or [])
+        errors.extend(validate_frontmatter(content))  # Still needs raw content for YAML
+        errors.extend(validate_header_hierarchy(content, tokens))  # Update to use tokens
+        errors.extend(validate_tables(content, tokens))  # Update to use tokens
+        errors.extend(validate_code_blocks(content, tokens))  # Update to use tokens
+        errors.extend(
+            validate_links(content, tokens, base_path=file_path)
+        )  # Already uses tokens
 
         return ValidationResult(is_valid=len(errors) == 0, errors=errors)
 
     except Exception as e:
-        raise WriterError(str(e))
+        raise WriterError(f"Validation error: {str(e)}")
 
 
 def validate_frontmatter(content: str) -> List[ValidationError]:
@@ -141,113 +137,86 @@ def validate_frontmatter(content: str) -> List[ValidationError]:
     return errors
 
 
-def validate_header_hierarchy(content: str) -> List[ValidationError]:
+def validate_header_hierarchy(content: str, tokens: Optional[List[dict]] = None) -> List[ValidationError]:
     """Validate header levels follow proper hierarchy."""
+    if tokens is None:
+        parser = MarkdownIt("commonmark")
+        tokens = parser.parse(content)
+    
     errors = []
     current_level = 0
-
-    for match in re.finditer(PATTERN_HEADER, content, re.MULTILINE):
-        header = match.group(0)
-        # Count leading '#' characters without modifying the string
-        level = 0
-        for char in header:
-            if char != "#":
-                break
-            level += 1
-
-        # Headers should only increment by one level
-        if level > current_level + 1 and current_level > 0:
-            line_num = get_line_number(content, match.start())
-            errors.append(
-                ValidationError(
-                    line_number=line_num,
-                    error_type="Header Hierarchy",
-                    message=f"Header level jumps from {current_level} to {level}",
-                    suggestion=f"Use level {current_level + 1} header instead",
-                )
-            )
-
-        current_level = level
-
-    return errors
-
-
-def validate_links(
-    content: str, tokens: List[dict], base_path: Optional[Path] = None
-) -> List[ValidationError]:
-    """Validate links in the markdown content."""
-    errors: List[ValidationError] = []  # Initialize empty list
     
-    if not tokens:  # Guard against None tokens
-        return errors
-        
     for token in tokens:
-        if not hasattr(token, 'type'):  # Guard against invalid tokens
-            continue
-            
-        # Check both link_open and inline tokens containing links
-        if token.type == 'link_open' or (
-            token.type == 'inline' and '[' in str(getattr(token, 'content', ''))
-        ):
-            try:
-                # Extract href from token
-                href = ''
-                if token.type == 'link_open' and hasattr(token, 'attrs'):
-                    href = dict(token.attrs).get('href', '')
-                elif token.type == 'inline':
-                    content = str(getattr(token, 'content', ''))
-                    if '](' in content and ')' in content:
-                        href = content.split('](')[1].rstrip(')')
-                
-                # Skip empty hrefs
-                if not href:
-                    continue
-                    
-                # Validate the link
-                if base_path and not href.startswith(('http://', 'https://', 'mailto:', '#')):
-                    try:
-                        full_path = (base_path.parent / href).resolve()
-                        if not full_path.exists():
-                            errors.append(
-                                ValidationError(
-                                    line_number=getattr(token, 'map', [0])[0] + 1,
-                                    error_type="Link",
-                                    message=f"Broken link: {href}",
-                                    suggestion="Ensure the linked file exists",
-                                )
-                            )
-                    except Exception as e:
-                        errors.append(
-                            ValidationError(
-                                line_number=getattr(token, 'map', [0])[0] + 1,
-                                error_type="Link",
-                                message=f"Invalid link path: {href}",
-                                suggestion="Check link path format",
-                            )
-                        )
-            except Exception as e:
-                print(f"Error processing token: {e}")
-                continue
-                
+        if token.type == "heading_open":
+            level = int(token.tag[1])  # h1 -> 1, h2 -> 2, etc.
+            if level > current_level + 1 and current_level > 0:
+                errors.append(
+                    ValidationError(
+                        line_number=token.map[0] + 1 if token.map else 0,
+                        error_type="Header Hierarchy",
+                        message=f"Header level jumps from {current_level} to {level}",
+                        suggestion=f"Use level {current_level + 1} header instead",
+                    )
+                )
+            current_level = level
+    
     return errors
 
 
-def validate_code_blocks(content: str) -> List[ValidationError]:
-    """Validate code block syntax."""
-    errors = []
-    lines = content.split("\n")
-    in_code_block = False
-    block_start_line = 0
-    language = ""
+def validate_links(content: str, tokens: Optional[List[dict]] = None, base_path: Optional[Path] = None) -> List[ValidationError]:
+    """Validate links in the markdown content."""
+    errors: List[ValidationError] = []
+    
+    if tokens is None:
+        parser = MarkdownIt("commonmark").enable("link").enable("image")
+        tokens = parser.parse(content)
+    
+    for token in tokens:
+        if token.type == "inline":
+            # Inline tokens contain children with the actual links
+            for child in token.children:
+                if child.type in ["link_open", "image"]:
+                    try:
+                        attrs = dict(child.attrs) if hasattr(child, 'attrs') and child.attrs else {}
+                        href = attrs.get('href') or attrs.get('src')
+                        
+                        if href and not href.startswith(('http://', 'https://', '#', 'mailto:')):
+                            target_path = base_path.parent / href if base_path else Path(href)
+                            
+                            if not target_path.exists():
+                                errors.append(
+                                    ValidationError(
+                                        line_number=token.map[0] + 1 if token.map else 0,
+                                        error_type="Link",
+                                        message=f"Broken link: {href}",
+                                        suggestion="Ensure the linked file exists",
+                                    )
+                                )
+                    except Exception as e:
+                        continue
+    
+    return errors
 
+
+def validate_code_blocks(content: str, tokens: Optional[List[dict]] = None) -> List[ValidationError]:
+    """Validate code block syntax."""
+    errors: List[ValidationError] = []
+    
+    if tokens is None:
+        parser = MarkdownIt("commonmark")
+        tokens = parser.parse(content)
+
+    lines = content.splitlines()
+    in_code_block = False
+    code_block_start = 0
+    
     for i, line in enumerate(lines):
-        if line.startswith("```"):
+        stripped = line.strip()
+        if stripped.startswith('```'):
             if not in_code_block:
-                # Opening a code block
                 in_code_block = True
-                block_start_line = i + 1
-                language = line[3:].strip()  # Get language identifier
-                if not language:
+                code_block_start = i
+                if len(stripped) <= 3:  # No language specified
                     errors.append(
                         ValidationError(
                             line_number=i + 1,
@@ -257,27 +226,24 @@ def validate_code_blocks(content: str) -> List[ValidationError]:
                         )
                     )
             else:
-                # Closing a code block
                 in_code_block = False
-                language = ""
-
-    # Check for unclosed block at end of file
+    
     if in_code_block:
         errors.append(
             ValidationError(
-                line_number=block_start_line,
+                line_number=code_block_start + 1,
                 error_type="Code Block",
                 message="Unclosed code block",
-                suggestion="Add closing ``` delimiter",
+                suggestion="Add closing ``` to the code block",
             )
         )
-
+    
     return errors
 
 
-def get_line_number(content: str, pos: int) -> int:
+def get_line_number(tokens: List[dict], pos: int) -> int:
     """Get line number for a position in the content."""
-    return content.count("\n", 0, pos) + 1
+    return sum(token.map[1] for token in tokens if token.map[0] < pos) + 1
 
 
 def get_yaml_error_line(error: yaml.YAMLError) -> int:
@@ -347,132 +313,36 @@ class ValidationError:
         )
 
 
-def validate_tables(content: str, debug: bool = False) -> List[ValidationError]:
-    """Validate table syntax and structure in Markdown."""
-    errors = []
-    lines = content.split("\n")
-
-    # Define potential regex patterns for alignment rows
-    alignment_regexes = [
-        r"^\s*-+:?-*\s*$",  # Matches --- | :--- | ---: | :---:
-        r"^\s*-+\s*$",  # Matches --- (no colons)
-        r"^\s*:?-+\s*:?\s*$",  # Matches :---, ---:, or :---:
-    ]
-
-    i = 0
-    while i < len(lines):
-        line = lines[i].strip()
-        if line.startswith("|") and line.endswith("|"):
-            if debug:
-                logger.debug(f"Detected table header at line {i + 1}: {line}")
-
-            # Detect table header columns
-            header_cells = [cell.strip() for cell in line.split("|")[1:-1]]
-            header_cols = len(header_cells)
-            if debug:
-                logger.debug(f"Header has {header_cols} columns: {header_cells}")
-
-            # Check if the next line exists for alignment
-            if i + 1 >= len(lines):
-                if debug:
-                    logger.debug(f"No alignment row found after header at line {i + 1}")
-                i += 1
-                continue
-
-            align_row = lines[i + 1].strip()
-            if not (align_row.startswith("|") and align_row.endswith("|")):
-                errors.append(
-                    ValidationError(
-                        line_number=i + 2,
-                        error_type="Table Format",
-                        message="Missing alignment row",
-                        suggestion="Add a valid alignment row (e.g., | --- | format)",
-                    )
-                )
-                if debug:
-                    logger.debug(f"Missing alignment row at line {i + 2}")
-                i += 1
-                continue
-
-            # Validate alignment row columns
-            align_cells = [cell.strip() for cell in align_row.split("|")[1:-1]]
-            align_cols = len(align_cells)
-            if align_cols != header_cols:
-                errors.append(
-                    ValidationError(
-                        line_number=i + 2,
-                        error_type="Table Format",
-                        message=f"Alignment row has {align_cols} columns, expected {header_cols}",
-                        suggestion="Ensure alignment row matches header columns",
-                    )
-                )
-                if debug:
-                    logger.debug(
-                        f"Alignment row column count mismatch at line {i + 2}: {align_cols} vs {header_cols}"
-                    )
-                i += 2
-                continue
-
-            # Test each regex pattern
-            match_found = False
-            for regex in alignment_regexes:
-                all_matches = all(re.match(regex, cell) for cell in align_cells)
-                if debug:
-                    logger.debug(f"Testing regex: {regex} | Matches: {all_matches}")
-                if all_matches:
-                    match_found = True
-                    if debug:
-                        logger.debug(
-                            f"Alignment row validated with regex: {regex} at line {i + 2}"
-                        )
-                    break  # Stop testing further regexes
-
-            # Flag alignment row as invalid if no regex matched
-            if not match_found:
-                errors.append(
-                    ValidationError(
-                        line_number=i + 2,
-                        error_type="Table Format",
-                        message="Invalid alignment row format",
-                        suggestion="Ensure alignment row uses | --- |, | :--- |, | ---: |, or | :---: | format",
-                    )
-                )
-                if debug:
-                    logger.debug(
-                        f"Invalid alignment row format at line {i + 2}: {align_row}"
-                    )
-                i += 2
-                continue
-
-            # Validate table body rows
-            j = i + 2
-            while j < len(lines):
-                body_row = lines[j].strip()
-                if not (body_row.startswith("|") and body_row.endswith("|")):
-                    break  # Stop if it's not a table row
-
-                body_cells = [cell.strip() for cell in body_row.split("|")[1:-1]]
-                body_cols = len(body_cells)
-                if body_cols != header_cols:
+def validate_tables(content: str, tokens: Optional[List[dict]] = None) -> List[ValidationError]:
+    """Validate table syntax and structure."""
+    errors: List[ValidationError] = []
+    
+    if tokens is None:
+        parser = MarkdownIt("commonmark").enable("table")
+        tokens = parser.parse(content)
+    
+    lines = content.splitlines()
+    in_table = False
+    table_start_line = 0
+    
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith('|') and stripped.endswith('|'):
+            if not in_table:
+                in_table = True
+                table_start_line = i
+            elif i == table_start_line + 1:
+                # Check alignment row
+                if not re.match(r'\|(?:\s*:?-+:?\s*\|)+', stripped):
                     errors.append(
                         ValidationError(
-                            line_number=j + 1,
-                            error_type="Table Row Structure",
-                            message=f"Table row has {body_cols} columns, expected {header_cols}",
-                            suggestion="Ensure all rows have consistent column counts",
+                            line_number=i + 1,
+                            error_type="Table Format",
+                            message="Missing or invalid alignment row",
+                            suggestion="Add alignment row (e.g., | --- | --- |)",
                         )
                     )
-                    if debug:
-                        logger.debug(
-                            f"Table row column count mismatch at line {j + 1}: {body_cols} vs {header_cols}"
-                        )
-                if debug:
-                    logger.debug(f"Valid table row at line {j + 1}: {body_cells}")
-                j += 1
-
-            # Move the outer loop index to the line after the table
-            i = j
         else:
-            i += 1
-
+            in_table = False
+    
     return errors
