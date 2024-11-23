@@ -156,3 +156,6 @@ class TestAtomicWrite:
             atomic_write(file_path, content, 'utf-8', temp_dir)
             # Verify content after each write
             assert file_path.read_text(encoding='utf-8') == content 
+            
+            
+# pytest tests/functions/writer/test_file_io.py -v
