@@ -2,6 +2,7 @@ import pytest
 from pathlib import Path
 import os
 from src.functions.writer.file_io import read_file, write_file, atomic_write
+import shutil
 
 @pytest.fixture
 def test_file(tmp_path) -> Path:
@@ -147,16 +148,17 @@ class TestAtomicWrite:
         temp_dir = tmp_path / "temp"
         temp_dir.mkdir()
 
-        # Mock replace to raise an error
-        def mock_replace(self, target):
+        # Mock shutil.move to raise an error
+        def mock_move(src, dst):
             raise OSError("Mock error")
-        monkeypatch.setattr(Path, "replace", mock_replace)
+        monkeypatch.setattr(shutil, "move", mock_move)
 
         with pytest.raises(OSError):
             atomic_write(file_path, "test", 'utf-8', temp_dir)
         
         # Verify temp file was cleaned up
-        assert not list(temp_dir.glob("temp_*"))
+        temp_files = list(temp_dir.iterdir())
+        assert len(temp_files) == 0, "Temporary file was not cleaned up"
 
     def test_atomic_write_temp_dir_not_exists(self, tmp_path):
         """Test atomic write when temp directory doesn't exist."""

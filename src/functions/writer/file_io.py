@@ -3,6 +3,7 @@
 import logging
 from pathlib import Path
 import os
+import shutil
 from typing import Optional
 from uuid import uuid4
 from datetime import datetime
@@ -171,6 +172,7 @@ def atomic_write(file_path: Path, content: str, encoding: str, temp_dir: Path) -
     - Uses temporary file with UUID for safety
     - Atomic replacement of target file
     - Creates parent directories if they don't exist
+    - Handles cross-device moves
     
     Args:
         file_path: Target file path
@@ -182,7 +184,7 @@ def atomic_write(file_path: Path, content: str, encoding: str, temp_dir: Path) -
         FileNotFoundError: If temp_dir doesn't exist
         PermissionError: If temp_dir or target location can't be written
         UnicodeError: If content can't be encoded with specified encoding
-        OSError: If directory creation fails
+        OSError: If directory creation or move fails
     """
     temp_filename = generate_temp_filename(file_path.name)
     temp_file = temp_dir / temp_filename
@@ -206,9 +208,9 @@ def atomic_write(file_path: Path, content: str, encoding: str, temp_dir: Path) -
         # Write to temporary file
         write_file(temp_file, content, encoding)
         
-        # Atomic replace
-        logger.debug(f"Replacing {file_path} with {temp_file}")
-        temp_file.replace(file_path)
+        # Atomic move/replace
+        logger.debug(f"Moving {temp_file} to {file_path}")
+        shutil.move(str(temp_file), str(file_path))
         logger.debug(f"Successfully completed atomic write to {file_path}")
         
     except Exception as e:
