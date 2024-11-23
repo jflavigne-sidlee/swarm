@@ -211,13 +211,12 @@ def create_document(
     logger.debug(LOG_FILE_VALIDATION.format(file_name=file_name))
 
     # Use default config if none provided
-    if config is None:
-        config = WriterConfig()
-        logger.debug(LOG_USING_DEFAULT_CONFIG)
+    config = get_config(config)
 
     # Validate inputs
     full_path = validate_filename(file_name, config)  # This returns a Path object
     validate_metadata(metadata, config)
+
 
     try:
         # Check if file exists
@@ -312,8 +311,7 @@ def append_section(
     insert_after: Optional[str] = None,
 ) -> None:
     """Append a new section to a Markdown document."""
-    if config is None:
-        config = WriterConfig()
+    config = get_config(config)
 
     # Validate inputs
     if not content or not isinstance(content, str):
@@ -841,6 +839,21 @@ def get_section_marker_position(content: str, section_title: str) -> tuple[int, 
     return start, start + len(section_marker)
 
 
+def get_config(config: Optional[WriterConfig] = None) -> WriterConfig:
+    """Return the provided configuration or the default configuration.
+    
+    Args:
+        config: Optional configuration object
+        
+    Returns:
+        WriterConfig: The provided config or a new default config
+    """
+    if config is None:
+        config = WriterConfig()
+        logger.debug(LOG_USING_DEFAULT_CONFIG)
+    return config
+
+
 def get_section(file_name: str, section_title: str, config: Optional[WriterConfig] = None) -> str:
     """Retrieve the content of a specific section from a Markdown document.
     
@@ -855,9 +868,7 @@ def get_section(file_name: str, section_title: str, config: Optional[WriterConfi
     Raises:
         WriterError: If the section is not found, file doesn't exist, or other errors occur
     """
-    if config is None:
-        config = WriterConfig()
-        logger.debug(LOG_USING_DEFAULT_CONFIG)
+    config = get_config(config)
 
     try:
         # Validate filename and get full path
@@ -873,31 +884,20 @@ def get_section(file_name: str, section_title: str, config: Optional[WriterConfi
             path=file_path
         ))
         
-        # Find section boundaries
-        section_marker = SECTION_MARKER_TEMPLATE.format(section_title=section_title)
-        marker_start = content.find(section_marker)
-        
-        if marker_start == -1:
+        # Find section using existing utility
+        section_match = find_section(content, section_title)
+        if not section_match:
             logger.error(LOG_SECTION_MARKER_NOT_FOUND.format(section_title=section_title))
             raise WriterError(ERROR_SECTION_NOT_FOUND.format(section_title=section_title))
+            
+        # Extract just the content (excluding header and marker)
+        section_content = section_match.group(SECTION_CONTENT_KEY)
         
-        # Start after the marker
-        content_start = marker_start + len(section_marker)
-        
-        # Find the next header or end of file
-        next_header_match = re.search(PATTERN_HEADER, content[content_start:], re.MULTILINE)
-        content_end = (content_start + next_header_match.start()) if next_header_match else len(content)
-        
-        logger.debug(LOG_FOUND_SECTION_BOUNDARIES.format(
-            section_title=section_title,
-            start=content_start,
-            end=content_end
-        ))
-        
-        # Extract the content between markers
-        section_content = content[content_start:content_end].strip()
-        
-        return section_content if section_content else ""
+        # If content is None or empty, return empty string
+        if not section_content:
+            return ""
+            
+        return section_content.strip()
         
     except (OSError, IOError) as e:
         logger.error(LOG_FILE_OPERATION_ERROR.format(error=str(e)))
