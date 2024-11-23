@@ -489,7 +489,7 @@ LOG_CLEANUP_FAILED: Final = "Failed to clean up partial file: {path} - {error}"
 
 # Log messages for append_section
 LOG_INVALID_CONTENT: Final = "Invalid content provided: {content}"
-LOG_INVALID_SECTION_TITLE: Final = "Invalid section title: %s"
+LOG_INVALID_SECTION_TITLE: Final = "Invalid section title: {title}"
 LOG_FILE_NOT_FOUND: Final = "File not found: %s"
 LOG_INVALID_FILE_FORMAT: Final = "Invalid file format: %s"
 LOG_PERMISSION_ERROR_CHECKING_FILE: Final = "Permission error checking file: %s - %s"

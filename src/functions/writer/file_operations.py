@@ -320,7 +320,7 @@ def append_section(
         raise WriterError(ERROR_INVALID_CONTENT)
 
     if not section_title or not isinstance(section_title, str):
-        logger.error(LOG_INVALID_SECTION_TITLE.format(section_title=section_title))
+        logger.error(LOG_INVALID_SECTION_TITLE.format(title=section_title))
         raise WriterError(ERROR_INVALID_SECTION_TITLE)
 
     # Validate filename and get full path
