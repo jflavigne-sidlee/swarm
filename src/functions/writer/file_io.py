@@ -1,4 +1,14 @@
-"""Centralized file I/O operations with strict content preservation rules."""
+"""Centralized file I/O operations with strict content preservation rules.
+
+This module requires:
+- Python 3.7+ for Path objects
+- shutil.move with atomic operations support
+- os.access for permission checks
+
+System requirements:
+- File system with atomic rename support
+- Permission handling compatible with os.access
+"""
 
 import logging
 from pathlib import Path
@@ -8,7 +18,12 @@ from typing import Optional
 from uuid import uuid4
 from datetime import datetime
 import errno
+import sys
 from .constants import (
+    ERROR_PYTHON_VERSION,
+    ERROR_ATOMIC_MOVE_UNSUPPORTED,
+    ERROR_PERMISSION_CHECK_UNSUPPORTED,
+    ERROR_ENVIRONMENT_CHECK_FAILED,
     ERROR_DIR_CREATION,
     ERROR_PERMISSION_DENIED_DIR,
     ERROR_PATH_NOT_EXIST,
@@ -40,8 +55,57 @@ from .constants import (
     ERROR_PATH_NO_READ,
     ERROR_PATH_NO_WRITE,
 )
-
+# Initialize logger
 logger = logging.getLogger(__name__)
+
+# Verify Python version for Path support
+if sys.version_info < (3, 7):
+    raise RuntimeError(ERROR_PYTHON_VERSION)
+
+# Verify shutil atomic move support
+def _check_atomic_move_support() -> None:
+    """Verify atomic move operations are supported."""
+    try:
+        # Create test paths
+        test_dir = Path("test_atomic")
+        test_dir.mkdir(exist_ok=True)
+        source = test_dir / "source.txt"
+        target = test_dir / "target.txt"
+        
+        # Test atomic move
+        source.write_text("test")
+        shutil.move(str(source), str(target))
+        
+        # Cleanup
+        target.unlink()
+        test_dir.rmdir()
+    except Exception as e:
+        raise RuntimeError(
+            ERROR_ATOMIC_MOVE_UNSUPPORTED.format(error=str(e))
+        ) from e
+
+# Verify permission checking support
+def _check_permission_support() -> None:
+    """Verify permission checks are supported."""
+    try:
+        test_file = Path("test_perms.txt")
+        test_file.touch()
+        os.access(test_file, os.R_OK)
+        test_file.unlink()
+    except Exception as e:
+        raise RuntimeError(
+            ERROR_PERMISSION_CHECK_UNSUPPORTED.format(error=str(e))
+        ) from e
+
+# Run dependency checks
+try:
+    _check_atomic_move_support()
+    _check_permission_support()
+except Exception as e:
+    logger.critical(ERROR_ENVIRONMENT_CHECK_FAILED.format(error=str(e)))
+    raise
+
+
 
 
 def ensure_directory_exists(directory: Path) -> None:

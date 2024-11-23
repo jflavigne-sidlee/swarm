@@ -1,4 +1,5 @@
 """Constants for the writer module configuration."""
+
 from enum import Enum, auto
 from typing import Set, List, Dict, Type, Final
 import os
@@ -39,9 +40,11 @@ MAX_HEADER_DEPTH: Final = 6
 
 # File operations
 DEFAULT_MAX_FILE_SIZE_MB: Final = 10.0
-DEFAULT_MAX_FILE_SIZE: Final = int(DEFAULT_MAX_FILE_SIZE_MB * 1024 * 1024)  # Convert MB to bytes
+DEFAULT_MAX_FILE_SIZE: Final = int(
+    DEFAULT_MAX_FILE_SIZE_MB * 1024 * 1024
+)  # Convert MB to bytes
 ALLOWED_EXTENSIONS: Final[List[str]] = [".md", ".markdown"]
-EXTENSION_PATTERN: Final = r'^\.[a-zA-Z0-9]+$'
+EXTENSION_PATTERN: Final = r"^\.[a-zA-Z0-9]+$"
 
 # Version control
 DEFAULT_VERSION_FORMAT: Final = "{base_name}_v{version}{ext}"
@@ -63,12 +66,22 @@ PATH_CHECK_PERMISSIONS: Final = True
 # Error message templates
 ERROR_REQUIRED_FIELD: Final = "Required field '{name}' is not set."
 ERROR_INVALID_TYPE: Final = "Invalid type for '{name}': got {got}, expected {expected}."
-ERROR_VALUE_TOO_SMALL: Final = "Value for '{name}' is too small: {value}. Minimum allowed: {min}."
-ERROR_VALUE_TOO_LARGE: Final = "Value for '{name}' is too large: {value}. Maximum allowed: {max}."
+ERROR_VALUE_TOO_SMALL: Final = (
+    "Value for '{name}' is too small: {value}. Minimum allowed: {min}."
+)
+ERROR_VALUE_TOO_LARGE: Final = (
+    "Value for '{name}' is too large: {value}. Maximum allowed: {max}."
+)
 ERROR_NO_ZERO: Final = "Zero is not allowed for '{name}'."
-ERROR_PATTERN_MISMATCH: Final = "Invalid format for '{name}': '{value}'. Must match pattern: {pattern}"
-ERROR_INVALID_CHOICE: Final = "Invalid value for '{name}': '{value}'. Must be one of: {choices}"
-ERROR_CUSTOM_VALIDATION: Final = "Custom validation failed for '{name}'. Value: {value}. Error: {error}"
+ERROR_PATTERN_MISMATCH: Final = (
+    "Invalid format for '{name}': '{value}'. Must match pattern: {pattern}"
+)
+ERROR_INVALID_CHOICE: Final = (
+    "Invalid value for '{name}': '{value}'. Must be one of: {choices}"
+)
+ERROR_CUSTOM_VALIDATION: Final = (
+    "Custom validation failed for '{name}'. Value: {value}. Error: {error}"
+)
 
 # Version format validation
 VERSION_FORMAT_PLACEHOLDERS: Final[List[str]] = ["{version}", "{base_name}", "{ext}"]
@@ -87,8 +100,10 @@ VALIDATION_KEY_ALLOW_ZERO: Final = "allow_zero"
 VALIDATION_KEY_ELEMENT_TYPE: Final = "element_type"
 VALIDATION_KEY_VALIDATE: Final = "validate"
 
+
 class MetadataKeys(str, Enum):
     """Enumeration of metadata keys."""
+
     VALIDATION = "validation"
     DEFAULT = "default"
     HELP = "help"
@@ -98,8 +113,10 @@ class MetadataKeys(str, Enum):
     REQUIRED = "required"
     IS_PATH = "is_path"
 
+
 class ValidationKeys(str, Enum):
     """Enumeration of validation keys."""
+
     TYPE = "type"
     MIN = "min_value"
     MAX = "max_value"
@@ -109,6 +126,7 @@ class ValidationKeys(str, Enum):
     ELEMENT_TYPE = "element_type"
     VALIDATE = "validate"
     REQUIRED = "required"
+
 
 # Configuration keys and messages
 CONFIG_HEADER: Final = "Configuration:"
@@ -138,7 +156,9 @@ ERROR_UNKNOWN_FIELD_NAME: Final = "Unknown field: {name}"
 
 # Log messages
 LOG_BACKUP_ENABLED: Final = "Backup functionality is disabled"
-LOG_BACKUP_WARNING: Final = "Backup directory is set but backup_enabled is False. The directory will not be used."
+LOG_BACKUP_WARNING: Final = (
+    "Backup directory is set but backup_enabled is False. The directory will not be used."
+)
 LOG_BACKUP_VALIDATED: Final = "Backup directory validated: {path}"
 LOG_DIR_RELATIONSHIPS: Final = "Validating directory relationships"
 
@@ -176,9 +196,18 @@ MAX_FILENAME_LENGTH: Final = 255
 MAX_PATH_LENGTH: Final = 260  # Windows MAX_PATH limit
 FORBIDDEN_FILENAME_CHARS: Final = '<>:"/\\|?*\0'
 RESERVED_WINDOWS_FILENAMES: Final[Set[str]] = {
-    "CON", "PRN", "AUX", "NUL",  # Device names
-    "COM1", "COM2", "COM3", "COM4",  # COM ports
-    "LPT1", "LPT2", "LPT3", "LPT4"  # Printer ports
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",  # Device names
+    "COM1",
+    "COM2",
+    "COM3",
+    "COM4",  # COM ports
+    "LPT1",
+    "LPT2",
+    "LPT3",
+    "LPT4",  # Printer ports
 }
 
 # YAML frontmatter markers
@@ -197,7 +226,9 @@ ERROR_DIR_CREATION: Final = "Directory creation error: {error}"
 ERROR_YAML_SERIALIZATION: Final = "YAML serialization error: {error}"
 ERROR_FILE_WRITE: Final = "File writing error: {error}"
 ERROR_PERMISSION_DENIED_FILE: Final = "Permission denied writing file: {path}"
-ERROR_PATH_TOO_LONG: Final = "Full path exceeds maximum length of {max_length} characters: {path}"
+ERROR_PATH_TOO_LONG: Final = (
+    "Full path exceeds maximum length of {max_length} characters: {path}"
+)
 
 # Section marker patterns
 SECTION_MARKER_TEMPLATE: Final = "<!-- Section: {section_title} -->"
@@ -207,10 +238,18 @@ NEXT_HEADER_PATTERN: Final = r"^#{1,6}\s+.*$"
 
 # Error messages for section operations
 ERROR_SECTION_MARKER_NOT_FOUND: Final = "Section '{section_title}' marker not found"
-ERROR_DUPLICATE_SECTION_MARKER: Final = "Duplicate section marker found: '{marker_title}'"
-ERROR_MISSING_SECTION_MARKER: Final = "Header '{header_title}' is missing its section marker"
-ERROR_MISMATCHED_SECTION_MARKER: Final = "Section marker for '{header_title}' does not match header title"
-ERROR_ORPHANED_SECTION_MARKER: Final = "Found marker '{marker_title}' without a corresponding header"
+ERROR_DUPLICATE_SECTION_MARKER: Final = (
+    "Duplicate section marker found: '{marker_title}'"
+)
+ERROR_MISSING_SECTION_MARKER: Final = (
+    "Header '{header_title}' is missing its section marker"
+)
+ERROR_MISMATCHED_SECTION_MARKER: Final = (
+    "Section marker for '{header_title}' does not match header title"
+)
+ERROR_ORPHANED_SECTION_MARKER: Final = (
+    "Found marker '{marker_title}' without a corresponding header"
+)
 ERROR_APPEND_SECTION_FAILED: Final = "Failed to append section: {error}"
 
 # Logging messages
@@ -226,7 +265,9 @@ LOG_VALIDATE_SECTION_START: Final = "Starting section validation for: %s"
 LOG_SECTION_UPDATE_START: Final = "Updating section '%s' in %s"
 LOG_SECTION_VALIDATION_ERROR: Final = "Section validation failed: %s"
 LOG_MISSING_MARKER: Final = "Missing marker for header: {header_title}"
-LOG_MISMATCHED_MARKER: Final = "Mismatched marker for header '{header_title}': expected '{expected}', found '{found}'"
+LOG_MISMATCHED_MARKER: Final = (
+    "Mismatched marker for header '{header_title}': expected '{expected}', found '{found}'"
+)
 LOG_ORPHANED_MARKER: Final = "Found marker without header: {marker_title}"
 LOG_DUPLICATE_MARKER: Final = "Duplicate section marker found: '{marker_title}'"
 
@@ -236,7 +277,9 @@ DOUBLE_NEWLINE: Final = "\n\n"
 
 # Regular expression patterns
 HEADER_NEXT_PATTERN: Final = r"^#{1,6}\s+.*$"  # For finding next header
-SECTION_CONTENT_PATTERN: Final = r"<!--\s*(?:Section|SECTION):"  # For checking marker format
+SECTION_CONTENT_PATTERN: Final = (
+    r"<!--\s*(?:Section|SECTION):"  # For checking marker format
+)
 
 # Additional log messages
 LOG_APPEND_SECTION_SUCCESS: Final = "Successfully appended section '%s' to %s"
@@ -270,7 +313,7 @@ LOG_DIR_CREATION_ERROR: Final = "Directory creation error: {path} - {error}"
 MD_EXTENSION: Final = ".md"
 YAML_DUMP_SETTINGS: Final[Dict[str, bool]] = {
     "default_flow_style": False,
-    "sort_keys": False
+    "sort_keys": False,
 }
 
 # Additional error messages
@@ -284,7 +327,9 @@ ERROR_DIRECTORY_CREATION_FAILED: Final = "Directory creation error: %s"
 SECTION_START_PATTERN: Final = r"^#{1,6}\s+.*$"  # For finding section headers
 SECTION_END_PATTERN: Final = r"\n#{1,6}\s+"  # For finding the next section
 CONTENT_SPACING_PATTERN: Final = r"\n\n"  # For normalizing spacing between sections
-YAML_FRONTMATTER_PATTERN: Final = r"^---\n.*?\n---\n\s*"  # For matching YAML frontmatter
+YAML_FRONTMATTER_PATTERN: Final = (
+    r"^---\n.*?\n---\n\s*"  # For matching YAML frontmatter
+)
 
 # File Operation Messages
 LOG_DIRECTORY_VALIDATION: Final = "Validating directory: %s"
@@ -328,7 +373,9 @@ LOG_SECTION_VALIDATION_ERROR: Final = "Section validation failed: %s"
 
 # Error messages
 ERROR_SECTION_VALIDATION_FAILED: Final = "Section validation failed: {error}"
-ERROR_SECTION_MARKER_MISMATCH: Final = "Section marker mismatch: expected '{expected}', found '{found}'"
+ERROR_SECTION_MARKER_MISMATCH: Final = (
+    "Section marker mismatch: expected '{expected}', found '{found}'"
+)
 
 # Metadata validation logs
 LOG_INVALID_METADATA_TYPES: Final = "Invalid metadata types detected in: %s"
@@ -357,12 +404,16 @@ ERROR_UNSUPPORTED_ENCODING: Final = "Unsupported encoding: {encoding}"
 
 # File operation log messages
 LOG_NO_WRITE_PERMISSION: Final = "No write permission for target file: {path}"
-LOG_ENCODING_WRITE_ERROR: Final = "Encoding error writing content with {encoding}: {error}"
+LOG_ENCODING_WRITE_ERROR: Final = (
+    "Encoding error writing content with {encoding}: {error}"
+)
 LOG_PERMISSION_DENIED_TEMP: Final = "Permission denied writing temporary file: {path}"
 LOG_TEMP_WRITE_FAILED: Final = "Failed to write temporary file {path}: {error}"
 LOG_MOVING_FILE: Final = "Moving {source} to {target}"
 LOG_ATOMIC_WRITE_SUCCESS: Final = "Successfully completed atomic write to {path}"
-LOG_MOVE_PERMISSION_DENIED: Final = "Permission denied moving temp file to target: {path}"
+LOG_MOVE_PERMISSION_DENIED: Final = (
+    "Permission denied moving temp file to target: {path}"
+)
 LOG_MOVE_FAILED: Final = "Failed to move temp file to target {path}: {error}"
 LOG_TEMP_CLEANUP: Final = "Cleaned up temporary file: {path}"
 LOG_CLEANUP_FAILED: Final = "Failed to clean up temporary file {path}: {error}"
@@ -370,27 +421,59 @@ LOG_CLEANUP_FAILED: Final = "Failed to clean up temporary file {path}: {error}"
 # File operation log messages
 LOG_WRITING_FILE: Final = "Writing {count} characters to file: {path}"
 LOG_WRITE_SUCCESS: Final = "Successfully wrote to {path}"
-LOG_ATOMIC_WRITE_START: Final = "Starting atomic write to {target} using temp file: {temp}"
+LOG_ATOMIC_WRITE_START: Final = (
+    "Starting atomic write to {target} using temp file: {temp}"
+)
 LOG_TEMP_DIR_NOT_FOUND: Final = "Temporary directory not found: {path}"
-LOG_NO_TEMP_DIR_PERMISSION: Final = "No write permission for temporary directory: {path}"
-LOG_PARENT_DIR_PERMISSION: Final = "No permission to create parent directory for: {path}"
+LOG_NO_TEMP_DIR_PERMISSION: Final = (
+    "No write permission for temporary directory: {path}"
+)
+LOG_PARENT_DIR_PERMISSION: Final = (
+    "No permission to create parent directory for: {path}"
+)
 LOG_PARENT_DIR_ERROR: Final = "Failed to create parent directory for {path}: {error}"
 
 # Validation messages
 LOG_MISSING_MARKER: Final = "Missing section marker for header: {header_title}"
-LOG_MISMATCHED_MARKER: Final = "Mismatched section marker: header '{header_title}' vs marker '{found}' (expected: '{expected}')"
-LOG_ORPHANED_MARKER: Final = "Found marker '{marker_title}' without a corresponding header"
+LOG_MISMATCHED_MARKER: Final = (
+    "Mismatched section marker: header '{header_title}' vs marker '{found}' (expected: '{expected}')"
+)
+LOG_ORPHANED_MARKER: Final = (
+    "Found marker '{marker_title}' without a corresponding header"
+)
 LOG_DUPLICATE_MARKER: Final = "Duplicate section marker found: {marker_title}"
 LOG_SECTION_MARKER_VALID: Final = "Section markers validated successfully"
 
 # Section operation errors
-ERROR_MISSING_SECTION_MARKER: Final = "Header '{header_title}' is missing its section marker"
-ERROR_MISMATCHED_SECTION_MARKER: Final = "Section marker for '{header_title}' does not match header title"
-ERROR_ORPHANED_SECTION_MARKER: Final = "Found marker '{marker_title}' without a corresponding header"
-ERROR_DUPLICATE_SECTION_MARKER: Final = "Duplicate section marker found: '{marker_title}'"
+ERROR_MISSING_SECTION_MARKER: Final = (
+    "Header '{header_title}' is missing its section marker"
+)
+ERROR_MISMATCHED_SECTION_MARKER: Final = (
+    "Section marker for '{header_title}' does not match header title"
+)
+ERROR_ORPHANED_SECTION_MARKER: Final = (
+    "Found marker '{marker_title}' without a corresponding header"
+)
+ERROR_DUPLICATE_SECTION_MARKER: Final = (
+    "Duplicate section marker found: '{marker_title}'"
+)
 
 # Path validation errors
 ERROR_PATH_NOT_FOUND: Final = "Path does not exist: {path}"
 ERROR_NO_WRITE_PERMISSION: Final = "No write permission for Path: {path}"
 ERROR_PERMISSION_DENIED: Final = "No write permission for Path: {path}"
 ERROR_TEMP_DIR_NOT_FOUND: Final = "Path does not exist: {path}"
+
+# Dependency check messages
+ERROR_ATOMIC_MOVE_UNSUPPORTED: Final = (
+    "Atomic file operations not fully supported: {error}"
+)
+ERROR_PERMISSION_CHECK_UNSUPPORTED: Final = (
+    "Permission checking not fully supported: {error}"
+)
+ERROR_ENVIRONMENT_CHECK_FAILED: Final = (
+    "Environment compatibility check failed: {error}"
+)
+ERROR_PYTHON_VERSION: Final = (
+    "Python 3.7 or higher is required for proper Path object support"
+)
