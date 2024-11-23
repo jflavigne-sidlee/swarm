@@ -727,7 +727,17 @@ def extract_section_markers(content: str) -> dict[str, str]:
 
 
 def validate_file(file_path: Path, require_write: bool = False) -> None:
-    """Validate that the file exists, has the correct format, and meets permission requirements."""
+    """Validate that the file exists, has the correct format, and meets permission requirements.
+    
+    Args:
+        file_path: Path object pointing to the file to validate
+        require_write: If True, also check for write permissions
+
+    Raises:
+        WriterError: If file doesn't exist, has wrong format, or lacks permissions
+        FileNotFoundError: If the file doesn't exist
+        PermissionError: If required permissions are not available
+    """
     try:
         # Check if file exists and has correct permissions
         validate_path_permissions(file_path, require_write=require_write)
@@ -749,13 +759,17 @@ def create_frontmatter(metadata: Dict[str, str]) -> str:
     """Create YAML frontmatter from metadata.
 
     Args:
-        metadata: Dictionary of metadata key-value pairs
+        metadata: Dictionary of metadata key-value pairs to include in frontmatter
 
     Returns:
-        Formatted YAML frontmatter string
+        str: Formatted YAML frontmatter string with delimiters (---)
 
     Raises:
-        WriterError: If YAML serialization fails
+        WriterError: If YAML serialization fails or metadata is invalid
+    
+    Note:
+        The frontmatter is wrapped in triple-dash delimiters (---) as per YAML spec
+        Metadata order is preserved using sort_keys=False
     """
     try:
         yaml_content = yaml.dump(metadata, default_flow_style=False, sort_keys=False)
