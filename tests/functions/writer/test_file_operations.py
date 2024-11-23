@@ -10,10 +10,15 @@ from src.functions.writer.file_operations import (
     validate_section_markers,
     edit_section,
     find_section,
+    find_marker_positions,
+    get_section_marker_position,
 )
 from src.functions.writer.config import WriterConfig
 from src.functions.writer.exceptions import WriterError
-from src.functions.writer.constants import MAX_PATH_LENGTH
+from src.functions.writer.constants import (
+    MAX_PATH_LENGTH,
+    PATTERN_SECTION_MARKER,
+)
 
 
 @pytest.fixture
@@ -1099,6 +1104,95 @@ class TestFindSection:
         assert section_match.group('header') == "# Special (Test) Section!\n"
         assert section_match.group('marker') == "<!-- Section: Special (Test)! -->\n"
         assert section_match.group('section_content').strip() == "Special content."
+
+
+class TestMarkerUtilities:
+    """Tests for marker utility functions."""
+
+    def test_find_marker_positions_basic(self):
+        """Test basic marker position finding."""
+        content = (
+            "# Header\n"
+            "<!-- Section: First -->\n"
+            "Content 1\n\n"
+            "# Another Header\n"
+            "<!-- Section: Second -->\n"
+            "Content 2"
+        )
+        
+        positions = find_marker_positions(content, PATTERN_SECTION_MARKER)
+        assert len(positions) == 2
+        
+        # Verify first marker position
+        start1, end1 = positions[0]
+        assert content[start1:end1] == "<!-- Section: First -->"
+        
+        # Verify second marker position
+        start2, end2 = positions[1]
+        assert content[start2:end2] == "<!-- Section: Second -->"
+
+    def test_find_marker_positions_no_markers(self):
+        """Test when no markers are present."""
+        content = "# Header\nJust some content\n# Another header\nMore content"
+        positions = find_marker_positions(content, PATTERN_SECTION_MARKER)
+        assert positions == []
+
+    def test_find_marker_positions_with_special_chars(self):
+        """Test finding markers with special characters."""
+        content = (
+            "# Header (Test)!\n"
+            "<!-- Section: Special (Test)! -->\n"
+            "Content with special chars: @#$%"
+        )
+        
+        positions = find_marker_positions(content, PATTERN_SECTION_MARKER)
+        assert len(positions) == 1
+        start, end = positions[0]
+        assert content[start:end] == "<!-- Section: Special (Test)! -->"
+
+    def test_get_section_marker_position_found(self):
+        """Test finding a specific section marker."""
+        content = (
+            "# Introduction\n"
+            "<!-- Section: Introduction -->\n"
+            "Some content\n\n"
+            "# Conclusion\n"
+            "<!-- Section: Conclusion -->\n"
+            "More content"
+        )
+        
+        start, end = get_section_marker_position(content, "Introduction")
+        assert start != -1
+        assert end != -1
+        assert content[start:end] == "<!-- Section: Introduction -->"
+
+    def test_get_section_marker_position_not_found(self):
+        """Test when the requested section marker is not found."""
+        content = (
+            "# Introduction\n"
+            "<!-- Section: Introduction -->\n"
+            "Some content"
+        )
+        
+        start, end = get_section_marker_position(content, "NonExistent")
+        assert (start, end) == (-1, -1)
+
+    def test_get_section_marker_position_with_duplicates(self):
+        """Test that get_section_marker_position finds the first occurrence."""
+        content = (
+            "# First\n"
+            "<!-- Section: Duplicate -->\n"
+            "Content 1\n\n"
+            "# Second\n"
+            "<!-- Section: Duplicate -->\n"
+            "Content 2"
+        )
+        
+        start, end = get_section_marker_position(content, "Duplicate")
+        assert start != -1
+        assert end != -1
+        # Should find the first occurrence
+        assert content.index("<!-- Section: Duplicate -->") == start
 
 
 # pytest tests/functions/writer/test_file_operations.py
