@@ -296,10 +296,10 @@ def cleanup_partial_file(file_path: Path) -> None:
     """Clean up partially written files in case of errors."""
     try:
         if os.path.exists(str(file_path)):
-            logger.debug(LOG_REMOVING_PARTIAL_FILE, file_path)
+            logger.debug(LOG_REMOVING_PARTIAL_FILE.format(path=file_path))
             os.remove(str(file_path))
     except (OSError, PermissionError) as e:
-        logger.warning(LOG_CLEANUP_FAILED, file_path, str(e))
+        logger.error(LOG_CLEANUP_FAILED.format(path=file_path, error=str(e)))
 
 
 def append_section(
@@ -316,11 +316,11 @@ def append_section(
 
     # Validate inputs
     if not content or not isinstance(content, str):
-        logger.error(LOG_INVALID_CONTENT, content)
+        logger.error(LOG_INVALID_CONTENT.format(content=content))
         raise WriterError(ERROR_INVALID_CONTENT)
 
     if not section_title or not isinstance(section_title, str):
-        logger.error(LOG_INVALID_SECTION_TITLE, section_title)
+        logger.error(LOG_INVALID_SECTION_TITLE.format(section_title=section_title))
         raise WriterError(ERROR_INVALID_SECTION_TITLE)
 
     # Validate filename and get full path
@@ -341,10 +341,10 @@ def append_section(
         section_start, _ = get_section_marker_position(content_str, section_title)
         if section_start != -1:
             if not allow_append:
-                logger.error(LOG_SECTION_EXISTS, section_title, file_path)
+                logger.error(LOG_SECTION_EXISTS.format(section_title=section_title, file_path=file_path))
                 raise WriterError(ERROR_SECTION_EXISTS.format(section_title=section_title))
             else:
-                logger.info(LOG_APPEND_TO_EXISTING_SECTION, section_title)
+                logger.info(LOG_APPEND_TO_EXISTING_SECTION.format(section_title=section_title))
                 return append_to_existing_section(
                     file_path, section_title, content, content_str, config
                 )
@@ -358,19 +358,20 @@ def append_section(
                 not isinstance(final_header_level, int)
                 or not 1 <= final_header_level <= 6
             ):
-                logger.error(LOG_INVALID_HEADER_LEVEL, final_header_level)
+                logger.error(LOG_INVALID_HEADER_LEVEL.format(header_level=final_header_level))
                 raise WriterError(ERROR_INVALID_HEADER_LEVEL)
         except ValueError as e:
-            logger.error(LOG_HEADER_LEVEL_ERROR, str(e))
+            logger.error(LOG_HEADER_LEVEL_ERROR.format(error=str(e)))
             raise WriterError(ERROR_HEADER_LEVEL.format(error=str(e)))
 
         header_prefix = SECTION_HEADER_PREFIX * final_header_level
 
         logger.debug(
-            LOG_USING_HEADER_LEVEL,
-            final_header_level,
-            section_title,
-            file_path,
+            LOG_USING_HEADER_LEVEL.format(
+                final_header_level=final_header_level,
+                section_title=section_title,
+                file_path=file_path
+            )
         )
 
         # Format new section content with proper spacing
@@ -420,10 +421,11 @@ def append_section(
                 f.write(updated_content)
 
             logger.info(
-                LOG_SECTION_INSERT_SUCCESS,
-                section_title,
-                insert_after,
-                file_path,
+                LOG_SECTION_INSERT_SUCCESS.format(
+                    section_title=section_title,
+                    insert_after=insert_after,
+                    file_path=file_path
+                )
             )
             return
 
@@ -433,21 +435,21 @@ def append_section(
                 f.write(new_section)
 
             logger.info(
-                LOG_SECTION_APPEND_SUCCESS, section_title, file_path
+                LOG_SECTION_APPEND_SUCCESS.format(section_title=section_title, file_path=file_path)
             )
 
         except PermissionError:
-            logger.error(LOG_PERMISSION_DENIED_APPEND, file_path)
+            logger.error(LOG_PERMISSION_DENIED_APPEND.format(file_path=file_path))
             raise WriterError(ERROR_PERMISSION_DENIED_WRITE.format(file_path=file_path))
 
         except Exception as e:
-            logger.error(LOG_ERROR_APPENDING_SECTION, file_path, str(e))
+            logger.error(LOG_ERROR_APPENDING_SECTION.format(file_path=file_path, error=str(e)))
             if isinstance(e, WriterError):
                 raise
             raise WriterError(ERROR_FAILED_APPEND_SECTION.format(error=str(e)))
 
     except Exception as e:
-        logger.error(LOG_ERROR_APPENDING_SECTION, file_path, str(e))
+        logger.error(LOG_ERROR_APPENDING_SECTION.format(file_path=file_path, error=str(e)))
         if isinstance(e, WriterError):
             raise
         raise WriterError(ERROR_FAILED_APPEND_SECTION.format(error=str(e)))

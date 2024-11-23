@@ -321,8 +321,6 @@ YAML_DUMP_SETTINGS: Final[Dict[str, bool]] = {
 }
 
 # Additional error messages
-ERROR_SECTION_APPEND_FAILED: Final = "Failed to append section: %s"
-ERROR_SECTION_PERMISSION_DENIED: Final = "Permission denied when writing to %s"
 ERROR_DIRECTORY_EXISTS: Final = "Cannot create directory (file exists): %s"
 ERROR_DIRECTORY_PERMISSION: Final = "Permission denied creating directory: %s"
 ERROR_DIRECTORY_CREATION_FAILED: Final = "Directory creation error: %s"
@@ -420,7 +418,7 @@ LOG_MOVE_PERMISSION_DENIED: Final = (
 )
 LOG_MOVE_FAILED: Final = "Failed to move temp file to target {path}: {error}"
 LOG_TEMP_CLEANUP: Final = "Cleaned up temporary file: {path}"
-LOG_CLEANUP_FAILED: Final = "Failed to clean up temporary file {path}: {error}"
+LOG_CLEANUP_FAILED: Final = "Failed to clean up partial file: {path} - {error}"
 
 # File operation log messages
 LOG_WRITING_FILE: Final = "Writing {count} characters to file: {path}"
@@ -486,11 +484,11 @@ ERROR_PYTHON_VERSION: Final = (
 WARNING_PATH_TOO_LONG: Final = "Path too long: {path}"
 
 # Log messages for file cleanup
-LOG_REMOVING_PARTIAL_FILE: Final = "Removing partial file: %s"
-LOG_CLEANUP_FAILED: Final = "Failed to clean up partial file: %s - %s"
+LOG_REMOVING_PARTIAL_FILE: Final = "Removing partial file: {path}"
+LOG_CLEANUP_FAILED: Final = "Failed to clean up partial file: {path} - {error}"
 
 # Log messages for append_section
-LOG_INVALID_CONTENT: Final = "Invalid content provided: %s"
+LOG_INVALID_CONTENT: Final = "Invalid content provided: {content}"
 LOG_INVALID_SECTION_TITLE: Final = "Invalid section title: %s"
 LOG_FILE_NOT_FOUND: Final = "File not found: %s"
 LOG_INVALID_FILE_FORMAT: Final = "Invalid file format: %s"
