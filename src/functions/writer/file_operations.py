@@ -127,7 +127,7 @@ logger = logging.getLogger(__name__)
 def validate_filename(file_name: str, config: WriterConfig) -> Path:
     """Validate filename and return full path."""
     if not file_name or not is_valid_filename(file_name):
-        logger.warning(LOG_VALIDATE_FILENAME, file_name)
+        logger.warning(LOG_VALIDATE_FILENAME.format(filename=file_name))
         raise WriterError(ERROR_INVALID_FILENAME)
 
     # Ensure .md extension

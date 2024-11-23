@@ -305,7 +305,7 @@ MARKER_PATTERN_MULTILINE: Final = re.compile(PATTERN_SECTION_MARKER)
 YAML_CONTENT_PATTERN: Final = r"^---\n.*?\n---\n"  # For finding YAML frontmatter
 
 # Additional logging messages
-LOG_VALIDATE_FILENAME: Final = "Invalid filename rejected: %s"
+LOG_VALIDATE_FILENAME: Final = "Invalid filename rejected: {filename}"
 LOG_ADDED_EXTENSION: Final = "Added .md extension: %s"
 LOG_PATH_TOO_LONG: Final = "Path too long: {path}"
 LOG_YAML_SERIALIZATION: Final = "Serializing metadata to YAML"
