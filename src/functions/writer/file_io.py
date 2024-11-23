@@ -2,6 +2,7 @@
 
 import logging
 from pathlib import Path
+import os
 from typing import Optional
 from uuid import uuid4
 from datetime import datetime
@@ -119,6 +120,29 @@ def generate_temp_filename(original_name: str) -> str:
     unique_id = str(uuid4())
     return f"temp_{timestamp}_{unique_id}_{original_name}"
 
+def validate_path_permissions(path: Path, require_write: bool = False) -> None:
+    """Validate path permissions.
+    
+    Args:
+        path: Path to validate
+        require_write: Whether write permission is required
+        
+    Raises:
+        FileNotFoundError: If path doesn't exist
+        PermissionError: If required permissions are not available
+    """
+    if not path.exists():
+        logger.error(f"Path not found: {path}")
+        raise FileNotFoundError(f"Path not found: {path}")
+        
+    if not os.access(path, os.R_OK):
+        logger.error(f"Path not readable: {path}")
+        raise PermissionError(f"Path not readable: {path}")
+        
+    if require_write and not os.access(path, os.W_OK):
+        logger.error(f"Path not writable: {path}")
+        raise PermissionError(f"Path not writable: {path}")
+
 def atomic_write(file_path: Path, content: str, encoding: str, temp_dir: Path) -> None:
     """Write content atomically using a temporary file.
     
@@ -132,7 +156,7 @@ def atomic_write(file_path: Path, content: str, encoding: str, temp_dir: Path) -
         file_path: Target file path
         content: Content to write
         encoding: File encoding to use
-        temp_dir: Directory for temporary files (must exist)
+        temp_dir: Directory for temporary files (must exist and be writable)
         
     Raises:
         FileNotFoundError: If temp_dir doesn't exist
@@ -148,14 +172,16 @@ def atomic_write(file_path: Path, content: str, encoding: str, temp_dir: Path) -
         f"using temp file: {temp_file}"
     )
     
-    # Verify temp directory exists first
-    if not temp_dir.exists():
-        logger.error(f"Temporary directory not found: {temp_dir}")
-        raise FileNotFoundError(f"Temporary directory not found: {temp_dir}")
+    # Validate temp directory
+    validate_path_permissions(temp_dir, require_write=True)
     
     try:
         # Ensure parent directory exists for target file
         ensure_parent_directory_exists(file_path)
+        
+        # If target file exists, check if we can write to it
+        if file_path.exists():
+            validate_path_permissions(file_path, require_write=True)
             
         # Write to temporary file
         write_file(temp_file, content, encoding)

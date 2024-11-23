@@ -145,7 +145,7 @@ class TestAtomicWrite:
         with pytest.raises(FileNotFoundError) as exc_info:
             atomic_write(file_path, "test", 'utf-8', temp_dir)
         
-        assert "Temporary directory not found" in str(exc_info.value)
+        assert "Path not found" in str(exc_info.value)
         assert not file_path.exists()  # Target file should not be created
 
     def test_atomic_write_concurrent_access(self, tmp_path):
@@ -164,5 +164,35 @@ class TestAtomicWrite:
             # Verify content after each write
             assert file_path.read_text(encoding='utf-8') == content 
             
-            
+    def test_atomic_write_temp_dir_not_writable(self, tmp_path):
+        """Test atomic write with non-writable temp directory."""
+        file_path = tmp_path / "target.txt"
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        
+        # Make temp directory read-only
+        os.chmod(temp_dir, 0o444)
+        
+        with pytest.raises(PermissionError) as exc_info:
+            atomic_write(file_path, "test", 'utf-8', temp_dir)
+        
+        assert "Path not writable" in str(exc_info.value)
+        assert not file_path.exists()
+
+    def test_atomic_write_target_not_writable(self, tmp_path):
+        """Test atomic write with non-writable target file."""
+        file_path = tmp_path / "target.txt"
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        
+        # Create target file as read-only
+        file_path.write_text("original")
+        os.chmod(file_path, 0o444)
+        
+        with pytest.raises(PermissionError) as exc_info:
+            atomic_write(file_path, "test", 'utf-8', temp_dir)
+        
+        assert "Path not writable" in str(exc_info.value)
+        assert file_path.read_text() == "original"  # Content unchanged
+
 # pytest tests/functions/writer/test_file_io.py -v
