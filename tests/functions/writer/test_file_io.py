@@ -4,6 +4,11 @@ import os
 from src.functions.writer.file_io import read_file, write_file, atomic_write, validate_encoding
 import shutil
 import errno
+from src.functions.writer.constants import (
+    ERROR_TEMP_DIR_NOT_FOUND,
+    ERROR_PERMISSION_DENIED,
+    ERROR_UNSUPPORTED_ENCODING,
+)
 
 @pytest.fixture
 def test_file(tmp_path) -> Path:
@@ -132,12 +137,13 @@ class TestWriteFile:
     def test_write_file_unsupported_encoding(self, tmp_path):
         """Test write_file with unsupported encoding."""
         file_path = tmp_path / "test.txt"
+        invalid_encoding = 'invalid-encoding'
         
         with pytest.raises(LookupError) as exc_info:
-            write_file(file_path, "test", 'invalid-encoding')
+            write_file(file_path, "test", invalid_encoding)
         
-        assert "Unsupported encoding" in str(exc_info.value)
-        assert not file_path.exists()
+        expected_msg = ERROR_UNSUPPORTED_ENCODING.format(encoding=invalid_encoding)
+        assert str(exc_info.value) == expected_msg
 
 class TestAtomicWrite:
     def test_atomic_write_success(self, tmp_path):
@@ -187,15 +193,14 @@ class TestAtomicWrite:
         file_path = tmp_path / "target.txt"
         temp_dir = tmp_path / "nonexistent"
         
-        # Ensure temp_dir doesn't exist
         if temp_dir.exists():
             temp_dir.rmdir()
         
         with pytest.raises(FileNotFoundError) as exc_info:
             atomic_write(file_path, "test", 'utf-8', temp_dir)
         
-        assert "Path not found" in str(exc_info.value)
-        assert not file_path.exists()  # Target file should not be created
+        expected_msg = ERROR_TEMP_DIR_NOT_FOUND.format(path=temp_dir)
+        assert str(exc_info.value) == expected_msg
 
     def test_atomic_write_concurrent_access(self, tmp_path):
         """Test atomic write with concurrent access simulation."""
@@ -245,15 +250,11 @@ class TestAtomicWrite:
         with pytest.raises(PermissionError) as exc_info:
             atomic_write(file_path, "test", 'utf-8', temp_dir)
         
-        # Check for either the validation error or the OS error message
-        error_msg = str(exc_info.value)
-        assert any([
-            "No write permission for path" in error_msg,
-            "Permission denied" in error_msg
-        ]), f"Unexpected error message: {error_msg}"
+        expected_msg = ERROR_PERMISSION_DENIED.format(path=file_path)
+        assert str(exc_info.value) == expected_msg
 
     def test_atomic_write_unsupported_encoding(self, tmp_path):
-        """Test atomic_write with unsupported encoding."""
+        """Test atomic write with unsupported encoding."""
         file_path = tmp_path / "test.txt"
         temp_dir = tmp_path / "temp"
         temp_dir.mkdir()

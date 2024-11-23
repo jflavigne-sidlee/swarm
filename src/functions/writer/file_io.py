@@ -82,15 +82,24 @@ def read_file(file_path: Path, encoding: str) -> str:
     """Read file content with strict content preservation.
 
     Rules:
+    - Read content exactly as stored
     - No content modification
     - No whitespace normalization
     - No newline manipulation
-    - Return exact content as found in file
+    - Strict encoding adherence
+
+    Args:
+        file_path: Path to file to read
+        encoding: File encoding to use
+
+    Returns:
+        str: File content exactly as stored
 
     Raises:
         FileNotFoundError: If file doesn't exist
-        PermissionError: If file can't be accessed
-        UnicodeError: If file can't be decoded with specified encoding
+        PermissionError: If file can't be read due to permissions
+        UnicodeError: If content can't be decoded with specified encoding
+        RuntimeError: If unexpected error occurs during read operation
     """
     logger.info(LOG_READING_FILE.format(path=file_path, encoding=encoding))
     try:
@@ -100,12 +109,16 @@ def read_file(file_path: Path, encoding: str) -> str:
             return content
     except FileNotFoundError:
         logger.error(ERROR_PATH_NOT_EXIST.format(name="File", path=file_path))
-        raise
+        raise FileNotFoundError(
+            ERROR_PATH_NOT_EXIST.format(name="File", path=file_path)
+        )
     except PermissionError:
         logger.error(ERROR_PERMISSION_DENIED_PATH.format(path=file_path))
-        raise
+        raise PermissionError(ERROR_PERMISSION_DENIED_PATH.format(path=file_path))
     except UnicodeError as e:
-        logger.error(LOG_ENCODING_ERROR.format(path=file_path, encoding=encoding, error=e))
+        logger.error(
+            LOG_ENCODING_ERROR.format(path=file_path, encoding=encoding, error=e)
+        )
         raise
     except Exception as e:
         logger.error(ERROR_UNEXPECTED.format(name="file read", error=e))
@@ -144,6 +157,8 @@ def write_file(file_path: Path, content: str, encoding: str) -> None:
     - No whitespace normalization
     - No newline manipulation
     - Creates parent directories if they don't exist
+    - Validates encoding before writing
+    - Validates write permissions if file exists
 
     Args:
         file_path: Path to file to write
@@ -151,41 +166,46 @@ def write_file(file_path: Path, content: str, encoding: str) -> None:
         encoding: File encoding to use
 
     Raises:
-        PermissionError: If file can't be written
-        UnicodeError: If content can't be encoded with specified encoding
         LookupError: If encoding is not supported
-        OSError: If directory creation fails
+        PermissionError: If file or parent directory can't be written
+        UnicodeError: If content can't be encoded with specified encoding
+        OSError: If file write fails for other reasons
+        RuntimeError: If unexpected error occurs during write operation
     """
     if not validate_encoding(encoding):
-        raise LookupError(ERROR_UNSUPPORTED_ENCODING.format(encoding=encoding))
+        msg = ERROR_UNSUPPORTED_ENCODING.format(encoding=encoding)
+        logger.error(msg)
+        raise LookupError(msg)
 
     logger.info(LOG_WRITING_FILE.format(count=len(content), path=file_path))
 
     try:
-        # Ensure parent directory exists
         ensure_parent_exists(file_path)
 
-        # Validate write permissions if file exists
         if file_path.exists():
             validate_path_permissions(file_path, require_write=True)
 
-        # Write the file
         with open(file_path, "w", encoding=encoding) as f:
             f.write(content)
             logger.info(LOG_WRITE_SUCCESS.format(path=file_path))
 
     except PermissionError:
-        logger.error(ERROR_PERMISSION_DENIED_PATH.format(path=file_path))
-        raise
+        msg = ERROR_PERMISSION_DENIED_PATH.format(path=file_path)
+        logger.error(msg)
+        raise PermissionError(msg)
     except UnicodeError as e:
-        logger.error(LOG_ENCODING_ERROR.format(path=file_path, encoding=encoding, error=e))
+        logger.error(
+            LOG_ENCODING_ERROR.format(path=file_path, encoding=encoding, error=e)
+        )
         raise
     except OSError as e:
-        logger.error(ERROR_FILE_WRITE.format(error=e))
-        raise
+        msg = ERROR_FILE_WRITE.format(error=e)
+        logger.error(msg)
+        raise OSError(msg)
     except Exception as e:
-        logger.error(ERROR_UNEXPECTED.format(name="file write", error=e))
-        raise
+        msg = ERROR_UNEXPECTED.format(name="file write", error=e)
+        logger.error(msg)
+        raise RuntimeError(msg)
 
 
 def generate_temp_filename(original_name: str) -> str:
@@ -329,8 +349,7 @@ def atomic_write(file_path: Path, content: str, encoding: str, temp_dir: Path) -
                 temp_file.unlink()
                 logger.debug(LOG_TEMP_CLEANUP.format(path=temp_file))
             except Exception as cleanup_error:
-                logger.warning(LOG_CLEANUP_FAILED.format(
-                    path=temp_file, 
-                    error=cleanup_error
-                ))
+                logger.warning(
+                    LOG_CLEANUP_FAILED.format(path=temp_file, error=cleanup_error)
+                )
         raise

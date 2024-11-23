@@ -183,7 +183,7 @@ RESERVED_WINDOWS_FILENAMES: Final[Set[str]] = {
 
 # YAML frontmatter markers
 YAML_FRONTMATTER_START: Final = "---\n"
-YAML_FRONTMATTER_END: Final = "---\n\n"
+YAML_FRONTMATTER_END: Final = "\n---\n"
 
 # Error messages for file operations
 ERROR_INVALID_FILENAME: Final = "Invalid filename"
@@ -375,3 +375,22 @@ LOG_TEMP_DIR_NOT_FOUND: Final = "Temporary directory not found: {path}"
 LOG_NO_TEMP_DIR_PERMISSION: Final = "No write permission for temporary directory: {path}"
 LOG_PARENT_DIR_PERMISSION: Final = "No permission to create parent directory for: {path}"
 LOG_PARENT_DIR_ERROR: Final = "Failed to create parent directory for {path}: {error}"
+
+# Validation messages
+LOG_MISSING_MARKER: Final = "Missing section marker for header: {header_title}"
+LOG_MISMATCHED_MARKER: Final = "Mismatched section marker: header '{header_title}' vs marker '{found}' (expected: '{expected}')"
+LOG_ORPHANED_MARKER: Final = "Found marker '{marker_title}' without a corresponding header"
+LOG_DUPLICATE_MARKER: Final = "Duplicate section marker found: {marker_title}"
+LOG_SECTION_MARKER_VALID: Final = "Section markers validated successfully"
+
+# Section operation errors
+ERROR_MISSING_SECTION_MARKER: Final = "Header '{header_title}' is missing its section marker"
+ERROR_MISMATCHED_SECTION_MARKER: Final = "Section marker for '{header_title}' does not match header title"
+ERROR_ORPHANED_SECTION_MARKER: Final = "Found marker '{marker_title}' without a corresponding header"
+ERROR_DUPLICATE_SECTION_MARKER: Final = "Duplicate section marker found: '{marker_title}'"
+
+# Path validation errors
+ERROR_PATH_NOT_FOUND: Final = "Path does not exist: {path}"
+ERROR_NO_WRITE_PERMISSION: Final = "No write permission for Path: {path}"
+ERROR_PERMISSION_DENIED: Final = "No write permission for Path: {path}"
+ERROR_TEMP_DIR_NOT_FOUND: Final = "Path does not exist: {path}"
