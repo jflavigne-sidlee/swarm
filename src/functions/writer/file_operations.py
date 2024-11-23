@@ -116,6 +116,7 @@ from .constants import (
     LOG_FILE_OPERATION_ERROR,
     NO_ASSOCIATED_HEADER,
     LOG_READ_SUCCESS,
+    LOG_SECTION_UPDATE,
 )
 from .file_io import read_file, write_file, atomic_write, validate_path_permissions
 
@@ -652,41 +653,62 @@ def find_section(content: str, section_title: str) -> Optional[re.Match]:
 
 
 def edit_section(
-    file_name: str, section_title: str, new_content: str, config: WriterConfig
+    file_name: str, 
+    section_title: str, 
+    new_content: str, 
+    config: Optional[WriterConfig] = None
 ):
-    """Edit an existing section in the document."""
-    file_path = config.drafts_dir / file_name
+    """Edit an existing section in the document.
+    
+    Args:
+        file_name: Name of the Markdown file
+        section_title: Title of the section to edit
+        new_content: New content for the section
+        config: Optional configuration object
+        
+    Raises:
+        WriterError: If section not found or file operations fail
+    """
+    config = get_config(config)
 
     try:
-        # Read using centralized function
+        # Validate filename and get full path
+        file_path = validate_filename(file_name, config)
+        
+        # Validate file exists and is readable/writable
+        validate_file(file_path, require_write=True)
+        
+        # Read file content
         content = read_file(file_path, config.default_encoding)
-
+        
+        # Use get_section to find the section and validate it exists
         section_match = find_section(content, section_title)
         if not section_match:
             logger.error(LOG_SECTION_NOT_FOUND.format(section_title=section_title))
-            raise WriterError(
-                ERROR_SECTION_NOT_FOUND.format(section_title=section_title)
-            )
-
-        # Create replacement preserving exact content
+            raise WriterError(ERROR_SECTION_NOT_FOUND.format(section_title=section_title))
+            
+        # Create replacement preserving header and marker
         replacement = (
-            section_match.group(SECTION_HEADER_KEY) + section_match.group(SECTION_MARKER_KEY) + new_content
+            section_match.group(SECTION_HEADER_KEY) + 
+            section_match.group(SECTION_MARKER_KEY) + 
+            new_content.strip() + "\n\n"
         )
-
+        
+        # Update content
         updated_content = (
-            content[: section_match.start()]
-            + replacement
-            + content[section_match.end() :]
+            content[:section_match.start()] +
+            replacement +
+            content[section_match.end():]
         )
-
-        # Validate before writing
+        
+        # Validate section markers before writing
         validate_section_markers(updated_content)
-
+        
         # Write using atomic operation
-        atomic_write(
-            file_path, updated_content, config.default_encoding, config.temp_dir
-        )
-
+        atomic_write(file_path, updated_content, config.default_encoding, config.temp_dir)
+        
+        logger.info(LOG_SECTION_UPDATE.format(section_title, file_path))
+        
     except (OSError, IOError) as e:
         logger.error(LOG_FILE_OPERATION_ERROR.format(error=str(e)))
         raise WriterError(str(e)) from e
