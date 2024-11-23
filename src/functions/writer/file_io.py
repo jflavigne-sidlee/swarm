@@ -7,6 +7,7 @@ import shutil
 from typing import Optional
 from uuid import uuid4
 from datetime import datetime
+import errno
 
 logger = logging.getLogger(__name__)
 
@@ -277,8 +278,13 @@ def atomic_write(file_path: Path, content: str, encoding: str, temp_dir: Path) -
             logger.error(f"Permission denied moving temp file to target: {file_path}")
             raise
         except OSError as e:
-            logger.error(f"Failed to move temp file to target {file_path}: {e}")
-            raise
+            if e.errno == errno.EXDEV:  # Cross-device link error
+                # Add fallback for cross-device moves
+                shutil.copy2(str(temp_file), str(file_path))
+                temp_file.unlink()
+            else:
+                logger.error(f"Failed to move temp file to target {file_path}: {e}")
+                raise
             
     except Exception as e:
         # Clean up temp file if something goes wrong

@@ -3,6 +3,7 @@ from pathlib import Path
 import os
 from src.functions.writer.file_io import read_file, write_file, atomic_write, validate_encoding
 import shutil
+import errno
 
 @pytest.fixture
 def test_file(tmp_path) -> Path:
@@ -263,6 +264,106 @@ class TestAtomicWrite:
         assert "Unsupported encoding" in str(exc_info.value)
         assert not file_path.exists()
         # Verify no temp files were left behind
+        assert len(list(temp_dir.iterdir())) == 0
+
+    def test_atomic_write_special_characters(self, tmp_path):
+        """Test atomic write with special characters in content and filenames."""
+        special_filename = tmp_path / "特殊_file_名.txt"
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        
+        # Test content with special characters - use os-specific line endings
+        content = (
+            "Unicode: 你好世界\n"
+            "Emoji: 🌟🚀✨\n"
+            "Special: ©®™\n"
+            "Control: \t\n\b"  # Removed \r as it's handled differently across platforms
+        )
+        
+        atomic_write(special_filename, content, 'utf-8', temp_dir)
+        result = special_filename.read_text(encoding='utf-8')
+        assert result == content
+
+    def test_atomic_write_different_encodings(self, tmp_path):
+        """Test atomic write with different encodings."""
+        file_path = tmp_path / "test.txt"
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        
+        test_cases = [
+            ('utf-8', "Hello 世界"),
+            ('utf-16', "Hello 世界"),
+            ('shift-jis', "こんにちは"),
+            ('iso-8859-1', "Hello World")  # Removed € as it's not in iso-8859-1
+        ]
+        
+        for encoding, content in test_cases:
+            atomic_write(file_path, content, encoding, temp_dir)
+            result = file_path.read_text(encoding=encoding)
+            assert result == content
+            assert len(list(temp_dir.iterdir())) == 0
+
+    def test_atomic_write_cross_device(self, tmp_path, monkeypatch):
+        """Test atomic write behavior when moving across devices."""
+        file_path = tmp_path / "target.txt"
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        content = "Test content"
+        
+        # Mock shutil.move to simulate cross-device error
+        def mock_move(src, dst):
+            if not hasattr(mock_move, 'called'):
+                mock_move.called = True
+                raise OSError(18, "Invalid cross-device link")
+            shutil.copy2(src, dst)
+            Path(src).unlink()
+        
+        monkeypatch.setattr(shutil, "move", mock_move)
+        
+        atomic_write(file_path, content, 'utf-8', temp_dir)
+        assert file_path.read_text(encoding='utf-8') == content
+        assert len(list(temp_dir.iterdir())) == 0
+
+    def test_atomic_write_partial_failure(self, tmp_path, monkeypatch):
+        """Test atomic write with partial write failure."""
+        file_path = tmp_path / "target.txt"
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        
+        original_content = "original content"
+        file_path.write_text(original_content)
+        
+        # Mock write_file instead of Path.write_text
+        def mock_write_file(path, content, encoding):
+            if 'temp_' in str(path):
+                raise OSError("Disk full")
+            return path.write_text(content, encoding=encoding)
+        
+        monkeypatch.setattr('src.functions.writer.file_io.write_file', mock_write_file)
+        
+        with pytest.raises(OSError, match="Disk full"):
+            atomic_write(file_path, "new content", 'utf-8', temp_dir)
+        
+        # Verify original content is preserved
+        assert file_path.read_text() == original_content
+        assert len(list(temp_dir.iterdir())) == 0  # No temp files left
+
+    def test_atomic_write_symlink_handling(self, tmp_path):
+        """Test atomic write behavior with symlinks."""
+        real_file = tmp_path / "real.txt"
+        symlink = tmp_path / "link.txt"
+        temp_dir = tmp_path / "temp"
+        temp_dir.mkdir()
+        
+        # Create symlink
+        real_file.write_text("original")
+        symlink.symlink_to(real_file)
+        
+        content = "updated content"
+        atomic_write(symlink.resolve(), content, 'utf-8', temp_dir)  # Use resolved path
+        
+        assert real_file.read_text() == content
+        assert symlink.read_text() == content
         assert len(list(temp_dir.iterdir())) == 0
 
 # pytest tests/functions/writer/test_file_io.py -v
