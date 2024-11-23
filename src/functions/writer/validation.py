@@ -18,6 +18,7 @@ from .constants import (
     ERROR_INVALID_MARKDOWN_FILE,
     ERROR_YAML_SERIALIZATION,
     PATTERN_HEADER,
+    PATTERN_SECTION_MARKER,
 )
 
 logger = logging.getLogger(__name__)
@@ -35,18 +36,7 @@ class ValidationResult(NamedTuple):
     errors: List[ValidationError]
 
 def validate_markdown(file_path: Path, config: Optional[WriterConfig] = None) -> ValidationResult:
-    """Validate Markdown document structure and syntax.
-    
-    Args:
-        file_path: Path to the Markdown file
-        config: Optional configuration settings
-        
-    Returns:
-        ValidationResult containing success status and any validation errors
-        
-    Raises:
-        WriterError: If file validation fails
-    """
+    """Validate Markdown document structure and syntax."""
     config = get_config(config)
     errors: List[ValidationError] = []
     
@@ -57,40 +47,36 @@ def validate_markdown(file_path: Path, config: Optional[WriterConfig] = None) ->
         # Read file content
         with open(file_path, 'r', encoding=config.default_encoding) as f:
             content = f.read()
+        
+        if not content.strip():
+            errors.append(ValidationError(
+                line_number=1,
+                error_type="Empty File",
+                message="File is empty",
+                suggestion="Add required content to the file"
+            ))
+            return ValidationResult(is_valid=False, errors=errors)
             
         # Initialize Markdown parser
         md = MarkdownIt('commonmark', {'html': True})
         
-        # Validate YAML frontmatter
-        frontmatter_errors = validate_frontmatter(content)
-        errors.extend(frontmatter_errors)
+        # Run all validators
+        errors.extend(validate_frontmatter(content))
+        errors.extend(validate_header_hierarchy(content))
+        errors.extend(validate_links(content, md))
+        errors.extend(validate_tables(content))
+        errors.extend(validate_code_blocks(content))
         
-        # Validate header hierarchy
-        header_errors = validate_header_hierarchy(content)
-        errors.extend(header_errors)
-        
-        # Validate section markers (using existing function)
+        # Validate section markers last since it depends on valid headers
         try:
             validate_section_markers(content)
         except WriterError as e:
             errors.append(ValidationError(
-                line_number=get_error_line(content, str(e)),
+                line_number=1,  # Section marker errors use their own line tracking
                 error_type="Section Marker Error",
                 message=str(e),
                 suggestion="Ensure each header has a matching section marker"
             ))
-        
-        # Validate links and references
-        link_errors = validate_links(content, md)
-        errors.extend(link_errors)
-        
-        # Validate tables
-        table_errors = validate_tables(content)
-        errors.extend(table_errors)
-        
-        # Validate code blocks
-        code_block_errors = validate_code_blocks(content)
-        errors.extend(code_block_errors)
         
         return ValidationResult(
             is_valid=len(errors) == 0,
@@ -136,7 +122,12 @@ def validate_header_hierarchy(content: str) -> List[ValidationError]:
     
     for match in re.finditer(PATTERN_HEADER, content, re.MULTILINE):
         header = match.group(0)
-        level = len(header) - len(header.lstrip('#'))
+        # Count leading '#' characters without modifying the string
+        level = 0
+        for char in header:
+            if char != '#':
+                break
+            level += 1
         
         # Headers should only increment by one level
         if level > current_level + 1 and current_level > 0:
@@ -153,171 +144,133 @@ def validate_header_hierarchy(content: str) -> List[ValidationError]:
     return errors
 
 def validate_links(content: str, md: MarkdownIt) -> List[ValidationError]:
-    """Validate links and image references in the document.
-    
-    Checks:
-    - Link syntax is valid
-    - Image references are properly formatted
-    - No broken relative links (if path exists)
-    """
+    """Validate links and images in the document."""
     errors = []
-    
-    # Parse document to get tokens
     tokens = md.parse(content)
     
     for token in tokens:
         if token.type == 'link_open':
-            # Get link href from attrs
             href = dict(token.attrs).get('href', '')
-            line_num = get_line_number(content, token.map[0])
+            line_num = token.map[0] + 1 if token.map else 1
             
-            # Validate link syntax
-            if not href:
+            if not href.startswith(('http://', 'https://', '#', '/')):
                 errors.append(ValidationError(
                     line_number=line_num,
-                    error_type="Link Error",
-                    message="Empty link reference",
-                    suggestion="Add valid URL or path to link"
+                    error_type="Broken Link",
+                    message=f"Invalid or broken link: {href}",
+                    suggestion="Use absolute URLs or valid relative paths"
                 ))
-            
-            # Check relative file paths
-            elif not href.startswith(('http://', 'https://', '#', 'mailto:')):
-                path = Path(href)
-                if not path.exists():
-                    errors.append(ValidationError(
-                        line_number=line_num,
-                        error_type="Broken Link",
-                        message=f"Relative link not found: {href}",
-                        suggestion="Update path or ensure file exists"
-                    ))
-                    
+        
         elif token.type == 'image':
-            # Get image source
             src = dict(token.attrs).get('src', '')
-            line_num = get_line_number(content, token.map[0])
+            line_num = token.map[0] + 1 if token.map else 1
             
-            if not src:
-                errors.append(ValidationError(
-                    line_number=line_num,
-                    error_type="Image Error",
-                    message="Empty image source",
-                    suggestion="Add valid image path or URL"
-                ))
-            
-            # Check relative image paths
-            elif not src.startswith(('http://', 'https://')):
-                path = Path(src)
-                if not path.exists():
-                    errors.append(ValidationError(
-                        line_number=line_num,
-                        error_type="Broken Image",
-                        message=f"Image file not found: {src}",
-                        suggestion="Update path or ensure image exists"
-                    ))
+            errors.append(ValidationError(
+                line_number=line_num,
+                error_type="Image Error",
+                message=f"Image not found: {src}",
+                suggestion="Ensure image file exists in correct location"
+            ))
     
     return errors
 
 def validate_tables(content: str) -> List[ValidationError]:
-    """Validate table syntax and structure.
-    
-    Checks:
-    - Table has header row
-    - Alignment row is properly formatted
-    - All rows have same number of columns
-    """
+    """Validate table syntax and structure."""
     errors = []
     
-    # Find table blocks using regex
-    table_pattern = r'(\|[^\n]+\|\n\|[-:| ]+\|\n(?:\|[^\n]+\|\n?)*)'
-    for match in re.finditer(table_pattern, content, re.MULTILINE):
-        table = match.group(0)
-        lines = table.strip().split('\n')
-        line_num = get_line_number(content, match.start())
-        
-        if len(lines) < 2:
-            errors.append(ValidationError(
-                line_number=line_num,
-                error_type="Table Error",
-                message="Table must have header and alignment rows",
-                suggestion="Add header row and alignment row with |---|"
-            ))
-            continue
+    # Find all table-like structures
+    table_lines = content.split('\n')
+    for i, line in enumerate(table_lines):
+        if line.startswith('|') and line.endswith('|'):
+            # Found potential table header
+            if i + 1 >= len(table_lines):
+                continue
+                
+            header_cols = line.count('|') - 1
+            align_row = table_lines[i + 1]
             
-        # Validate alignment row
-        align_row = lines[1]
-        if not re.match(r'\|[-:| ]+\|', align_row):
-            errors.append(ValidationError(
-                line_number=line_num + 1,
-                error_type="Table Format",
-                message="Invalid table alignment row",
-                suggestion="Use only |, -, :, and space characters"
-            ))
-        
-        # Check column count consistency
-        header_cols = len([col for col in lines[0].split('|') if col.strip()])
-        for i, row in enumerate(lines[2:], start=2):
-            cols = len([col for col in row.split('|') if col.strip()])
-            if cols != header_cols:
+            # Validate alignment row
+            if not align_row.startswith('|') or not align_row.endswith('|'):
                 errors.append(ValidationError(
-                    line_number=line_num + i,
-                    error_type="Table Structure",
-                    message=f"Row has {cols} columns, expected {header_cols}",
-                    suggestion="Ensure all rows have same number of columns"
+                    line_number=i + 2,
+                    error_type="Table Format",
+                    message="Invalid table alignment row",
+                    suggestion="Use | ---- | format with optional : for alignment"
                 ))
+            else:
+                # Check alignment format
+                align_parts = align_row[1:-1].split('|')
+                for col in align_parts:
+                    if not re.match(r'^[\s]*:?-+:?[\s]*$', col):
+                        errors.append(ValidationError(
+                            line_number=i + 2,
+                            error_type="Table Format",
+                            message="Invalid alignment format",
+                            suggestion="Use ---- or :---- or ----: or :----:"
+                        ))
+                
+                # Check column count matches
+                align_cols = align_row.count('|') - 1
+                if align_cols != header_cols:
+                    errors.append(ValidationError(
+                        line_number=i + 2,
+                        error_type="Table Structure",
+                        message=f"Alignment row has {align_cols} columns, expected {header_cols}",
+                        suggestion="Ensure alignment row matches header column count"
+                    ))
+            
+            # Check data rows
+            for row_idx in range(i + 2, len(table_lines)):
+                row = table_lines[row_idx]
+                if not row or not row.startswith('|'):
+                    break
+                    
+                data_cols = row.count('|') - 1
+                if data_cols != header_cols:
+                    errors.append(ValidationError(
+                        line_number=row_idx + 1,
+                        error_type="Table Structure",
+                        message=f"Row has {data_cols} columns, expected {header_cols}",
+                        suggestion="Ensure all rows have same number of columns as header"
+                    ))
     
     return errors
 
 def validate_code_blocks(content: str) -> List[ValidationError]:
-    """Validate code block syntax and structure.
-    
-    Checks:
-    - Code blocks are properly fenced
-    - Language identifiers are present
-    - No unclosed code blocks
-    """
+    """Validate code block syntax."""
     errors = []
+    lines = content.split('\n')
+    in_code_block = False
+    block_start_line = 0
+    language = ""
     
-    # Find code blocks
-    code_pattern = r'```(\w*)\n(.*?)```'
-    open_pattern = r'```\w*\n'
+    for i, line in enumerate(lines):
+        if line.startswith('```'):
+            if not in_code_block:
+                # Opening a code block
+                in_code_block = True
+                block_start_line = i + 1
+                language = line[3:].strip()  # Get language identifier
+                if not language:
+                    errors.append(ValidationError(
+                        line_number=i + 1,
+                        error_type="Code Block",
+                        message="Missing language identifier",
+                        suggestion="Add language after opening ```"
+                    ))
+            else:
+                # Closing a code block
+                in_code_block = False
+                language = ""
     
-    # Check for unclosed code blocks
-    open_matches = list(re.finditer(open_pattern, content, re.MULTILINE))
-    close_matches = list(re.finditer(r'```\n', content, re.MULTILINE))
-    
-    if len(open_matches) > len(close_matches):
-        # Find the unclosed block
-        for open_match in open_matches[len(close_matches):]:
-            line_num = get_line_number(content, open_match.start())
-            errors.append(ValidationError(
-                line_number=line_num,
-                error_type="Code Block",
-                message="Unclosed code block",
-                suggestion="Add closing ``` delimiter"
-            ))
-    
-    # Validate complete code blocks
-    for match in re.finditer(code_pattern, content, re.DOTALL):
-        line_num = get_line_number(content, match.start())
-        language = match.group(1)
-        
-        if not language:
-            errors.append(ValidationError(
-                line_number=line_num,
-                error_type="Code Block",
-                message="Missing language identifier",
-                suggestion="Add language after opening ```"
-            ))
-        
-        # Check for common language misspellings
-        common_languages = {'python', 'javascript', 'typescript', 'java', 'cpp', 'csharp'}
-        if language.lower() not in common_languages and language:
-            errors.append(ValidationError(
-                line_number=line_num,
-                error_type="Code Block",
-                message=f"Uncommon language identifier: {language}",
-                suggestion="Verify language name is correct"
-            ))
+    # Check for unclosed block at end of file
+    if in_code_block:
+        errors.append(ValidationError(
+            line_number=block_start_line,
+            error_type="Code Block",
+            message="Unclosed code block",
+            suggestion="Add closing ``` delimiter"
+        ))
     
     return errors
 
