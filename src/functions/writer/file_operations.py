@@ -115,6 +115,7 @@ from .constants import (
     SECTION_CONTENT_KEY,
     LOG_FILE_OPERATION_ERROR,
     NO_ASSOCIATED_HEADER,
+    LOG_READ_SUCCESS,
 )
 from .file_io import read_file, write_file, atomic_write, validate_path_permissions
 
@@ -838,3 +839,66 @@ def get_section_marker_position(content: str, section_title: str) -> tuple[int, 
     if start == -1:
         return -1, -1
     return start, start + len(section_marker)
+
+
+def get_section(file_name: str, section_title: str, config: Optional[WriterConfig] = None) -> str:
+    """Retrieve the content of a specific section from a Markdown document.
+    
+    Args:
+        file_name: Name of the Markdown file to search
+        section_title: Title of the section to retrieve
+        config: Optional configuration object. Uses default if not provided.
+        
+    Returns:
+        str: The content of the specified section
+        
+    Raises:
+        WriterError: If the section is not found, file doesn't exist, or other errors occur
+    """
+    if config is None:
+        config = WriterConfig()
+        logger.debug(LOG_USING_DEFAULT_CONFIG)
+
+    try:
+        # Validate filename and get full path
+        file_path = validate_filename(file_name, config)
+        
+        # Validate file exists and is readable
+        validate_file(file_path, require_write=False)
+        
+        # Read file content
+        content = read_file(file_path, config.default_encoding)
+        logger.debug(LOG_READ_SUCCESS.format(
+            count=len(content),
+            path=file_path
+        ))
+        
+        # Find section boundaries
+        section_marker = SECTION_MARKER_TEMPLATE.format(section_title=section_title)
+        marker_start = content.find(section_marker)
+        
+        if marker_start == -1:
+            logger.error(LOG_SECTION_MARKER_NOT_FOUND.format(section_title=section_title))
+            raise WriterError(ERROR_SECTION_NOT_FOUND.format(section_title=section_title))
+        
+        # Start after the marker
+        content_start = marker_start + len(section_marker)
+        
+        # Find the next header or end of file
+        next_header_match = re.search(PATTERN_HEADER, content[content_start:], re.MULTILINE)
+        content_end = (content_start + next_header_match.start()) if next_header_match else len(content)
+        
+        logger.debug(LOG_FOUND_SECTION_BOUNDARIES.format(
+            section_title=section_title,
+            start=content_start,
+            end=content_end
+        ))
+        
+        # Extract the content between markers
+        section_content = content[content_start:content_end].strip()
+        
+        return section_content if section_content else ""
+        
+    except (OSError, IOError) as e:
+        logger.error(LOG_FILE_OPERATION_ERROR.format(error=str(e)))
+        raise WriterError(str(e)) from e
