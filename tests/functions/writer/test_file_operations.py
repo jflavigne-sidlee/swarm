@@ -3,6 +3,7 @@ from pathlib import Path
 import yaml
 from datetime import datetime
 import re
+from unittest.mock import patch, mock_open
 
 from src.functions.writer.file_operations import (
     create_document,
@@ -11,7 +12,7 @@ from src.functions.writer.file_operations import (
     edit_section,
     find_section,
     find_marker_positions,
-    get_section_marker_position,
+    get_section_marker_position
 )
 from src.functions.writer.config import WriterConfig
 from src.functions.writer.exceptions import WriterError
