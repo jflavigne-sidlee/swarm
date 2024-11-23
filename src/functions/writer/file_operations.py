@@ -8,7 +8,7 @@ import logging
 from types import SimpleNamespace
 
 from .config import WriterConfig
-from .exceptions import WriterError
+from .exceptions import WriterError, FileValidationError, FilePermissionError, SectionNotFoundError, DuplicateSectionError
 from .constants import (
     ERROR_DIRECTORY_EXISTS,
     ERROR_DIR_CREATION,
@@ -461,28 +461,37 @@ def append_to_existing_section(
     config: WriterConfig,
 ) -> None:
     """Append content to an existing section."""
-    section_start, section_end = find_section_boundaries(
-        existing_content, section_title
-    )
-
-    if section_start == -1:
-        logger.error(LOG_SECTION_NOT_FOUND.format(section_title=section_title))
-        raise WriterError(
-            ERROR_SECTION_MARKER_NOT_FOUND.format(section_title=section_title)
+    try:
+        # Use get_section to find the section content and validate it exists
+        section_content = get_section(file_path.name, section_title, config)
+        
+        # Find section boundaries using the existing utility
+        section_start, section_end = find_section_boundaries(existing_content, section_title)
+        
+        # Insert new content before the next section
+        updated_content = (
+            existing_content[:section_end]
+            + SECTION_CONTENT_SPACING
+            + new_content.strip()
+            + SECTION_CONTENT_SPACING
+            + existing_content[section_end:]
         )
 
-    # Insert new content before the next section
-    updated_content = (
-        existing_content[:section_end]
-        + SECTION_CONTENT_SPACING
-        + new_content.strip()
-        + SECTION_CONTENT_SPACING
-        + existing_content[section_end:]
-    )
-
-    # Write updated content back to file
-    with open(file_path, FILE_MODE_WRITE, encoding=config.default_encoding) as f:
-        f.write(updated_content)
+        # Write updated content back to file
+        with open(file_path, FILE_MODE_WRITE, encoding=config.default_encoding) as f:
+            f.write(updated_content)
+            
+        logger.info(LOG_SECTION_UPDATE.format(
+            section_title=section_title,
+            path=file_path
+        ))
+            
+    except WriterError as e:
+        logger.error(LOG_ERROR_APPENDING_SECTION.format(
+            section_title=section_title,
+            error=str(e)
+        ))
+        raise WriterError(ERROR_FAILED_APPEND_SECTION.format(error=str(e))) from e
 
 
 def validate_section_markers(content: str) -> None:
@@ -897,7 +906,14 @@ def get_section(file_name: str, section_title: str, config: Optional[WriterConfi
         file_path = validate_filename(file_name, config)
         
         # Validate file exists and is readable
-        validate_file(file_path, require_write=False)
+        try:
+            validate_file(file_path, require_write=False)
+        except WriterError as e:
+            if ERROR_DOCUMENT_NOT_EXIST in str(e):
+                raise FileValidationError(str(file_path))
+            elif ERROR_PERMISSION_DENIED_FILE in str(e):
+                raise FilePermissionError(str(file_path))
+            raise
         
         # Read file content
         content = read_file(file_path, config.default_encoding)
@@ -910,17 +926,12 @@ def get_section(file_name: str, section_title: str, config: Optional[WriterConfi
         section_match = find_section(content, section_title)
         if not section_match:
             logger.error(LOG_SECTION_MARKER_NOT_FOUND.format(section_title=section_title))
-            raise WriterError(ERROR_SECTION_NOT_FOUND.format(section_title=section_title))
+            raise SectionNotFoundError(section_title)
             
-        # Extract just the content (excluding header and marker)
+        # Extract just the content
         section_content = section_match.group(SECTION_CONTENT_KEY)
-        
-        # If content is None or empty, return empty string
-        if not section_content:
-            return ""
-            
-        return section_content.strip()
+        return section_content.strip() if section_content else ""
         
     except (OSError, IOError) as e:
         logger.error(LOG_FILE_OPERATION_ERROR.format(error=str(e)))
-        raise WriterError(str(e)) from e
+        raise FileValidationError(str(file_path), str(e))
