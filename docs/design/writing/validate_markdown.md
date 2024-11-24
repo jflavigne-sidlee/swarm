@@ -16,27 +16,29 @@ The `validate_markdown` function ensures the structural and syntactical integrit
   - Validate the Markdown document to ensure it complies with Markdown standards and is free from syntax issues.
 - **Behavior**:
   - **Syntax Validation**:
-    - Utilize `remark-lint` for its extensibility and comprehensive validation capabilities:
-      - **Broken Links or Image References**: Use `remark-lint` with plugins to detect broken links and image references.
-      - **Malformed Headers**: Use `remark-lint` to check for issues like missing spaces after `#` or incorrect nesting.
-      - **Unclosed Tags**: Use `remark-lint` to identify unclosed tags for inline elements like **, _, or backticks.
-    - Supplement with `markdownlint` for additional validation:
-      - **Invalid Tables**: Use `markdownlint` to detect issues such as misaligned columns or missing headers in tables.
+    - Utilize `mdformat` for comprehensive Python-native validation:
+      - **Broken Links or Image References**: Use built-in link validation
+      - **Malformed Headers**: Check for issues like missing spaces after `#` or incorrect nesting
+      - **GFM Features**: Validate GitHub-Flavored Markdown features like task lists and tables
+      - **Formatting Issues**: Detect inconsistent spacing, indentation, and other formatting problems
+    - Custom validation for specific features:
+      - **Task Lists**: Validate proper GFM task list syntax and indentation
+      - **Links and Images**: Check for broken local references
   - **Compatibility Check**:
-    - Use `Pandoc` to ensure the document is compatible with various output formats, especially when finalizing documents.
+    - Use `Pandoc` to ensure the document is compatible with various output formats, especially when finalizing documents
   - **Error Logging**:
-    - Log all detected issues with clear descriptions, including line numbers and error types.
-    - Provide actionable suggestions for resolving errors.
+    - Log all detected issues with clear descriptions, including line numbers and error types
+    - Provide actionable suggestions for resolving errors
 - **Output**:
-  - Return True if the document is valid.
-  - Return False otherwise, along with a log of validation errors.
+  - Return True if the document is valid
+  - Return False otherwise, along with a log of validation errors
 - **Input/Output Format**:
   - **Input**:
-    - file_name (str): The name of the Markdown file to validate. Must exist and be a valid .md file.
+    - file_name (str): The name of the Markdown file to validate. Must exist and be a valid .md file
   - **Output**:
-    - Returns a bool:
-      - `True` if the document is valid.
-      - `False` if the document contains errors, accompanied by a detailed error log for debugging.
+    - Returns a tuple (bool, List[str]):
+      - bool: `True` if the document is valid, `False` otherwise
+      - List[str]: List of validation errors if any
       
 - **Example Input**:
   ```
@@ -54,35 +56,46 @@ This is a valid section.
 |------|---
 
 ![Image](missing_image.jpg)
+
+- [ ]Empty task
+-[x] Malformed task
 ```
 
 The function would return:
 
 ```python
-False
+(False, [
+    "Markdown formatting error: Table missing cells in row 2",
+    "Broken image link: missing_image.jpg",
+    "Line 10: Invalid task list marker",
+    "Line 11: Incorrect task list indentation"
+])
 ```
 
-  - And log:
-    - Invalid table at line 4: Missing table data or improperly formatted row.
-    - Broken image link at line 6: File 'missing_image.jpg' not found.
 - **Constraints and Edge Cases**:
-  - File Not Found: Raise an error if the specified file does not exist.
-  - Invalid File Format: Raise an error if the file is not a valid Markdown file.
-  - Empty Files: Return False with an appropriate log if the file is empty or contains no content.
-  - Markdown Flavors: Ensure compatibility with common Markdown extensions (e.g., GitHub-Flavored Markdown) if the document uses advanced syntax.
+  - File Not Found: Raise an error if the specified file does not exist
+  - Invalid File Format: Raise an error if the file is not a valid Markdown file
+  - Empty Files: Return False with an appropriate log if the file is empty
+  - Markdown Flavors: Support GitHub-Flavored Markdown through mdformat-gfm plugin
 
 ## Approach
 
 - **Primary Validation**:
-  - Use `remark-lint` for its extensibility and comprehensive validation capabilities. It can handle most of the syntax validation requirements and can be extended with custom rules.
-  - Supplement with `markdownlint` for additional validation, especially if specific markdownlint rules are needed.
-  
-- **Compatibility Check**:
-  - Use `Pandoc` to ensure documents are compatible with various output formats, especially when finalizing documents.
+  - Use `mdformat` for comprehensive Python-native validation:
+    - **Broken Links or Image References**: Use built-in link validation
+    - **Malformed Headers**: Check for issues like missing spaces after `#` or incorrect nesting
+    - **GFM Features**: Validate GitHub-Flavored Markdown features like task lists and tables
+    - **Formatting Issues**: Detect inconsistent spacing, indentation, and other formatting problems
+  - Custom validation for specific features:
+    - **Task Lists**: Validate proper GFM task list syntax and indentation
+    - **Links and Images**: Check for broken local references
 
-- **Integration**:
-  - Integrate these tools into the validation workflow using `subprocess` for external tool invocation.
-  - Capture and parse the output from these tools to integrate with existing logging and error handling mechanisms.
+- **Compatibility Check**:
+  - Use `Pandoc` to ensure documents are compatible with various output formats, especially when finalizing documents
+
+- **Error Logging**:
+  - Log all detected issues with clear descriptions, including line numbers and error types
+  - Provide actionable suggestions for resolving errors
 
 ## Dependencies
 

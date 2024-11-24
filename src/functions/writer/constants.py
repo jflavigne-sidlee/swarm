@@ -588,5 +588,16 @@ ERROR_SUGGESTIONS = {
     # Content validation
     'broken_image': 'Ensure image file exists in the specified path',
     'broken_link': 'Verify the linked file exists in the correct location',
-    'empty_file': 'Add content to the markdown file'
+    'empty_file': 'Add content to the markdown file',
+    
+    # GFM-specific suggestions
+    'table-pipe-alignment': 'Align table pipes vertically for better readability',
+    'table-cell-padding': 'Add single space padding around table cell content',
+    'no-undefined-references': 'Define all referenced links at the bottom of the document',
+    'heading-increment': 'Headers should only increment by one level at a time',
+    'no-duplicate-headings': 'Use unique heading text within each section',
+    'task-list-marker': 'Use "[ ]" or "[x]" for task list items',
+    'task-list-indent': 'Task lists should be indented with 2 spaces',
+    'task-list-empty': 'Task list items should not be empty',
+    'task-list-spacing': 'Add a space after the dash: "- [ ]"',
 }
