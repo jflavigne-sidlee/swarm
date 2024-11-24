@@ -288,31 +288,6 @@ def get_error_line(content: str, error_message: str) -> int:
     return 1
 
 
-import re
-from typing import List
-import logging
-
-# Configure logging for debugging
-logging.basicConfig(level=logging.DEBUG, format="%(message)s")
-logger = logging.getLogger(__name__)
-
-
-class ValidationError:
-    def __init__(
-        self, line_number: int, error_type: str, message: str, suggestion: str
-    ):
-        self.line_number = line_number
-        self.error_type = error_type
-        self.message = message
-        self.suggestion = suggestion
-
-    def __repr__(self):
-        return (
-            f"ValidationError(line_number={self.line_number}, error_type='{self.error_type}', "
-            f"message='{self.message}', suggestion='{self.suggestion}')"
-        )
-
-
 def validate_tables(content: str, tokens: Optional[List[dict]] = None) -> List[ValidationError]:
     """Validate table syntax and structure."""
     errors: List[ValidationError] = []
