@@ -1,323 +1,138 @@
 from pathlib import Path
-import re
-from typing import Optional, List, NamedTuple
+import subprocess
 import logging
-from markdown_it import MarkdownIt
-import yaml
+from typing import Tuple, List
+import re
 
-from .config import WriterConfig
 from .exceptions import WriterError
-from .file_operations import (
-    validate_file,
-    get_config,
-    validate_section_markers,
-)
-from .constants import (
-    YAML_FRONTMATTER_START,
-    YAML_FRONTMATTER_END,
-    ERROR_INVALID_MARKDOWN_FILE,
-    ERROR_YAML_SERIALIZATION,
-    PATTERN_HEADER,
-    PATTERN_SECTION_MARKER,
-)
+from .file_operations import validate_file
 
 logger = logging.getLogger(__name__)
 
-
-class ValidationError(NamedTuple):
-    """Represents a validation error in the Markdown document."""
-
-    line_number: int
-    error_type: str
-    message: str
-    suggestion: str
-
-
-class ValidationResult(NamedTuple):
-    """Result of Markdown validation."""
-
-    is_valid: bool
-    errors: List[ValidationError]
-
-
-def validate_markdown(
-    file_path: Path, parser: Optional[MarkdownIt] = None, debug: bool = False
-) -> ValidationResult:
-    """Validate a markdown file."""
-    try:
-        config = get_config()
-        validate_file(file_path, require_write=False)
-
-        with open(file_path, "r", encoding=config.default_encoding) as f:
-            content = f.read()
-
-        if not content.strip():
-            return ValidationResult(
-                is_valid=False,
-                errors=[
-                    ValidationError(
-                        line_number=1,
-                        error_type="Document Structure",
-                        message="Empty document",
-                        suggestion="Add required document content",
-                    )
-                ],
-            )
-
-        # Single parsing step
-        if parser is None:
-            parser = (
-                MarkdownIt("commonmark").enable("table").enable("link").enable("image")
-            )
-
-        tokens = parser.parse(content)
-
-        if debug:
-            print("\nToken Summary:")
-            token_counts = {}
-            for token in tokens:
-                if token.type in ["link_open", "image", "heading_open", "fence"]:
-                    token_counts[token.type] = token_counts.get(token.type, 0) + 1
-                    if token.type in ["link_open", "image"]:
-                        attrs = dict(token.attrs) if token.attrs else {}
-                        print(f"\n{token.type}:")
-                        print(f"  href/src: {attrs.get('href') or attrs.get('src')}")
-                        print(f"  line: {token.map[0] + 1 if token.map else 'unknown'}")
-
-            print("\nToken Counts:")
-            for token_type, count in token_counts.items():
-                print(f"  {token_type}: {count}")
-
-        # Collect all validation errors using parsed tokens
-        errors = []
-        errors.extend(validate_frontmatter(content))  # Still needs raw content for YAML
-        errors.extend(validate_header_hierarchy(content, tokens))  # Update to use tokens
-        errors.extend(validate_tables(content, tokens))  # Update to use tokens
-        errors.extend(validate_code_blocks(content, tokens))  # Update to use tokens
-        errors.extend(
-            validate_links(content, tokens, base_path=file_path)
-        )  # Already uses tokens
-
-        return ValidationResult(is_valid=len(errors) == 0, errors=errors)
-
-    except Exception as e:
-        raise WriterError(f"Validation error: {str(e)}")
-
-
-def validate_frontmatter(content: str) -> List[ValidationError]:
-    """Validate YAML frontmatter syntax."""
-    errors = []
-    if content.startswith(YAML_FRONTMATTER_START):
-        try:
-            end_pos = content.find(YAML_FRONTMATTER_END)
-            if end_pos == -1:
-                errors.append(
-                    ValidationError(
-                        line_number=1,
-                        error_type="YAML Frontmatter",
-                        message="Unclosed YAML frontmatter block",
-                        suggestion="Add closing '---' delimiter",
-                    )
-                )
-                return errors
-
-            frontmatter = content[len(YAML_FRONTMATTER_START) : end_pos]
-            yaml.safe_load(frontmatter)
-
-        except yaml.YAMLError as e:
-            errors.append(
-                ValidationError(
-                    line_number=get_yaml_error_line(e),
-                    error_type="YAML Syntax",
-                    message=str(e),
-                    suggestion="Fix YAML syntax in frontmatter",
-                )
-            )
-
-    return errors
-
-
-def validate_header_hierarchy(content: str, tokens: Optional[List[dict]] = None) -> List[ValidationError]:
-    """Validate header levels follow proper hierarchy."""
-    if tokens is None:
-        parser = MarkdownIt("commonmark")
-        tokens = parser.parse(content)
+def validate_markdown(file_name: str) -> Tuple[bool, List[str]]:
+    """Validate the Markdown document for syntax and structural issues.
     
-    errors = []
-    current_level = 0
-    
-    for token in tokens:
-        if token.type == "heading_open":
-            level = int(token.tag[1])  # h1 -> 1, h2 -> 2, etc.
-            if level > current_level + 1 and current_level > 0:
-                errors.append(
-                    ValidationError(
-                        line_number=token.map[0] + 1 if token.map else 0,
-                        error_type="Header Hierarchy",
-                        message=f"Header level jumps from {current_level} to {level}",
-                        suggestion=f"Use level {current_level + 1} header instead",
-                    )
-                )
-            current_level = level
-    
-    return errors
-
-
-def validate_links(content: str, tokens: Optional[List[dict]] = None, base_path: Optional[Path] = None) -> List[ValidationError]:
-    """Validate links in the markdown content."""
-    errors: List[ValidationError] = []
-    
-    if tokens is None:
-        parser = MarkdownIt("commonmark").enable("link").enable("image")
-        tokens = parser.parse(content)
-    
-    for token in tokens:
-        if token.type == "inline":
-            # Inline tokens contain children with the actual links
-            for child in token.children:
-                if child.type in ["link_open", "image"]:
-                    try:
-                        attrs = dict(child.attrs) if hasattr(child, 'attrs') and child.attrs else {}
-                        href = attrs.get('href') or attrs.get('src')
-                        
-                        if href and not href.startswith(('http://', 'https://', '#', 'mailto:')):
-                            target_path = base_path.parent / href if base_path else Path(href)
-                            
-                            if not target_path.exists():
-                                errors.append(
-                                    ValidationError(
-                                        line_number=token.map[0] + 1 if token.map else 0,
-                                        error_type="Link",
-                                        message=f"Broken link: {href}",
-                                        suggestion="Ensure the linked file exists",
-                                    )
-                                )
-                    except Exception as e:
-                        continue
-    
-    return errors
-
-
-def validate_code_blocks(content: str, tokens: Optional[List[dict]] = None) -> List[ValidationError]:
-    """Validate code block syntax."""
-    errors: List[ValidationError] = []
-    
-    if tokens is None:
-        parser = MarkdownIt("commonmark")
-        tokens = parser.parse(content)
-
-    lines = content.splitlines()
-    in_code_block = False
-    code_block_start = 0
-    
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if stripped.startswith('```'):
-            if not in_code_block:
-                in_code_block = True
-                code_block_start = i
-                if len(stripped) <= 3:  # No language specified
-                    errors.append(
-                        ValidationError(
-                            line_number=i + 1,
-                            error_type="Code Block",
-                            message="Missing language identifier",
-                            suggestion="Add language after opening ```",
-                        )
-                    )
-            else:
-                in_code_block = False
-    
-    if in_code_block:
-        errors.append(
-            ValidationError(
-                line_number=code_block_start + 1,
-                error_type="Code Block",
-                message="Unclosed code block",
-                suggestion="Add closing ``` to the code block",
-            )
-        )
-    
-    return errors
-
-
-def get_line_number(tokens: List[dict], pos: int) -> int:
-    """Get line number for a position in the content."""
-    return sum(token.map[1] for token in tokens if token.map[0] < pos) + 1
-
-
-def get_yaml_error_line(error: yaml.YAMLError) -> int:
-    """Extract line number from YAML error."""
-    if hasattr(error, "problem_mark"):
-        return error.problem_mark.line + 1
-    return 1
-
-
-def get_error_line(content: str, error_message: str) -> int:
-    """Extract line number from content based on error message context.
-
     Args:
-        content: The full document content
-        error_message: The error message that may contain context
-
+        file_name: The name of the Markdown file to validate
+        
     Returns:
-        int: Best guess at the line number where the error occurred
-
-    Example:
-        >>> content = "line1\\nline2\\n<!-- Section: Test -->\\nline4"
-        >>> msg = "Invalid section marker: Test"
-        >>> get_error_line(content, msg)
-        3  # Returns the line number where "Test" appears
+        Tuple containing:
+            - bool: True if document is valid, False otherwise
+            - List[str]: List of validation errors if any
+            
+    Raises:
+        WriterError: If file doesn't exist or isn't accessible
     """
-    # Try to extract any quoted text from error message
-    quoted_text = re.findall(r'"([^"]*)"', error_message)
-
-    # If we found quoted text, try to find it in the content
-    for text in quoted_text:
-        pos = content.find(text)
-        if pos != -1:
-            return get_line_number(content, pos)
-
-    # If no quoted text or text not found, try to find any section marker reference
-    if "section" in error_message.lower():
-        marker_match = re.search(PATTERN_SECTION_MARKER, content)
-        if marker_match:
-            return get_line_number(content, marker_match.start())
-
-    # If we can't determine the specific line, return line 1
-    return 1
-
-
-def validate_tables(content: str, tokens: Optional[List[dict]] = None) -> List[ValidationError]:
-    """Validate table syntax and structure."""
-    errors: List[ValidationError] = []
+    file_path = Path(file_name)
+    errors = []
     
-    if tokens is None:
-        parser = MarkdownIt("commonmark").enable("table")
-        tokens = parser.parse(content)
+    try:
+        # Validate file exists and is readable
+        validate_file(file_path, require_write=False)
+        
+        # Run remark-lint validation
+        try:
+            result = subprocess.run(
+                ['npx', 'remark-cli', str(file_path), '--use', 'remark-lint'],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            if result.returncode != 0:
+                errors.extend(parse_remark_errors(result.stderr))
+                
+        except subprocess.CalledProcessError as e:
+            logger.error(f"remark-lint validation failed: {str(e)}")
+            errors.append(f"Syntax validation failed: {str(e)}")
+            
+        # Run markdownlint validation
+        try:
+            result = subprocess.run(
+                ['npx', 'markdownlint-cli', str(file_path)],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            if result.returncode != 0:
+                errors.extend(parse_markdownlint_errors(result.stdout))
+                
+        except subprocess.CalledProcessError as e:
+            logger.error(f"markdownlint validation failed: {str(e)}")
+            errors.append(f"Additional validation failed: {str(e)}")
+            
+        # Check for broken links and images
+        content_errors = validate_content(file_path)
+        errors.extend(content_errors)
+        
+        return len(errors) == 0, errors
+        
+    except Exception as e:
+        logger.error(f"Validation failed: {str(e)}")
+        raise WriterError(f"Failed to validate markdown: {str(e)}")
+
+def parse_remark_errors(error_output: str) -> List[str]:
+    """Parse remark-lint error output into readable messages."""
+    errors = []
+    for line in error_output.splitlines():
+        if ':' in line:
+            # Extract line number and message
+            parts = line.split(':', 2)
+            if len(parts) >= 3:
+                line_num = parts[1].strip()
+                message = parts[2].strip()
+                errors.append(f"Line {line_num}: {message}")
+    return errors
+
+def parse_markdownlint_errors(error_output: str) -> List[str]:
+    """Parse markdownlint error output into readable messages."""
+    errors = []
+    for line in error_output.splitlines():
+        if ':' in line:
+            # Extract line number and rule
+            match = re.match(r'.*:(\d+):\s*(.+)', line)
+            if match:
+                line_num = match.group(1)
+                message = match.group(2)
+                errors.append(f"Line {line_num}: {message}")
+    return errors
+
+def validate_content(file_path: Path) -> List[str]:
+    """Validate document content for broken links and images.
     
-    lines = content.splitlines()
-    in_table = False
-    table_start_line = 0
-    
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if stripped.startswith('|') and stripped.endswith('|'):
-            if not in_table:
-                in_table = True
-                table_start_line = i
-            elif i == table_start_line + 1:
-                # Check alignment row
-                if not re.match(r'\|(?:\s*:?-+:?\s*\|)+', stripped):
-                    errors.append(
-                        ValidationError(
-                            line_number=i + 1,
-                            error_type="Table Format",
-                            message="Missing or invalid alignment row",
-                            suggestion="Add alignment row (e.g., | --- | --- |)",
-                        )
-                    )
-        else:
-            in_table = False
-    
+    Args:
+        file_path: Path to the markdown file to validate
+        
+    Returns:
+        List[str]: List of validation errors found
+    """
+    errors = []
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+            
+        # Track validated paths to avoid duplicate checks
+        validated_paths = set()
+            
+        # Check for broken image links
+        image_links = re.finditer(r'!\[([^\]]*)\]\(([^)]+)\)', content)
+        for match in image_links:
+            image_path = match.group(2)
+            if not image_path.startswith(('http://', 'https://')):
+                if not (file_path.parent / image_path).exists():
+                    errors.append(f"Broken image link: {image_path}")
+                validated_paths.add(image_path)
+                
+        # Check for broken local file links
+        file_links = re.finditer(r'\[([^\]]+)\]\(([^)]+)\)', content)
+        for match in file_links:
+            link_path = match.group(2)
+            # Skip already validated paths, anchors, and external links
+            if (link_path not in validated_paths and 
+                not link_path.startswith(('http://', 'https://', '#'))):
+                if not (file_path.parent / link_path).exists():
+                    errors.append(f"Broken file link: {link_path}")
+                    
+    except Exception as e:
+        errors.append(f"Content validation error: {str(e)}")
+        
     return errors
