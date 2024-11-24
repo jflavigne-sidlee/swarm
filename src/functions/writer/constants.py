@@ -568,3 +568,25 @@ PANDOC_TO_FORMAT: Final = "html"
 ERROR_REMARK_VALIDATION: Final = "Syntax validation failed: {error}"
 ERROR_MARKDOWNLINT_VALIDATION: Final = "Additional validation failed: {error}"
 ERROR_PANDOC_VALIDATION: Final = "Format compatibility check failed: {error}"
+
+# Error suggestions for common markdown issues
+ERROR_SUGGESTIONS = {
+    # Markdownlint rules
+    'MD007': 'Fix list indentation to use 2 spaces',
+    'MD022': 'Add blank lines before and after headers',
+    'MD031': 'Add blank lines around code blocks',
+    'MD032': 'Add blank lines before lists',
+    'MD034': 'Use bare URLs in angle brackets <url>',
+    'MD037': 'Remove spaces inside emphasis markers',
+    
+    # Remark-lint rules
+    'no-undefined-references': 'Ensure all referenced links and images are defined',
+    'no-empty-sections': 'Add content to empty sections or remove them',
+    'heading-increment': 'Headers should increment by one level at a time',
+    'no-duplicate-headings': 'Use unique heading text within sections',
+    
+    # Content validation
+    'broken_image': 'Ensure image file exists in the specified path',
+    'broken_link': 'Verify the linked file exists in the correct location',
+    'empty_file': 'Add content to the markdown file'
+}

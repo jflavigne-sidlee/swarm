@@ -101,8 +101,10 @@ file.md:5: MD007 Incorrect list indentation
     errors = parse_markdownlint_errors(error_output)
     
     assert len(errors) == 2
-    assert "Line 1: MD001 Invalid header" in errors
-    assert "Line 5: MD007 Incorrect list indentation" in errors
+    assert "Line 1: MD001 Invalid header" in errors[0]
+    assert "Line 5: MD007 Incorrect list indentation" in errors[1]
+    # Check for suggestion in MD007 error
+    assert "Suggestion: Fix list indentation to use 2 spaces" in errors[1]
 
 def test_validate_content(tmp_path):
     # Create test file with broken links
@@ -169,13 +171,13 @@ def test_validate_markdown_with_tool_failures(invalid_md_file):
         # Mock validation failures for each tool
         mock_run.side_effect = [
             # remark-lint failure
-            Mock(returncode=1, 
+            Mock(returncode=1,
                  stderr='file.md:1: Invalid header spacing\nfile.md:5: Broken link',
                  stdout=''),
             # markdownlint failure
             Mock(returncode=1,
                  stderr='',
-                 stdout='file.md:3: MD007 Unordered list indentation\nfile.md:8: MD022 Headers should be surrounded by blank lines'),
+                 stdout='file.md:3: MD007 Unordered list indentation'),
             # pandoc failure
             Mock(returncode=1,
                  stderr='Error parsing markdown: malformed table',
@@ -187,7 +189,7 @@ def test_validate_markdown_with_tool_failures(invalid_md_file):
         assert not is_valid
         assert len(errors) > 0
         assert any('Invalid header spacing' in error for error in errors)
-        assert any('MD007' in error for error in errors)
+        assert any('MD007 Unordered list indentation' in error for error in errors)
         assert any('malformed table' in error for error in errors)
         assert mock_run.call_count == 3
 
@@ -205,3 +207,39 @@ def test_validate_markdown_with_tool_errors():
             validate_markdown("test.md")
             
         assert "Failed to validate markdown" in str(exc_info.value)
+
+def test_validate_markdown_empty_file(tmp_path):
+    """Test validation of an empty markdown file."""
+    # Create empty file
+    file_path = tmp_path / "empty.md"
+    file_path.touch()
+    
+    # Validate the empty file
+    is_valid, errors = validate_markdown(str(file_path))
+    
+    # Check results
+    assert not is_valid
+    assert len(errors) == 1
+    assert "File is empty" in errors[0]
+
+def test_parse_markdownlint_errors_with_suggestions():
+    """Test that markdownlint errors include suggestions when available."""
+    error_output = "file.md:1: MD022 Headers should be surrounded by blank lines"
+    errors = parse_markdownlint_errors(error_output)
+    
+    assert len(errors) == 1
+    assert "Line 1:" in errors[0]
+    assert "Suggestion:" in errors[0]
+    assert "Add blank lines before and after headers" in errors[0]
+
+def test_validate_content_with_suggestions(tmp_path):
+    """Test that content validation errors include suggestions."""
+    md_file = tmp_path / "test.md"
+    md_file.write_text("![broken](missing.jpg)\n[broken](missing.md)")
+    
+    errors = validate_content(md_file)
+    
+    assert len(errors) == 2
+    assert all("Suggestion:" in error for error in errors)
+    assert any("Ensure image file exists" in error for error in errors)
+    assert any("Verify the linked file exists" in error for error in errors)
