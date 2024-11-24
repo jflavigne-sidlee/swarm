@@ -7,6 +7,10 @@ from src.config import FileSearchConfig
 from src.file_manager import FileManager
 from src.assistant_manager import AssistantManager
 import tempfile
+import stat
+import shutil
+import time
+import atexit
 
 # Load environment variables
 load_dotenv()
@@ -86,3 +90,82 @@ def file_manager(azure_client):
 def assistant_manager(azure_client):
     """Create an AssistantManager instance for testing."""
     return AssistantManager(azure_client)
+
+def force_chmod(path: Path):
+    """Recursively change permissions to allow deletion."""
+    try:
+        if path.is_dir():
+            # Make directory and contents writable
+            os.chmod(path, 0o755)
+            for item in path.iterdir():
+                force_chmod(item)
+        else:
+            os.chmod(path, 0o644)
+    except Exception:
+        pass
+
+def force_remove(path: Path, retries: int = 3):
+    """Remove a path with retries and permission fixes."""
+    for attempt in range(retries):
+        try:
+            if not path.exists():
+                return True
+                
+            # Make everything writable first
+            force_chmod(path)
+            
+            if path.is_file():
+                path.unlink()
+            else:
+                shutil.rmtree(path, ignore_errors=True)
+            
+            return True
+        except Exception:
+            if attempt < retries - 1:
+                time.sleep(0.1 * (attempt + 1))
+    return False
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_test_files():
+    """Clean up test files after all tests are complete."""
+    yield
+    
+    # Get pytest temp directory
+    temp_dir = Path('/tmp/pytest-of-' + os.getenv('USER', 'unknown'))
+    if temp_dir.exists():
+        # Handle each garbage directory
+        for garbage_dir in temp_dir.glob('garbage-*'):
+            try:
+                # First handle special directories
+                test_path = garbage_dir / 'test_path_validation0'
+                if test_path.exists():
+                    for special_dir in ['drafts', 'finalized']:
+                        special_path = test_path / 'temp' / special_dir
+                        if special_path.exists():
+                            force_remove(special_path)
+                    
+                    # Then remove parent directories
+                    force_remove(test_path / 'temp')
+                    force_remove(test_path)
+                
+                # Finally remove the garbage directory
+                force_remove(garbage_dir)
+            except Exception as e:
+                print(f"Warning: Failed to remove {garbage_dir}: {e}")
+
+@pytest.fixture(autouse=True)
+def setup_test_permissions():
+    """Ensure proper permissions for test execution."""
+    original_umask = os.umask(0o022)  # Set default umask to get 755/644
+    yield
+    os.umask(original_umask)
+
+@pytest.fixture
+def test_file(tmp_path):
+    """Create a test file with proper permissions."""
+    def _create_file(content: str, filename: str = "test.md") -> Path:
+        file_path = tmp_path / filename
+        file_path.write_text(content)
+        os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR)
+        return file_path
+    return _create_file

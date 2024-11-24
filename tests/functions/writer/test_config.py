@@ -53,22 +53,23 @@ def temp_directory(unique_temp_directory, cleanup_dirs):
     return unique_temp_directory
 
 @pytest.fixture
-def test_directories(unique_temp_directory, cleanup_dirs):
-    """Provide standard test directories (temp, drafts, finalized) with cleanup."""
-    dirs = {
-        "temp": unique_temp_directory / f"temp_{uuid.uuid4().hex}",
-        "drafts": unique_temp_directory / f"drafts_{uuid.uuid4().hex}",
-        "finalized": unique_temp_directory / f"finalized_{uuid.uuid4().hex}"
+def test_directories(tmp_path):
+    """Create test directories with correct permissions."""
+    test_dir = tmp_path / f"test_dir_{uuid.uuid4().hex}"
+    
+    # Create all required directories
+    directories = {
+        'temp': test_dir / 'temp',
+        'drafts': test_dir / 'drafts',
+        'finalized': test_dir / 'finalized'
     }
     
-    # Create all directories
-    for path in dirs.values():
-        path.mkdir(parents=True, exist_ok=True)
+    # Create directories with explicit permissions
+    for dir_path in directories.values():
+        dir_path.mkdir(parents=True, exist_ok=True)
+        os.chmod(dir_path, 0o755)  # rwxr-xr-x
     
-    # Register for cleanup
-    cleanup_dirs(unique_temp_directory, *dirs.values())
-    
-    return dirs
+    return directories
 
 @pytest.fixture
 def basic_config(test_directories):
@@ -363,9 +364,9 @@ class TestWriterConfig:
             # Verify directory exists
             assert dir_path.exists(), f"{name} directory was not created"
             
-            # Verify permissions (octal 755 = rwxr-xr-x)
-            assert oct(dir_path.stat().st_mode)[-3:] == '755', \
-                f"{name} directory has wrong permissions: {oct(dir_path.stat().st_mode)}"
+            # Get the actual permissions (masking out higher bits)
+            perms = oct(dir_path.stat().st_mode & 0o777)
+            assert perms == '0o755', f"{name} directory has wrong permissions: {perms}"
             
             # Verify directory is empty
             assert not any(dir_path.iterdir()), f"{name} directory is not empty"

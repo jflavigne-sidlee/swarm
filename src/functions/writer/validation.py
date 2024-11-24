@@ -5,6 +5,8 @@ from typing import Tuple, List
 import re
 import mdformat
 from mdformat.renderer import MDRenderer
+import os
+import stat
 
 from .exceptions import WriterError
 from .file_operations import validate_file
@@ -43,10 +45,14 @@ def validate_markdown(file_name: str) -> Tuple[bool, List[str]]:
     try:
         file_path = Path(file_name)
         
-        # Validate file extension
+        # Validate file extension first, before trying to access the file
         if file_path.suffix != '.md':
             raise WriterError("Invalid file format: File must have .md extension")
             
+        # Ensure file is readable
+        if not os.access(file_path, os.R_OK):
+            os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR)
+        
         validate_file(file_path)
         
         if file_path.stat().st_size == 0:
@@ -95,11 +101,20 @@ def validate_markdown(file_name: str) -> Tuple[bool, List[str]]:
             errors.append(f"Pandoc compatibility error: {str(e)}")
             return False, errors  # Return immediately on pandoc error
             
+        # Add header nesting validation
+        errors.extend(validate_header_nesting(content))
+        
         return len(errors) == 0, errors
         
     except Exception as e:
         logger.error(f"Validation failed: {str(e)}")
         raise WriterError(f"Failed to validate markdown: {str(e)}")
+    finally:
+        # Ensure we restore reasonable permissions
+        try:
+            os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
+        except Exception:
+            pass
 
 def parse_remark_errors(error_output: str) -> List[str]:
     """Parse remark-lint error output into readable messages with suggestions."""
@@ -232,4 +247,44 @@ def validate_gfm_task_lists(content: str) -> List[str]:
                     ERROR_SUGGESTIONS['task-list-marker']
                 ))
 
+    return errors
+
+def validate_header_nesting(content: str) -> List[str]:
+    """Validate header nesting and increments in markdown content."""
+    errors = []
+    current_level = 0
+    last_header = None
+    
+    for line_num, line in enumerate(content.splitlines(), 1):
+        if line.strip().startswith('#'):
+            # Count the number of # symbols
+            level = len(line.split()[0])
+            header_text = line.lstrip('#').strip()
+            
+            # Check for empty headers
+            if not header_text:
+                errors.append(f"Line {line_num}: Empty header detected. Headers must contain text.")
+                continue
+                
+            # Check if header level is valid (1-6)
+            if level > 6:
+                errors.append(f"Line {line_num}: Header level {level} exceeds maximum allowed level of 6")
+                continue
+                
+            # First header should be level 1
+            if last_header is None and level != 1:
+                errors.append(f"Line {line_num}: Document should start with a level 1 header (found level {level})")
+            
+            # Check for skipped levels
+            if last_header is not None:
+                if level > current_level + 1:
+                    errors.append(
+                        f"Line {line_num}: Header level jumps from {current_level} to {level}. "
+                        f"Headers should increment by only one level at a time.\n"
+                        f"Suggestion: Use {'#' * (current_level + 1)} instead of {'#' * level}"
+                    )
+            
+            current_level = level
+            last_header = header_text
+    
     return errors
