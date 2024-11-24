@@ -1,0 +1,16 @@
+{
+  "default": true,
+  "MD013": false,
+  "MD033": false,
+  "MD041": false,
+  "line-length": false,
+  "no-inline-html": {
+    "allowed_elements": ["div", "span", "p", "br", "hr", "section"]
+  },
+  "no-duplicate-heading": {
+    "siblings_only": true
+  },
+  "ul-indent": {
+    "indent": 2
+  }
+} 

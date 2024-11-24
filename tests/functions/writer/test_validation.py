@@ -54,17 +54,29 @@ def test_validate_markdown_valid_file(valid_md_file):
 
 def test_validate_markdown_invalid_file(invalid_md_file):
     with patch('subprocess.run') as mock_run:
-        # Mock validation failures
+        # Mock validation failures with a list of responses for each tool
         mock_run.side_effect = [
-            Mock(returncode=1, stderr='file.md:1: Invalid header spacing', stdout=''),
-            Mock(returncode=1, stderr='', stdout='file.md:3: MD007 Unordered list indentation')
+            # remark-lint failure
+            Mock(returncode=1, 
+                 stderr='file.md:1: Invalid header spacing\nfile.md:5: Broken link',
+                 stdout=''),
+            # markdownlint failure
+            Mock(returncode=1,
+                 stderr='',
+                 stdout='file.md:3: MD007 Unordered list indentation'),
+            # pandoc failure
+            Mock(returncode=1,
+                 stderr='Error parsing markdown: malformed table',
+                 stdout='')
         ]
         
         is_valid, errors = validate_markdown(str(invalid_md_file))
         
         assert not is_valid
         assert len(errors) > 0
-        assert any('header' in error.lower() for error in errors)
+        assert any('Invalid header spacing' in error for error in errors)
+        assert any('MD007' in error for error in errors)
+        assert any('malformed table' in error for error in errors)
 
 def test_validate_markdown_nonexistent_file():
     with pytest.raises(WriterError):
@@ -133,3 +145,63 @@ def test_validate_content_with_valid_links(tmp_path):
     errors = validate_content(file_path)
     
     assert len(errors) == 0
+
+def test_validate_markdown_with_external_tools(valid_md_file):
+    with patch('subprocess.run') as mock_run:
+        # Mock successful validation for all tools
+        mock_run.side_effect = [
+            # remark-lint success
+            Mock(returncode=0, stderr='', stdout=''),
+            # markdownlint success
+            Mock(returncode=0, stderr='', stdout=''),
+            # pandoc success
+            Mock(returncode=0, stderr='', stdout='')
+        ]
+        
+        is_valid, errors = validate_markdown(str(valid_md_file))
+        
+        assert is_valid
+        assert len(errors) == 0
+        assert mock_run.call_count == 3
+
+def test_validate_markdown_with_tool_failures(invalid_md_file):
+    with patch('subprocess.run') as mock_run:
+        # Mock validation failures for each tool
+        mock_run.side_effect = [
+            # remark-lint failure
+            Mock(returncode=1, 
+                 stderr='file.md:1: Invalid header spacing\nfile.md:5: Broken link',
+                 stdout=''),
+            # markdownlint failure
+            Mock(returncode=1,
+                 stderr='',
+                 stdout='file.md:3: MD007 Unordered list indentation\nfile.md:8: MD022 Headers should be surrounded by blank lines'),
+            # pandoc failure
+            Mock(returncode=1,
+                 stderr='Error parsing markdown: malformed table',
+                 stdout='')
+        ]
+        
+        is_valid, errors = validate_markdown(str(invalid_md_file))
+        
+        assert not is_valid
+        assert len(errors) > 0
+        assert any('Invalid header spacing' in error for error in errors)
+        assert any('MD007' in error for error in errors)
+        assert any('malformed table' in error for error in errors)
+        assert mock_run.call_count == 3
+
+def test_validate_markdown_with_tool_errors():
+    with patch('subprocess.run') as mock_run:
+        # Mock tool execution errors
+        mock_run.side_effect = subprocess.CalledProcessError(
+            cmd=['remark'],
+            returncode=1,
+            output='',
+            stderr='Command failed'
+        )
+        
+        with pytest.raises(WriterError) as exc_info:
+            validate_markdown("test.md")
+            
+        assert "Failed to validate markdown" in str(exc_info.value)

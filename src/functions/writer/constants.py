@@ -557,3 +557,14 @@ LOG_FILE_OPERATION_ERROR: Final = "File operation error: {error}"
 
 # Message for when no associated header is found
 NO_ASSOCIATED_HEADER: Final = "No associated header"
+
+# External tool configurations
+REMARK_CONFIG_FILE: Final = ".remarkrc.js"
+MARKDOWNLINT_CONFIG_FILE: Final = ".markdownlint.json"
+PANDOC_FROM_FORMAT: Final = "markdown"
+PANDOC_TO_FORMAT: Final = "html"
+
+# External tool error messages
+ERROR_REMARK_VALIDATION: Final = "Syntax validation failed: {error}"
+ERROR_MARKDOWNLINT_VALIDATION: Final = "Additional validation failed: {error}"
+ERROR_PANDOC_VALIDATION: Final = "Format compatibility check failed: {error}"

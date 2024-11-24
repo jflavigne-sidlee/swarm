@@ -6,6 +6,14 @@ import re
 
 from .exceptions import WriterError
 from .file_operations import validate_file
+from .constants import (
+    MARKDOWNLINT_CONFIG_FILE,
+    PANDOC_FROM_FORMAT,
+    PANDOC_TO_FORMAT,
+    ERROR_REMARK_VALIDATION,
+    ERROR_MARKDOWNLINT_VALIDATION,
+    ERROR_PANDOC_VALIDATION,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -21,19 +29,18 @@ def validate_markdown(file_name: str) -> Tuple[bool, List[str]]:
             - List[str]: List of validation errors if any
             
     Raises:
-        WriterError: If file doesn't exist or isn't accessible
+        WriterError: If file validation fails or external tools cannot be executed
     """
-    file_path = Path(file_name)
-    errors = []
-    
     try:
-        # Validate file exists and is readable
-        validate_file(file_path, require_write=False)
-        
+        file_path = Path(file_name)
+        validate_file(file_path)
+        errors = []
+
         # Run remark-lint validation
         try:
             result = subprocess.run(
-                ['npx', 'remark-cli', str(file_path), '--use', 'remark-lint'],
+                ['npx', 'remark', str(file_path), '--use', 'remark-lint',
+                 '--use', 'remark-validate-links'],
                 capture_output=True,
                 text=True,
                 check=False
@@ -42,13 +49,13 @@ def validate_markdown(file_name: str) -> Tuple[bool, List[str]]:
                 errors.extend(parse_remark_errors(result.stderr))
                 
         except subprocess.CalledProcessError as e:
-            logger.error(f"remark-lint validation failed: {str(e)}")
-            errors.append(f"Syntax validation failed: {str(e)}")
-            
+            logger.error(ERROR_REMARK_VALIDATION.format(error=str(e)))
+            errors.append(ERROR_REMARK_VALIDATION.format(error=str(e)))
+
         # Run markdownlint validation
         try:
             result = subprocess.run(
-                ['npx', 'markdownlint-cli', str(file_path)],
+                ['markdownlint', str(file_path), '--config', MARKDOWNLINT_CONFIG_FILE],
                 capture_output=True,
                 text=True,
                 check=False
@@ -57,9 +64,25 @@ def validate_markdown(file_name: str) -> Tuple[bool, List[str]]:
                 errors.extend(parse_markdownlint_errors(result.stdout))
                 
         except subprocess.CalledProcessError as e:
-            logger.error(f"markdownlint validation failed: {str(e)}")
-            errors.append(f"Additional validation failed: {str(e)}")
-            
+            logger.error(ERROR_MARKDOWNLINT_VALIDATION.format(error=str(e)))
+            errors.append(ERROR_MARKDOWNLINT_VALIDATION.format(error=str(e)))
+
+        # Run pandoc compatibility check
+        try:
+            result = subprocess.run(
+                ['pandoc', '--from', PANDOC_FROM_FORMAT, '--to', PANDOC_TO_FORMAT, 
+                 str(file_path)],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            if result.returncode != 0:
+                errors.append(ERROR_PANDOC_VALIDATION.format(error=result.stderr))
+                
+        except subprocess.CalledProcessError as e:
+            logger.error(ERROR_PANDOC_VALIDATION.format(error=str(e)))
+            errors.append(ERROR_PANDOC_VALIDATION.format(error=str(e)))
+
         # Check for broken links and images
         content_errors = validate_content(file_path)
         errors.extend(content_errors)
