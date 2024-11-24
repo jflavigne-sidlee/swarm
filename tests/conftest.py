@@ -104,26 +104,22 @@ def force_chmod(path: Path):
     except Exception:
         pass
 
-def force_remove(path: Path, retries: int = 3):
-    """Remove a path with retries and permission fixes."""
-    for attempt in range(retries):
-        try:
-            if not path.exists():
-                return True
-                
-            # Make everything writable first
-            force_chmod(path)
-            
-            if path.is_file():
-                path.unlink()
-            else:
-                shutil.rmtree(path, ignore_errors=True)
-            
-            return True
-        except Exception:
-            if attempt < retries - 1:
-                time.sleep(0.1 * (attempt + 1))
-    return False
+def force_remove(path):
+    """Recursively force remove a path."""
+    try:
+        # First make the current path fully accessible
+        os.chmod(path, 0o777)
+        
+        if path.is_dir():
+            # Then handle contents
+            for item in path.iterdir():
+                force_remove(item)
+            # Finally remove the empty directory
+            path.rmdir()
+        else:
+            path.unlink()
+    except Exception as e:
+        print(f"Warning: Could not remove {path}: {e}")
 
 @pytest.fixture(scope="session", autouse=True)
 def cleanup_test_files():
@@ -169,3 +165,48 @@ def test_file(tmp_path):
         os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR)
         return file_path
     return _create_file
+
+def clean_stale_test_dirs():
+    """Clean up any stale test directories from previous failed runs."""
+    pytest_tmp = Path('/tmp/pytest-of-' + os.getenv('USER', 'unknown'))
+    if not pytest_tmp.exists():
+        return
+        
+    def force_remove(path):
+        """Recursively force remove a path."""
+        try:
+            if path.is_file():
+                os.chmod(path, 0o666)
+                path.unlink()
+            elif path.is_dir():
+                for item in path.iterdir():
+                    force_remove(item)
+                os.chmod(path, 0o777)
+                path.rmdir()
+        except Exception as e:
+            print(f"Warning: Could not remove {path}: {e}")
+
+    # Clean up any garbage-* directories
+    for garbage_dir in pytest_tmp.glob('garbage-*'):
+        force_remove(garbage_dir)
+        time.sleep(0.1)  # Small delay between removals
+    
+    # Also clean up any pytest-* directories older than 1 hour
+    current_time = time.time()
+    for test_dir in pytest_tmp.glob('pytest-*'):
+        try:
+            if (current_time - test_dir.stat().st_mtime) > 3600:  # 1 hour
+                force_remove(test_dir)
+                time.sleep(0.1)
+        except Exception as e:
+            print(f"Warning: Could not check/remove {test_dir}: {e}")
+
+def pytest_configure(config):
+    """Run cleanup before tests start."""
+    clean_stale_test_dirs()
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_after_tests():
+    """Clean up after all tests complete."""
+    yield
+    clean_stale_test_dirs()
