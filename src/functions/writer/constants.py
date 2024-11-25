@@ -665,3 +665,6 @@ ERROR_SUGGESTION_FORMAT: Final = "\nSuggestion: {suggestion}"
 HTTP_PREFIX: Final = "http://"
 HTTPS_PREFIX: Final = "https://"
 URL_PREFIXES: Final = (HTTP_PREFIX, HTTPS_PREFIX)
+
+# Markdown patterns
+PATTERN_IMAGE_LINK: Final = r"!\[([^\]]*)\]\(([^)]+)\)"

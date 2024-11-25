@@ -44,6 +44,7 @@ from .constants import (
     HTTPS_PREFIX,
     URL_PREFIXES,
     SECTION_HEADER_PREFIX,
+    PATTERN_IMAGE_LINK,
 )
 
 logger = logging.getLogger(__name__)
@@ -219,7 +220,7 @@ def validate_content(file_path: Path) -> List[str]:
         validated_paths = set()
 
         # Check for broken image links
-        image_links = re.finditer(r"!\[([^\]]*)\]\(([^)]+)\)", content)
+        image_links = re.finditer(PATTERN_IMAGE_LINK, content)
         for match in image_links:
             image_path = match.group(2)
             if not image_path.startswith(URL_PREFIXES):
