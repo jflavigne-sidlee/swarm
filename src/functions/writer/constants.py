@@ -601,3 +601,10 @@ ERROR_SUGGESTIONS = {
     'task-list-empty': 'Task list items should not be empty',
     'task-list-spacing': 'Add a space after the dash: "- [ ]"',
 }
+
+# Error messages for validation
+ERROR_MESSAGES: Final[Dict[str, str]] = {
+    "invalid_spacing": "Invalid spacing in task list marker",
+    "invalid_marker": "Invalid task list marker",
+    "invalid_format": "Invalid task list format",
+}
