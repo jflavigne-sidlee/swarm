@@ -622,7 +622,7 @@ ERROR_SECTION_VALIDATION_FAILED: Final = "Section validation failed: {error}"
 ERROR_SECTION_MARKER_MISMATCH: Final = "Section marker mismatch: expected '{expected}', found '{found}'"
 
 # Markdown validation error messages
-ERROR_MARKDOWN_FORMATTING: Final = "Markdown formatting error: {error}"
+ERROR_MARKDOWN_FORMATTING: Final = "Line {line}: Markdown formatting error - {message}"
 ERROR_PANDOC_COMPATIBILITY: Final = "Pandoc compatibility error: {error}"
 ERROR_CONTENT_VALIDATION: Final = "Content validation error: {error}"
 ERROR_BROKEN_IMAGE: Final = "Broken image link: {path}"
@@ -686,4 +686,9 @@ ERROR_HEADER_LEVEL_EXCEEDED: Final = "Line {line}: Header level {level} exceeds 
 ERROR_HEADER_INVALID_START: Final = "Line {line}: Document should start with a level 1 header (found level {level})"
 ERROR_HEADER_LEVEL_SKIP: Final = "Line {line}: Header level jumps from {current} to {level}. Headers should increment by only one level at a time."
 SUGGESTION_HEADER_LEVEL: Final = "Suggestion: Use {suggested} instead of {current}"
+
+# Task list validation error messages
+ERROR_TASK_LIST_MISSING_SPACE: Final = "Missing space after dash in task list marker (e.g., '-[ ]' instead of '- [ ]')"
+ERROR_TASK_LIST_EXTRA_SPACE: Final = "Extra spaces after dash in task list marker (e.g., '-  [ ]' instead of '- [ ]')"
+ERROR_TASK_LIST_MISSING_SPACE_AFTER: Final = "Missing space after closing bracket in task list marker (e.g., '- [ ]text' instead of '- [ ] text')"
 
