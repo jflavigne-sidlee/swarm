@@ -11,17 +11,12 @@ import stat
 from .exceptions import WriterError
 from .file_operations import validate_file
 from .constants import (
-    MARKDOWNLINT_CONFIG_FILE,
     PANDOC_FROM_FORMAT,
     PANDOC_TO_FORMAT,
-    ERROR_REMARK_VALIDATION,
-    ERROR_MARKDOWNLINT_VALIDATION,
-    ERROR_PANDOC_VALIDATION,
     ERROR_SUGGESTIONS,
     FILE_MODE_READ,
     DEFAULT_ENCODING,
     MD_EXTENSION,
-    ERROR_MESSAGES,
     ERROR_MARKDOWN_FORMATTING,
     ERROR_PANDOC_COMPATIBILITY,
     ERROR_CONTENT_VALIDATION,
@@ -50,6 +45,11 @@ from .constants import (
     SUGGESTION_BROKEN_LINK,
     ERROR_TASK_LIST_INVALID_MARKER,
     SUGGESTION_TASK_LIST_FORMAT,
+    ERROR_HEADER_EMPTY,
+    ERROR_HEADER_LEVEL_EXCEEDED,
+    ERROR_HEADER_INVALID_START,
+    ERROR_HEADER_LEVEL_SKIP,
+    SUGGESTION_HEADER_LEVEL,
 )
 
 logger = logging.getLogger(__name__)
@@ -328,32 +328,37 @@ def validate_header_nesting(content: str) -> List[str]:
 
             # Check for empty headers
             if not header_text:
-                errors.append(
-                    f"Line {line_num}: Empty header detected. Headers must contain text."
-                )
+                errors.append(ERROR_HEADER_EMPTY.format(line=line_num))
                 continue
 
             # Check if header level is valid (1-6)
             if level > 6:
-                errors.append(
-                    f"Line {line_num}: Header level {level} exceeds maximum allowed level of 6"
-                )
+                errors.append(ERROR_HEADER_LEVEL_EXCEEDED.format(
+                    line=line_num,
+                    level=level
+                ))
                 continue
 
             # First header should be level 1
             if last_header is None and level != 1:
-                errors.append(
-                    f"Line {line_num}: Document should start with a level 1 header (found level {level})"
-                )
+                errors.append(ERROR_HEADER_INVALID_START.format(
+                    line=line_num,
+                    level=level
+                ))
 
             # Check for skipped levels
             if last_header is not None:
                 if level > current_level + 1:
-                    errors.append(
-                        f"Line {line_num}: Header level jumps from {current_level} to {level}. "
-                        f"Headers should increment by only one level at a time.\n"
-                        f"Suggestion: Use {'#' * (current_level + 1)} instead of {'#' * level}"
+                    error_msg = ERROR_HEADER_LEVEL_SKIP.format(
+                        line=line_num,
+                        current=current_level,
+                        level=level
                     )
+                    error_msg += "\n" + SUGGESTION_HEADER_LEVEL.format(
+                        suggested="#" * (current_level + 1),
+                        current="#" * level
+                    )
+                    errors.append(error_msg)
 
             current_level = level
             last_header = header_text

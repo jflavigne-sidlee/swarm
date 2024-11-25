@@ -680,3 +680,10 @@ ERROR_MESSAGES: Final[Dict[str, str]] = {
     "empty_file": "File is empty",  # Added constant for empty file error message
 }
 
+# Header validation messages
+ERROR_HEADER_EMPTY: Final = "Line {line}: Empty header detected. Headers must contain text."
+ERROR_HEADER_LEVEL_EXCEEDED: Final = "Line {line}: Header level {level} exceeds maximum allowed level of 6"
+ERROR_HEADER_INVALID_START: Final = "Line {line}: Document should start with a level 1 header (found level {level})"
+ERROR_HEADER_LEVEL_SKIP: Final = "Line {line}: Header level jumps from {current} to {level}. Headers should increment by only one level at a time."
+SUGGESTION_HEADER_LEVEL: Final = "Suggestion: Use {suggested} instead of {current}"
+
