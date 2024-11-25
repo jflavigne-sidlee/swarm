@@ -54,6 +54,8 @@ from .constants import (
     ERROR_FILE_WRITE,
     ERROR_PATH_NO_READ,
     ERROR_PATH_NO_WRITE,
+    LOG_PATH_NOT_FOUND,
+    LOG_NO_READ_PERMISSION,
 )
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -455,4 +457,24 @@ def atomic_write(file_path: Path, content: str, encoding: str, temp_dir: Path) -
                 logger.warning(
                     LOG_CLEANUP_FAILED.format(path=temp_file, error=cleanup_error)
                 )
+        raise
+
+def ensure_file_readable(file_path: Path) -> None:
+    """
+    Ensure a file is readable, raising appropriate errors if not.
+    
+    Args:
+        file_path: Path to check
+        
+    Raises:
+        FileNotFoundError: If path doesn't exist
+        PermissionError: If file isn't readable
+    """
+    try:
+        validate_path_permissions(file_path, require_write=False)
+    except FileNotFoundError:
+        logger.error(LOG_PATH_NOT_FOUND.format(path=file_path))
+        raise
+    except PermissionError:
+        logger.error(LOG_NO_READ_PERMISSION.format(path=file_path))
         raise

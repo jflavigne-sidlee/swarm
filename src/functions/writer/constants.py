@@ -697,3 +697,8 @@ PANDOC_COMMAND: Final = "pandoc"
 ERROR_PANDOC_MISSING: Final = "Pandoc validation skipped: {suggestion}"
 ERROR_PANDOC_EXECUTION: Final = "Error executing Pandoc: {error}"
 
+# Add these with the other log messages (around line 308-314)
+LOG_PATH_NOT_FOUND: Final = "Path not found: {path}"
+LOG_NO_READ_PERMISSION: Final = "No read permission for path: {path}"
+
+

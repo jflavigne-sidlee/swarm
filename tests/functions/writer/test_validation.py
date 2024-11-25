@@ -387,24 +387,35 @@ def test_validate_header_valid_sequence():
 def test_validate_header_invalid_cases():
     """Test validation of invalid header cases."""
     test_cases = [
-        ("####### Too Many Levels", 1, None,
-         ERROR_HEADER_LEVEL_EXCEEDED.format(line=1, level=7)),
-        ("## Invalid Start", 0, None,
-         ERROR_HEADER_INVALID_START.format(line=1, level=2)),
-        ("### Skip Level", 1, "Level 1",
-         ERROR_HEADER_LEVEL_SKIP.format(line=1, current=1, level=3) +
-         SUGGESTION_HEADER_LEVEL.format(suggested="##", current="###")),
-        ("#", 1, None,
-         ERROR_HEADER_EMPTY.format(line=1)),
-        ("###  ", 1, "Level 1",
-         ERROR_HEADER_EMPTY.format(line=1)),
+        (
+            "####### Too Many Levels",
+            1,
+            None,
+            ERROR_HEADER_LEVEL_EXCEEDED.format(line=1, level=7),
+        ),
+        (
+            "## Invalid Start",
+            0,
+            None,
+            ERROR_HEADER_INVALID_START.format(line=1, level=2),
+        ),
+        (
+            "### Skip Level",
+            1,
+            "Level 1",
+            ERROR_HEADER_LEVEL_SKIP.format(line=1, current=1, level=3)
+            + SUGGESTION_HEADER_LEVEL.format(suggested="##", current="###"),
+        ),
+        ("#", 1, None, ERROR_HEADER_EMPTY.format(line=1)),
+        ("###  ", 1, "Level 1", ERROR_HEADER_EMPTY.format(line=1)),
     ]
 
     for line, current_level, last_header, expected_error in test_cases:
         errors, _, _ = validate_header(line, 1, current_level, last_header)
         assert len(errors) > 0, f"Should detect invalid header: {line}"
-        assert any(expected_error == error for error in errors), \
-            f"Expected error message:\n{expected_error}\nGot:\n{errors[0]}"
+        assert any(
+            expected_error == error for error in errors
+        ), f"Expected error message:\n{expected_error}\nGot:\n{errors[0]}"
 
 
 def test_validate_header_edge_cases():

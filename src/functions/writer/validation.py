@@ -3,10 +3,9 @@ import subprocess
 import logging
 from typing import Tuple, List, Optional
 import re
-import mdformat
-from mdformat.renderer import MDRenderer
 import os
 import stat
+import tempfile
 
 from .exceptions import WriterError
 from .file_operations import validate_file
@@ -58,6 +57,7 @@ from .constants import (
     ERROR_PANDOC_MISSING,
     ERROR_PANDOC_EXECUTION,
 )
+from .file_io import read_file, write_file, atomic_write, validate_path_permissions, ensure_file_readable
 
 logger = logging.getLogger(__name__)
 
@@ -66,64 +66,71 @@ def validate_markdown(file_name: str) -> Tuple[bool, List[str]]:
     """Validate the Markdown document for syntax and structural issues."""
     try:
         file_path = Path(file_name)
-        
-        # First validate basic file properties before reading content
-        validate_file_extension_and_access(file_path)
+
+        # First validate file extension before checking existence
+        if file_path.suffix != MD_EXTENSION:
+            raise WriterError(ERROR_INVALID_FILE_FORMAT)
+
+        # Then validate file properties and permissions
+        ensure_file_readable(file_path)
         validate_file(file_path)
 
-        # Check for empty files early to avoid unnecessary processing
+        # Check for empty files early
         if file_path.stat().st_size == 0:
             logger.warning(LOG_EMPTY_FILE_DETECTED)
             return False, [ERROR_EMPTY_FILE]
 
+        # Read file content using file_io utility with default encoding
+        content = read_file(file_path, encoding=DEFAULT_ENCODING)
+
         errors = []
-
-        # Read file content for validation
-        with open(file_path, FILE_MODE_READ, encoding=DEFAULT_ENCODING) as f:
-            content = f.read()
-
         try:
-            # Validate markdown content structure (headers, task lists, etc)
+            # Validate markdown formatting using mdformat
+            try:
+                import mdformat
+
+                mdformat.text(content)
+            except ValueError as e:
+                errors.append(f"Markdown formatting error: {str(e)}")
+            except ImportError:
+                logger.warning("mdformat not installed, skipping format validation")
+
+            # Validate GFM features
+            try:
+                if "~~" in content:  # Strikethrough validation
+                    import mdformat
+
+                    mdformat.text(content, extensions=["gfm"])
+            except ValueError as e:
+                errors.append(f"GFM validation error: {str(e)}")
+            except ImportError:
+                logger.warning("mdformat-gfm not installed, skipping GFM validation")
+
+            # Add other validations
             errors.extend(validate_markdown_content(content))
-
-            # Check for broken links and images in the content
-            errors.extend(validate_content(file_path))
-
-            # Verify pandoc compatibility as final check
-            errors.extend(validate_pandoc_compatibility(file_path))
+            errors.extend(validate_content(content, file_path))
+            errors.extend(validate_pandoc_compatibility(content, file_path))
 
         except subprocess.CalledProcessError as e:
-            # Handle Pandoc errors as validation errors, not exceptions
             errors.append(ERROR_PANDOC_COMPATIBILITY.format(error=e.stderr))
             logger.warning(f"Pandoc validation failed: {e.stderr}")
 
-        # Return validation result - valid only if no errors found
         return len(errors) == 0, errors
 
     except Exception as e:
-        # Only raise WriterError for file system and initialization errors
         error_msg = ERROR_VALIDATION_FAILED.format(error=str(e))
         logger.error(error_msg)
         raise WriterError(error_msg)
 
 
-def validate_file_extension_and_access(file_path: Path):
-    """Validate file extension and ensure file is readable."""
-    if file_path.suffix != MD_EXTENSION:
-        raise WriterError(ERROR_INVALID_FILE_FORMAT)
-
-    if not os.access(file_path, os.R_OK):
-        os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR)
-
-
 def validate_task_list(line: str, line_num: int) -> List[str]:
     """
     Validate a task list line for proper formatting.
-    
+
     Args:
         line: The line content to validate
         line_num: The line number for error reporting
-        
+
     Returns:
         List[str]: List of validation errors for this line
     """
@@ -137,7 +144,7 @@ def validate_task_list(line: str, line_num: int) -> List[str]:
             error_template.format(
                 line=line_num,
                 message=ERROR_TASK_LIST_MISSING_SPACE,
-                suggestion=SUGGESTION_TASK_LIST_FORMAT
+                suggestion=SUGGESTION_TASK_LIST_FORMAT,
             )
         )
         return errors  # Early return since this is a critical formatting error
@@ -148,7 +155,7 @@ def validate_task_list(line: str, line_num: int) -> List[str]:
             error_template.format(
                 line=line_num,
                 message=ERROR_TASK_LIST_EXTRA_SPACE,
-                suggestion=SUGGESTION_TASK_LIST_FORMAT
+                suggestion=SUGGESTION_TASK_LIST_FORMAT,
             )
         )
 
@@ -158,78 +165,73 @@ def validate_task_list(line: str, line_num: int) -> List[str]:
             error_template.format(
                 line=line_num,
                 message=ERROR_TASK_LIST_INVALID_MARKER,
-                suggestion=SUGGESTION_TASK_LIST_FORMAT
+                suggestion=SUGGESTION_TASK_LIST_FORMAT,
             )
         )
 
     # Ensure there's a space after the closing bracket before the task text
     bracket_end = stripped.find("]")
     if bracket_end != -1 and bracket_end + 1 < len(stripped):
-        if not stripped[bracket_end + 1:].startswith(" "):
+        if not stripped[bracket_end + 1 :].startswith(" "):
             errors.append(
                 error_template.format(
                     line=line_num,
                     message=ERROR_TASK_LIST_MISSING_SPACE_AFTER,
-                    suggestion=SUGGESTION_TASK_LIST_FORMAT
+                    suggestion=SUGGESTION_TASK_LIST_FORMAT,
                 )
             )
 
     return errors
 
 
-def validate_header(line: str, line_num: int, current_level: int, last_header: Optional[str]) -> Tuple[List[str], int, Optional[str]]:
+def validate_header(
+    line: str, line_num: int, current_level: int, last_header: Optional[str]
+) -> Tuple[List[str], int, Optional[str]]:
     """Validate a header line for proper formatting and nesting."""
     errors = []
-    level = get_header_level(line)
-    header_text = line.lstrip('#').strip()
+    level = len(re.match(r"^#+", line).group())  # Count leading #s
+    header_text = line.lstrip("#").strip()
 
     # Validate empty headers first
     if not header_text:
         errors.append(ERROR_HEADER_EMPTY.format(line=line_num))
         return errors, level, None
 
-    # Check if header level exceeds maximum allowed depth (usually 6)
+    # Check if header level exceeds maximum allowed depth
     if level > MAX_HEADER_DEPTH:
-        errors.append(ERROR_HEADER_LEVEL_EXCEEDED.format(
-            line=line_num,
-            level=level
-        ))
+        errors.append(ERROR_HEADER_LEVEL_EXCEEDED.format(line=line_num, level=level))
         return errors, level, None
 
-    # Ensure document starts with h1 header
+    # Validate that document starts with h1
     if current_level == 0 and level != 1:
-        errors.append(ERROR_HEADER_INVALID_START.format(
-            line=line_num,
-            level=level
-        ))
+        errors.append(ERROR_HEADER_INVALID_START.format(line=line_num, level=level))
+        return errors, level, None
 
-    # Validate header nesting - levels should only increment by 1
-    if last_header is not None and level > current_level + 1:
-        suggested_level = current_level + 1
-        suggested_header = '#' * suggested_level
-        errors.append(
-            ERROR_HEADER_LEVEL_SKIP.format(
-                line=line_num,
-                current=current_level,
-                level=level
-            ) + 
-            SUGGESTION_HEADER_LEVEL.format(
-                suggested=suggested_header,
-                current='#' * level
+    # Only validate header nesting if this isn't the first header
+    if current_level > 0:
+        # Headers should only increment by 1 level at a time
+        if level > current_level + 1:
+            suggested_level = current_level + 1
+            suggested_header = "#" * suggested_level
+            errors.append(
+                ERROR_HEADER_LEVEL_SKIP.format(
+                    line=line_num, current=current_level, level=level
+                )
+                + SUGGESTION_HEADER_LEVEL.format(
+                    suggested=suggested_header, current="#" * level
+                )
             )
-        )
 
     return errors, level, header_text
 
 
 def validate_markdown_content(content: str) -> List[str]:
-    """
-    Unified function to validate task lists, header nesting, and markdown formatting.
-    """
+    """Validate markdown content for proper formatting."""
     errors = []
     current_level = 0
     last_header = None
     in_code_block = False
+    first_header_found = False
 
     for line_num, line in enumerate(content.splitlines(), 1):
         stripped = line.strip()
@@ -247,36 +249,34 @@ def validate_markdown_content(content: str) -> List[str]:
         if in_code_block:
             continue
 
-        # Task List Validation
-        if stripped.startswith("-"):
-            errors.extend(validate_task_list(line, line_num))
-            continue
-
-        # Header Validation
-        if stripped.startswith(SECTION_HEADER_PREFIX):
-            header_errors, new_level, new_header = validate_header(
-                line, line_num, current_level, last_header
+        # Header validation
+        if stripped.startswith("#"):
+            header_errors, level, header_text = validate_header(
+                stripped, line_num, current_level, last_header
             )
             errors.extend(header_errors)
-            current_level = new_level
-            last_header = new_header
-            continue
+            if not header_errors:  # Only update tracking if header was valid
+                if not first_header_found:
+                    first_header_found = True
+                    if level != 1:
+                        errors.append(
+                            ERROR_HEADER_INVALID_START.format(
+                                line=line_num, level=level
+                            )
+                        )
+                current_level = level
+                last_header = header_text
 
-        # Markdown Formatting Validation
-        try:
-            mdformat.text(line, options=MDFORMAT_OPTIONS, extensions=MDFORMAT_EXTENSIONS)
-        except ValueError as e:
-            errors.append(ERROR_MARKDOWN_FORMATTING.format(
-                line=line_num,
-                message=str(e)
-            ))
+        # Task list validation
+        elif stripped.startswith("-"):
+            errors.extend(validate_task_list(stripped, line_num))
 
     return errors
 
 
 def check_pandoc_installation() -> bool:
     """Check if Pandoc is installed and accessible.
-    
+
     Returns:
         bool: True if Pandoc is installed and accessible, False otherwise
     """
@@ -286,54 +286,68 @@ def check_pandoc_installation() -> bool:
             [PANDOC_COMMAND, "--version"],
             capture_output=True,
             text=True,
-            check=False  # Don't raise exception on non-zero exit
+            check=False,  # Don't raise exception on non-zero exit
         )
         return result.returncode == 0
     except FileNotFoundError:
         return False
 
 
-def validate_pandoc_compatibility(file_path: Path) -> List[str]:
-    """Run pandoc compatibility check.
-    
-    Args:
-        file_path: Path to the markdown file to validate
-        
-    Returns:
-        List[str]: List of validation errors if any
-    """
+def validate_pandoc_compatibility(content: str, file_path: Path) -> List[str]:
+    """Run pandoc compatibility check using content string."""
     errors = []
-    
-    # First check if pandoc is installed
-    if not check_pandoc_installation():
-        logger.warning("Pandoc is not installed or not accessible. Skipping compatibility check.")
-        errors.append(
-            ERROR_PANDOC_MISSING.format(
-                suggestion="Please install Pandoc to enable advanced markdown validation."
-            )
-        )
-        return errors
-        
+
     try:
-        # Proceed with pandoc validation if installed
-        result = subprocess.run(
-            [
-                PANDOC_COMMAND,
-                PANDOC_FROM_ARG,
-                PANDOC_FROM_FORMAT,
-                PANDOC_TO_ARG,
-                PANDOC_TO_FORMAT,
-                str(file_path),
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-    except subprocess.CalledProcessError as e:
-        errors.append(ERROR_PANDOC_COMPATIBILITY.format(error=e.stderr))
+        # Check if pandoc is installed
+        subprocess.run([PANDOC_COMMAND, "--version"], capture_output=True, check=True)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        logger.warning("Pandoc is not installed or not accessible")
+
+    try:
+        # Use a temporary file for pandoc processing
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".md", delete=False
+        ) as temp_file:
+            temp_file.write(content)
+            temp_file.flush()
+
+            try:
+                result = subprocess.run(
+                    [
+                        PANDOC_COMMAND,
+                        PANDOC_FROM_ARG,
+                        PANDOC_FROM_FORMAT,
+                        PANDOC_TO_ARG,
+                        PANDOC_TO_FORMAT,
+                        temp_file.name,
+                    ],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+            except subprocess.CalledProcessError as e:
+                # Check if the error is related to latex math
+                if "Error parsing latex math" in e.stderr:
+                    errors.append(
+                        "Pandoc compatibility error: Error parsing latex math"
+                    )
+                else:
+                    errors.append(ERROR_PANDOC_COMPATIBILITY.format(error=e.stderr))
+                logger.warning(f"Pandoc validation failed: {e.stderr}")
     except Exception as e:
-        errors.append(ERROR_PANDOC_EXECUTION.format(error=str(e)))
-    
+        if (
+            isinstance(e, subprocess.CalledProcessError)
+            and "Error parsing latex math" in e.stderr
+        ):
+            errors.append("Pandoc compatibility error: Error parsing latex math")
+        else:
+            errors.append(ERROR_PANDOC_EXECUTION.format(error=str(e)))
+    finally:
+        try:
+            os.unlink(temp_file.name)
+        except:
+            pass
+
     return errors
 
 
@@ -362,7 +376,9 @@ def parse_remark_errors(error_output: str) -> List[str]:
                 # Add suggestion if available
                 for rule, suggestion in ERROR_SUGGESTIONS.items():
                     if rule.lower() in message.lower():
-                        error_msg += ERROR_SUGGESTION_FORMAT.format(suggestion=ERROR_SUGGESTIONS[rule])
+                        error_msg += ERROR_SUGGESTION_FORMAT.format(
+                            suggestion=ERROR_SUGGESTIONS[rule]
+                        )
                         break
 
                 errors.append(error_msg)
@@ -387,55 +403,66 @@ def parse_markdownlint_errors(error_output: str) -> List[str]:
 
                 # Add suggestion if available
                 if rule in ERROR_SUGGESTIONS:
-                    error_msg += ERROR_SUGGESTION_FORMAT.format(suggestion=ERROR_SUGGESTIONS[rule])
+                    error_msg += ERROR_SUGGESTION_FORMAT.format(
+                        suggestion=ERROR_SUGGESTIONS[rule]
+                    )
 
                 errors.append(error_msg)
     return errors
 
 
-def validate_content(file_path: Path) -> List[str]:
-    """Validate document content for broken links and images."""
-    errors = []
+def is_valid_link(link_path: str, file_path: Path) -> bool:
+    """
+    Validate if a link (image or file) is accessible.
+
+    Args:
+        link_path: The path to the linked resource
+        file_path: The path to the markdown file containing the link
+
+    Returns:
+        bool: True if the link is valid, False otherwise
+    """
+    # Handle web URLs
+    if link_path.startswith(URL_PREFIXES):
+        return True  # Skip validation of external URLs
+
     try:
-        with open(file_path, FILE_MODE_READ, encoding=DEFAULT_ENCODING) as f:
-            content = f.read()
+        # Convert relative path to absolute
+        if not link_path.startswith("/"):
+            link_path = str(file_path.parent / link_path)
 
-        validated_paths = set()
+        # Check if file exists and is accessible
+        return Path(link_path).exists()
+    except Exception:
+        return False
 
-        # Check for broken image links
-        image_links = re.finditer(PATTERN_IMAGE_LINK, content)
-        for match in image_links:
-            image_path = match.group(2)
-            if not image_path.startswith(URL_PREFIXES):
-                if not (file_path.parent / image_path).exists():
-                    error_msg = ERROR_BROKEN_IMAGE.format(path=image_path)
-                    error_msg += ERROR_SUGGESTION_FORMAT.format(suggestion=SUGGESTION_BROKEN_IMAGE)
-                    errors.append(error_msg)
-                validated_paths.add(image_path)
 
-        # Check for broken local file links
-        file_links = re.finditer(PATTERN_FILE_LINK, content)
-        for match in file_links:
-            link_path = match.group(2)
-            if link_path not in validated_paths and not link_path.startswith(
-                (HTTP_PREFIX, HTTPS_PREFIX, SECTION_HEADER_PREFIX)
-            ):
-                if not (file_path.parent / link_path).exists():
-                    error_msg = ERROR_BROKEN_FILE.format(path=link_path)
-                    error_msg += ERROR_SUGGESTION_FORMAT.format(suggestion=SUGGESTION_BROKEN_LINK)
-                    errors.append(error_msg)
+def validate_content(content: str, file_path: Path) -> List[str]:
+    """Validate content for broken links and images."""
+    errors = []
 
-    except Exception as e:
-        errors.append(ERROR_CONTENT_VALIDATION.format(error=str(e)))
+    # Extract all image and file links from content
+    image_links = re.findall(PATTERN_IMAGE_LINK, content)
+    file_links = re.findall(PATTERN_FILE_LINK, content)
+
+    # Validate image links
+    for _, image_path in image_links:
+        if not is_valid_link(image_path, file_path):
+            errors.append(ERROR_BROKEN_IMAGE.format(path=image_path))
+
+    # Validate file links
+    for _, link_path in file_links:
+        if not is_valid_link(link_path, file_path):
+            errors.append(ERROR_BROKEN_FILE.format(path=link_path))
 
     return errors
 
 
 def is_valid_task_list_marker(text: str) -> bool:
     """Check if the text contains a valid task list marker."""
-    return bool(re.match(r'^- \[([ xX])\] ', text))
+    return bool(re.match(r"^- \[([ xX])\] ", text))
 
 
 def get_header_level(text: str) -> int:
     """Get the header level from a line of text."""
-    return len(text) - len(text.lstrip('#'))
+    return len(text) - len(text.lstrip("#"))
