@@ -321,10 +321,10 @@ def validate_header_nesting(content: str) -> List[str]:
     last_header = None
 
     for line_num, line in enumerate(content.splitlines(), 1):
-        if line.strip().startswith("#"):
+        if line.strip().startswith(SECTION_HEADER_PREFIX):
             # Count the number of # symbols
             level = len(line.split()[0])
-            header_text = line.lstrip("#").strip()
+            header_text = line.lstrip(SECTION_HEADER_PREFIX).strip()
 
             # Check for empty headers
             if not header_text:
