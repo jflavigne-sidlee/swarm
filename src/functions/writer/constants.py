@@ -692,3 +692,8 @@ ERROR_TASK_LIST_MISSING_SPACE: Final = "Missing space after dash in task list ma
 ERROR_TASK_LIST_EXTRA_SPACE: Final = "Extra spaces after dash in task list marker (e.g., '-  [ ]' instead of '- [ ]')"
 ERROR_TASK_LIST_MISSING_SPACE_AFTER: Final = "Missing space after closing bracket in task list marker (e.g., '- [ ]text' instead of '- [ ] text')"
 
+# Pandoc-related constants and error messages
+PANDOC_COMMAND: Final = "pandoc"
+ERROR_PANDOC_MISSING: Final = "Pandoc validation skipped: {suggestion}"
+ERROR_PANDOC_EXECUTION: Final = "Error executing Pandoc: {error}"
+

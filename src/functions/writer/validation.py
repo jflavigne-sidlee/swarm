@@ -55,25 +55,15 @@ from .constants import (
     ERROR_TASK_LIST_MISSING_SPACE_AFTER,
     MAX_HEADER_DEPTH,
     SECTION_HEADER_PREFIX,
+    ERROR_PANDOC_MISSING,
+    ERROR_PANDOC_EXECUTION,
 )
 
 logger = logging.getLogger(__name__)
 
 
 def validate_markdown(file_name: str) -> Tuple[bool, List[str]]:
-    """Validate the Markdown document for syntax and structural issues.
-
-    Args:
-        file_name: The name of the Markdown file to validate
-
-    Returns:
-        Tuple containing:
-            - bool: True if document is valid, False otherwise
-            - List[str]: List of validation errors if any
-
-    Raises:
-        WriterError: If file validation fails or external tools cannot be executed
-    """
+    """Validate the Markdown document for syntax and structural issues."""
     try:
         file_path = Path(file_name)
         
@@ -92,19 +82,26 @@ def validate_markdown(file_name: str) -> Tuple[bool, List[str]]:
         with open(file_path, FILE_MODE_READ, encoding=DEFAULT_ENCODING) as f:
             content = f.read()
 
-        # Validate markdown content structure (headers, task lists, etc)
-        errors.extend(validate_markdown_content(content))
+        try:
+            # Validate markdown content structure (headers, task lists, etc)
+            errors.extend(validate_markdown_content(content))
 
-        # Check for broken links and images in the content
-        errors.extend(validate_content(file_path))
+            # Check for broken links and images in the content
+            errors.extend(validate_content(file_path))
 
-        # Verify pandoc compatibility as final check
-        errors.extend(validate_pandoc_compatibility(file_path))
+            # Verify pandoc compatibility as final check
+            errors.extend(validate_pandoc_compatibility(file_path))
+
+        except subprocess.CalledProcessError as e:
+            # Handle Pandoc errors as validation errors, not exceptions
+            errors.append(ERROR_PANDOC_COMPATIBILITY.format(error=e.stderr))
+            logger.warning(f"Pandoc validation failed: {e.stderr}")
 
         # Return validation result - valid only if no errors found
         return len(errors) == 0, errors
 
     except Exception as e:
+        # Only raise WriterError for file system and initialization errors
         error_msg = ERROR_VALIDATION_FAILED.format(error=str(e))
         logger.error(error_msg)
         raise WriterError(error_msg)
@@ -277,10 +274,48 @@ def validate_markdown_content(content: str) -> List[str]:
     return errors
 
 
-def validate_pandoc_compatibility(file_path: Path) -> List[str]:
-    """Run pandoc compatibility check."""
-    errors = []
+def check_pandoc_installation() -> bool:
+    """Check if Pandoc is installed and accessible.
+    
+    Returns:
+        bool: True if Pandoc is installed and accessible, False otherwise
+    """
     try:
+        # Try to execute pandoc --version to check installation
+        result = subprocess.run(
+            [PANDOC_COMMAND, "--version"],
+            capture_output=True,
+            text=True,
+            check=False  # Don't raise exception on non-zero exit
+        )
+        return result.returncode == 0
+    except FileNotFoundError:
+        return False
+
+
+def validate_pandoc_compatibility(file_path: Path) -> List[str]:
+    """Run pandoc compatibility check.
+    
+    Args:
+        file_path: Path to the markdown file to validate
+        
+    Returns:
+        List[str]: List of validation errors if any
+    """
+    errors = []
+    
+    # First check if pandoc is installed
+    if not check_pandoc_installation():
+        logger.warning("Pandoc is not installed or not accessible. Skipping compatibility check.")
+        errors.append(
+            ERROR_PANDOC_MISSING.format(
+                suggestion="Please install Pandoc to enable advanced markdown validation."
+            )
+        )
+        return errors
+        
+    try:
+        # Proceed with pandoc validation if installed
         result = subprocess.run(
             [
                 PANDOC_COMMAND,
@@ -296,6 +331,9 @@ def validate_pandoc_compatibility(file_path: Path) -> List[str]:
         )
     except subprocess.CalledProcessError as e:
         errors.append(ERROR_PANDOC_COMPATIBILITY.format(error=e.stderr))
+    except Exception as e:
+        errors.append(ERROR_PANDOC_EXECUTION.format(error=str(e)))
+    
     return errors
 
 
