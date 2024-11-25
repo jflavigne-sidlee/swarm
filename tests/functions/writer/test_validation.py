@@ -3,7 +3,7 @@ from pathlib import Path
 from unittest.mock import patch, Mock
 from src.functions.writer.validation import validate_markdown, validate_gfm_task_lists
 from src.functions.writer.exceptions import WriterError
-from src.functions.writer.constants import ERROR_SUGGESTIONS
+from src.functions.writer.constants import ERROR_SUGGESTIONS, SUGGESTION_TASK_LIST_FORMAT
 import os
 import stat
 import shutil
@@ -46,15 +46,15 @@ def test_validate_gfm_task_lists(tmp_path):
     """Test validation of GitHub-Flavored Markdown task lists."""
     content = """# Task List Test
     
-- [ ] Valid empty task
-- [x] Valid completed task
--[ ] Invalid spacing
--[x] Invalid spacing
-- [] Invalid marker
-- [X] Valid uppercase X
--  [ ] Invalid indentation
-- [ ]Empty task
-"""
+    - [ ] Valid empty task
+    - [x] Valid completed task
+    -[ ] Invalid spacing
+    -[x] Invalid spacing
+    - [] Invalid marker
+    - [X] Valid uppercase X
+    -  [ ] Invalid indentation
+    - [ ]Empty task
+    """
     file_path = tmp_path / "task_lists.md"
     file_path.write_text(content)
     file_path.chmod(0o644)
@@ -63,8 +63,7 @@ def test_validate_gfm_task_lists(tmp_path):
     
     assert any("Invalid task list marker" in error for error in errors), "Should detect invalid task lists"
     assert len([e for e in errors if "Invalid task list marker" in e]) >= 4, "Should detect at least 4 invalid task lists"
-    
-    assert any(ERROR_SUGGESTIONS['task-list-marker'] in error for error in errors), "Should include task list suggestions"
+    assert any(SUGGESTION_TASK_LIST_FORMAT in error for error in errors), "Should include task list suggestions"
 
 def test_validate_gfm_task_lists_valid(tmp_path):
     """Test validation of valid GitHub-Flavored Markdown task lists."""

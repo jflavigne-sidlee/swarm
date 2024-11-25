@@ -48,10 +48,7 @@ from .constants import (
     PATTERN_FILE_LINK,
     SUGGESTION_BROKEN_IMAGE,
     SUGGESTION_BROKEN_LINK,
-    ERROR_TASK_LIST_MISSING_SPACE,
-    ERROR_TASK_LIST_EXTRA_SPACE,
     ERROR_TASK_LIST_INVALID_MARKER,
-    ERROR_TASK_LIST_MISSING_SPACE_AFTER,
     SUGGESTION_TASK_LIST_FORMAT,
 )
 
@@ -276,7 +273,7 @@ def validate_gfm_task_lists(content: str) -> List[str]:
             errors.append(
                 error_template.format(
                     line=line_number,
-                    message=ERROR_TASK_LIST_MISSING_SPACE,
+                    message=ERROR_TASK_LIST_INVALID_MARKER,
                     suggestion=SUGGESTION_TASK_LIST_FORMAT
                 )
             )
@@ -287,7 +284,7 @@ def validate_gfm_task_lists(content: str) -> List[str]:
             errors.append(
                 error_template.format(
                     line=line_number,
-                    message=ERROR_TASK_LIST_EXTRA_SPACE,
+                    message=ERROR_TASK_LIST_INVALID_MARKER,
                     suggestion=SUGGESTION_TASK_LIST_FORMAT
                 )
             )
@@ -309,7 +306,7 @@ def validate_gfm_task_lists(content: str) -> List[str]:
                 errors.append(
                     error_template.format(
                         line=line_number,
-                        message=ERROR_TASK_LIST_MISSING_SPACE_AFTER,
+                        message=ERROR_TASK_LIST_INVALID_MARKER,
                         suggestion=SUGGESTION_TASK_LIST_FORMAT
                     )
                 )

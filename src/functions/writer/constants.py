@@ -608,13 +608,7 @@ ERROR_SUGGESTIONS = {
     'task-list-spacing': 'Add a space after the dash: "- [ ]"',
 }
 
-# Error messages for validation
-ERROR_MESSAGES: Final[Dict[str, str]] = {
-    "invalid_spacing": "Invalid spacing in task list marker",
-    "invalid_marker": "Invalid task list marker",
-    "invalid_format": "Invalid task list format",
-    "empty_file": "File is empty",  # Added constant for empty file error message
-}
+
 
 # Additional error messages
 ERROR_DIRECTORY_EXISTS: Final = "Cannot create directory (file exists): %s"
@@ -675,8 +669,14 @@ SUGGESTION_BROKEN_IMAGE: Final = "Ensure the image file exists in the correct lo
 SUGGESTION_BROKEN_LINK: Final = "Check if the linked file exists and the path is correct"
 
 # Task list validation messages
-ERROR_TASK_LIST_MISSING_SPACE: Final = "Missing space after dash in task list marker"
-ERROR_TASK_LIST_EXTRA_SPACE: Final = "Extra spaces after dash in task list marker"
-ERROR_TASK_LIST_INVALID_MARKER: Final = "Invalid task list marker format"
-ERROR_TASK_LIST_MISSING_SPACE_AFTER: Final = "Missing space after brackets in task list marker"
+ERROR_TASK_LIST_INVALID_MARKER: Final = "Invalid task list marker"
 SUGGESTION_TASK_LIST_FORMAT: Final = "Use exactly one space after dash: '- [ ]' or '- [x]'"
+
+# Error messages for validation
+ERROR_MESSAGES: Final[Dict[str, str]] = {
+    "invalid_spacing": "Invalid spacing in task list marker",
+    "invalid_marker": "Invalid task list marker",
+    "invalid_format": "Invalid task list format",
+    "empty_file": "File is empty",  # Added constant for empty file error message
+}
+
