@@ -355,8 +355,8 @@ def validate_header_nesting(content: str) -> List[str]:
                         level=level
                     )
                     error_msg += "\n" + SUGGESTION_HEADER_LEVEL.format(
-                        suggested="#" * (current_level + 1),
-                        current="#" * level
+                        suggested=SECTION_HEADER_PREFIX * (current_level + 1),
+                        current=SECTION_HEADER_PREFIX * level
                     )
                     errors.append(error_msg)
 
