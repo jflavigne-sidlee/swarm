@@ -656,5 +656,9 @@ MDFORMAT_OPTIONS: Final[Dict[str, bool]] = {
 }
 MDFORMAT_EXTENSIONS: Final[List[str]] = ["gfm", "tables"]
 
+# Error message formats
+ERROR_LINE_MESSAGE: Final = "Line {line}: {message}"
+ERROR_SUGGESTION_FORMAT: Final = "\nSuggestion: {suggestion}"
+
 
 

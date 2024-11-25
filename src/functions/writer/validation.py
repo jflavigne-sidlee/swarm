@@ -38,6 +38,8 @@ from .constants import (
     PANDOC_COMMAND,
     PANDOC_FROM_ARG,
     PANDOC_TO_ARG,
+    ERROR_LINE_MESSAGE,
+    ERROR_SUGGESTION_FORMAT,
 )
 
 logger = logging.getLogger(__name__)
@@ -167,12 +169,12 @@ def parse_remark_errors(error_output: str) -> List[str]:
             if len(parts) >= 3:
                 line_num = parts[1].strip()
                 message = parts[2].strip()
-                error_msg = f"Line {line_num}: {message}"
+                error_msg = ERROR_LINE_MESSAGE.format(line=line_num, message=message)
 
                 # Add suggestion if available
                 for rule, suggestion in ERROR_SUGGESTIONS.items():
                     if rule.lower() in message.lower():
-                        error_msg += f"\nSuggestion: {suggestion}"
+                        error_msg += ERROR_SUGGESTION_FORMAT.format(suggestion=ERROR_SUGGESTIONS[rule])
                         break
 
                 errors.append(error_msg)
@@ -193,11 +195,11 @@ def parse_markdownlint_errors(error_output: str) -> List[str]:
                 rule = match.group(2)
                 message = match.group(3)
                 # Keep the rule ID in the error message
-                error_msg = f"Line {line_num}: {rule} {message}"
+                error_msg = ERROR_LINE_MESSAGE.format(line=line_num, message=message)
 
                 # Add suggestion if available
                 if rule in ERROR_SUGGESTIONS:
-                    error_msg += f"\nSuggestion: {ERROR_SUGGESTIONS[rule]}"
+                    error_msg += ERROR_SUGGESTION_FORMAT.format(suggestion=ERROR_SUGGESTIONS[rule])
 
                 errors.append(error_msg)
     return errors
@@ -219,7 +221,7 @@ def validate_content(file_path: Path) -> List[str]:
             if not image_path.startswith(("http://", "https://")):
                 if not (file_path.parent / image_path).exists():
                     error_msg = ERROR_BROKEN_IMAGE.format(path=image_path)
-                    error_msg += f"\nSuggestion: {ERROR_SUGGESTIONS['broken_image']}"
+                    error_msg += ERROR_SUGGESTION_FORMAT.format(suggestion=ERROR_SUGGESTIONS["broken_image"])
                     errors.append(error_msg)
                 validated_paths.add(image_path)
 
@@ -232,7 +234,7 @@ def validate_content(file_path: Path) -> List[str]:
             ):
                 if not (file_path.parent / link_path).exists():
                     error_msg = ERROR_BROKEN_FILE.format(path=link_path)
-                    error_msg += f"\nSuggestion: {ERROR_SUGGESTIONS['broken_link']}"
+                    error_msg += ERROR_SUGGESTION_FORMAT.format(suggestion=ERROR_SUGGESTIONS["broken_link"])
                     errors.append(error_msg)
 
     except Exception as e:
