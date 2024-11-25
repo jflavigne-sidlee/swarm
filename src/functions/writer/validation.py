@@ -255,7 +255,8 @@ def validate_gfm_task_lists(content: str) -> List[str]:
     """Validate GitHub-Flavored Markdown task lists."""
     errors = []
     line_number = 0
-    error_template = "Line {}: {}\nSuggestion: {}"
+    # error_template = "Line {}: {}\nSuggestion: {}"
+    error_template = ERROR_LINE_MESSAGE + ERROR_SUGGESTION_FORMAT
 
     for line in content.splitlines():
         line_number += 1
@@ -269,9 +270,9 @@ def validate_gfm_task_lists(content: str) -> List[str]:
         if stripped.startswith("-["):
             errors.append(
                 error_template.format(
-                    line_number,
-                    ERROR_MESSAGES["invalid_marker"],
-                    ERROR_SUGGESTIONS["task-list-marker"],
+                    line=line_number,
+                    message=ERROR_MESSAGES["invalid_marker"],
+                    suggestion=ERROR_SUGGESTIONS["task-list-marker"],
                 )
             )
             continue
@@ -280,9 +281,9 @@ def validate_gfm_task_lists(content: str) -> List[str]:
         if stripped.startswith("-  "):
             errors.append(
                 error_template.format(
-                    line_number,
-                    ERROR_MESSAGES["invalid_marker"],
-                    ERROR_SUGGESTIONS["task-list-marker"],
+                    line=line_number,
+                    message=ERROR_MESSAGES["invalid_marker"],
+                    suggestion=ERROR_SUGGESTIONS["task-list-marker"],
                 )
             )
 
@@ -290,21 +291,21 @@ def validate_gfm_task_lists(content: str) -> List[str]:
         if "[]" in stripped:
             errors.append(
                 error_template.format(
-                    line_number,
-                    ERROR_MESSAGES["invalid_marker"],
-                    ERROR_SUGGESTIONS["task-list-marker"],
+                    line=line_number,
+                    message=ERROR_MESSAGES["invalid_marker"],
+                    suggestion=ERROR_SUGGESTIONS["task-list-marker"],
                 )
             )
 
         # 4. Check for missing space after brackets (- [ ]text instead of - [ ] text)
         bracket_end = stripped.find("]")
         if bracket_end != -1 and bracket_end + 1 < len(stripped):
-            if not stripped[bracket_end + 1 :].startswith(" "):
+            if not stripped[bracket_end + 1:].startswith(" "):
                 errors.append(
                     error_template.format(
-                        line_number,
-                        ERROR_MESSAGES["invalid_marker"],
-                        ERROR_SUGGESTIONS["task-list-marker"],
+                        line=line_number,
+                        message=ERROR_MESSAGES["invalid_marker"],
+                        suggestion=ERROR_SUGGESTIONS["task-list-marker"],
                     )
                 )
 

@@ -673,3 +673,10 @@ PATTERN_FILE_LINK: Final = r"\[([^\]]+)\]\(([^)]+)\)"
 # Validation suggestions
 SUGGESTION_BROKEN_IMAGE: Final = "Ensure the image file exists in the correct location and the path is correct"
 SUGGESTION_BROKEN_LINK: Final = "Check if the linked file exists and the path is correct"
+
+# Task list validation messages
+ERROR_TASK_LIST_MISSING_SPACE: Final = "Missing space after dash in task list marker"
+ERROR_TASK_LIST_EXTRA_SPACE: Final = "Extra spaces after dash in task list marker"
+ERROR_TASK_LIST_INVALID_MARKER: Final = "Invalid task list marker format"
+ERROR_TASK_LIST_MISSING_SPACE_AFTER: Final = "Missing space after brackets in task list marker"
+SUGGESTION_TASK_LIST_FORMAT: Final = "Use exactly one space after dash: '- [ ]' or '- [x]'"
