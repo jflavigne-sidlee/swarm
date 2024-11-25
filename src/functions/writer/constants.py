@@ -668,3 +668,8 @@ URL_PREFIXES: Final = (HTTP_PREFIX, HTTPS_PREFIX)
 
 # Markdown patterns
 PATTERN_IMAGE_LINK: Final = r"!\[([^\]]*)\]\(([^)]+)\)"
+PATTERN_FILE_LINK: Final = r"\[([^\]]+)\]\(([^)]+)\)"
+
+# Validation suggestions
+SUGGESTION_BROKEN_IMAGE: Final = "Ensure the image file exists in the correct location and the path is correct"
+SUGGESTION_BROKEN_LINK: Final = "Check if the linked file exists and the path is correct"

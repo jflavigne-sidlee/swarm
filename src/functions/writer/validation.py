@@ -45,6 +45,9 @@ from .constants import (
     URL_PREFIXES,
     SECTION_HEADER_PREFIX,
     PATTERN_IMAGE_LINK,
+    PATTERN_FILE_LINK,
+    SUGGESTION_BROKEN_IMAGE,
+    SUGGESTION_BROKEN_LINK,
 )
 
 logger = logging.getLogger(__name__)
@@ -226,12 +229,12 @@ def validate_content(file_path: Path) -> List[str]:
             if not image_path.startswith(URL_PREFIXES):
                 if not (file_path.parent / image_path).exists():
                     error_msg = ERROR_BROKEN_IMAGE.format(path=image_path)
-                    error_msg += ERROR_SUGGESTION_FORMAT.format(suggestion=ERROR_SUGGESTIONS["broken_image"])
+                    error_msg += ERROR_SUGGESTION_FORMAT.format(suggestion=SUGGESTION_BROKEN_IMAGE)
                     errors.append(error_msg)
                 validated_paths.add(image_path)
 
         # Check for broken local file links
-        file_links = re.finditer(r"\[([^\]]+)\]\(([^)]+)\)", content)
+        file_links = re.finditer(PATTERN_FILE_LINK, content)
         for match in file_links:
             link_path = match.group(2)
             if link_path not in validated_paths and not link_path.startswith(
@@ -239,7 +242,7 @@ def validate_content(file_path: Path) -> List[str]:
             ):
                 if not (file_path.parent / link_path).exists():
                     error_msg = ERROR_BROKEN_FILE.format(path=link_path)
-                    error_msg += ERROR_SUGGESTION_FORMAT.format(suggestion=ERROR_SUGGESTIONS["broken_link"])
+                    error_msg += ERROR_SUGGESTION_FORMAT.format(suggestion=SUGGESTION_BROKEN_LINK)
                     errors.append(error_msg)
 
     except Exception as e:
