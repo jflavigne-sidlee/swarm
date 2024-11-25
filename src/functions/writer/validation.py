@@ -45,13 +45,8 @@ def validate_markdown(file_name: str) -> Tuple[bool, List[str]]:
     try:
         file_path = Path(file_name)
         
-        # Validate file extension first, before trying to access the file
-        if file_path.suffix != '.md':
-            raise WriterError("Invalid file format: File must have .md extension")
-            
-        # Ensure file is readable
-        if not os.access(file_path, os.R_OK):
-            os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR)
+        # Validate file extension and readability
+        validate_file_extension_and_access(file_path)
         
         validate_file(file_path)
         
@@ -68,39 +63,14 @@ def validate_markdown(file_name: str) -> Tuple[bool, List[str]]:
         errors.extend(validate_gfm_task_lists(content))
         
         # Validate markdown formatting with GFM support
-        try:
-            mdformat.text(
-                content,
-                options={
-                    "check": True,
-                    "number": True,
-                    "wrap": "no"
-                },
-                extensions=["gfm", "tables"]
-            )
-        except ValueError as e:
-            errors.append(f"Markdown formatting error: {str(e)}")
-            
+        errors.extend(validate_markdown_formatting(content))
+        
         # Check for broken links and images
-        content_errors = validate_content(file_path)
-        errors.extend(content_errors)
+        errors.extend(validate_content(file_path))
         
         # Run pandoc compatibility check
-        try:
-            result = subprocess.run(
-                ['pandoc', '--from', PANDOC_FROM_FORMAT, '--to', PANDOC_TO_FORMAT,
-                 str(file_path)],
-                capture_output=True,
-                text=True,
-                check=False
-            )
-            if result.returncode != 0:
-                errors.append(f"Pandoc compatibility error: {result.stderr}")
-                return False, errors  # Return immediately on pandoc error
-        except subprocess.CalledProcessError as e:
-            errors.append(f"Pandoc compatibility error: {str(e)}")
-            return False, errors  # Return immediately on pandoc error
-            
+        errors.extend(validate_pandoc_compatibility(file_path))
+        
         # Add header nesting validation
         errors.extend(validate_header_nesting(content))
         
@@ -111,10 +81,56 @@ def validate_markdown(file_name: str) -> Tuple[bool, List[str]]:
         raise WriterError(f"Failed to validate markdown: {str(e)}")
     finally:
         # Ensure we restore reasonable permissions
-        try:
-            os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
-        except Exception:
-            pass
+        restore_file_permissions(file_path)
+
+def validate_file_extension_and_access(file_path: Path):
+    """Validate file extension and ensure file is readable."""
+    if file_path.suffix != '.md':
+        raise WriterError("Invalid file format: File must have .md extension")
+        
+    if not os.access(file_path, os.R_OK):
+        os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR)
+
+def validate_markdown_formatting(content: str) -> List[str]:
+    """Validate markdown formatting with GFM support."""
+    errors = []
+    try:
+        mdformat.text(
+            content,
+            options={
+                "check": True,
+                "number": True,
+                "wrap": "no"
+            },
+            extensions=["gfm", "tables"]
+        )
+    except ValueError as e:
+        errors.append(f"Markdown formatting error: {str(e)}")
+    return errors
+
+def validate_pandoc_compatibility(file_path: Path) -> List[str]:
+    """Run pandoc compatibility check."""
+    errors = []
+    try:
+        result = subprocess.run(
+            ['pandoc', '--from', PANDOC_FROM_FORMAT, '--to', PANDOC_TO_FORMAT,
+             str(file_path)],
+            capture_output=True,
+            text=True,
+            check=False
+        )
+        if result.returncode != 0:
+            errors.append(f"Pandoc compatibility error: {result.stderr}")
+    except subprocess.CalledProcessError as e:
+        errors.append(f"Pandoc compatibility error: {str(e)}")
+    return errors
+
+def restore_file_permissions(file_path: Path):
+    """Restore reasonable file permissions."""
+    try:
+        os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
+    except Exception:
+        pass
 
 def parse_remark_errors(error_output: str) -> List[str]:
     """Parse remark-lint error output into readable messages with suggestions."""
