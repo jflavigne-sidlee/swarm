@@ -54,6 +54,7 @@ from .constants import (
     ERROR_TASK_LIST_EXTRA_SPACE,
     ERROR_TASK_LIST_MISSING_SPACE_AFTER,
     MAX_HEADER_DEPTH,
+    SECTION_HEADER_PREFIX,
 )
 
 logger = logging.getLogger(__name__)
@@ -76,35 +77,37 @@ def validate_markdown(file_name: str) -> Tuple[bool, List[str]]:
     try:
         file_path = Path(file_name)
         
-        # Validate file extension and readability
+        # First validate basic file properties before reading content
         validate_file_extension_and_access(file_path)
-
         validate_file(file_path)
 
+        # Check for empty files early to avoid unnecessary processing
         if file_path.stat().st_size == 0:
             logger.warning(LOG_EMPTY_FILE_DETECTED)
             return False, [ERROR_EMPTY_FILE]
 
         errors = []
 
+        # Read file content for validation
         with open(file_path, FILE_MODE_READ, encoding=DEFAULT_ENCODING) as f:
             content = f.read()
 
-        # Run unified content validation
-        # errors.extend(validate_markdown_formatting(content))
+        # Validate markdown content structure (headers, task lists, etc)
         errors.extend(validate_markdown_content(content))
 
-        # Check for broken links and images
+        # Check for broken links and images in the content
         errors.extend(validate_content(file_path))
 
-        # Run pandoc compatibility check
+        # Verify pandoc compatibility as final check
         errors.extend(validate_pandoc_compatibility(file_path))
 
+        # Return validation result - valid only if no errors found
         return len(errors) == 0, errors
 
     except Exception as e:
-        logger.error(f"Validation failed: {str(e)}")
-        raise WriterError(ERROR_VALIDATION_FAILED.format(error=str(e)))
+        error_msg = ERROR_VALIDATION_FAILED.format(error=str(e))
+        logger.error(error_msg)
+        raise WriterError(error_msg)
 
 
 def validate_file_extension_and_access(file_path: Path):
@@ -131,7 +134,7 @@ def validate_task_list(line: str, line_num: int) -> List[str]:
     stripped = line.strip()
     error_template = ERROR_LINE_MESSAGE + ERROR_SUGGESTION_FORMAT
 
-    # 1. Check for missing space after dash (-[ ] instead of - [ ])
+    # Check for missing space between dash and bracket (-[ ] instead of - [ ])
     if stripped.startswith("-["):
         errors.append(
             error_template.format(
@@ -140,9 +143,9 @@ def validate_task_list(line: str, line_num: int) -> List[str]:
                 suggestion=SUGGESTION_TASK_LIST_FORMAT
             )
         )
-        return errors
+        return errors  # Early return since this is a critical formatting error
 
-    # 2. Check for extra spaces after dash (-  [ ] instead of - [ ])
+    # Check for extra spaces after dash (-  [ ] instead of - [ ])
     if stripped.startswith("-  "):
         errors.append(
             error_template.format(
@@ -152,7 +155,7 @@ def validate_task_list(line: str, line_num: int) -> List[str]:
             )
         )
 
-    # 3. Check for invalid marker format (- [] instead of - [ ])
+    # Validate the task list marker format (must be [ ] or [x])
     if "[]" in stripped:
         errors.append(
             error_template.format(
@@ -162,7 +165,7 @@ def validate_task_list(line: str, line_num: int) -> List[str]:
             )
         )
 
-    # 4. Check for missing space after brackets (- [ ]text instead of - [ ] text)
+    # Ensure there's a space after the closing bracket before the task text
     bracket_end = stripped.find("]")
     if bracket_end != -1 and bracket_end + 1 < len(stripped):
         if not stripped[bracket_end + 1:].startswith(" "):
@@ -183,12 +186,12 @@ def validate_header(line: str, line_num: int, current_level: int, last_header: O
     level = get_header_level(line)
     header_text = line.lstrip('#').strip()
 
-    # Check for empty headers
+    # Validate empty headers first
     if not header_text:
         errors.append(ERROR_HEADER_EMPTY.format(line=line_num))
         return errors, level, None
 
-    # Check for maximum level exceeded
+    # Check if header level exceeds maximum allowed depth (usually 6)
     if level > MAX_HEADER_DEPTH:
         errors.append(ERROR_HEADER_LEVEL_EXCEEDED.format(
             line=line_num,
@@ -196,14 +199,14 @@ def validate_header(line: str, line_num: int, current_level: int, last_header: O
         ))
         return errors, level, None
 
-    # Check for invalid start (not level 1)
+    # Ensure document starts with h1 header
     if current_level == 0 and level != 1:
         errors.append(ERROR_HEADER_INVALID_START.format(
             line=line_num,
             level=level
         ))
 
-    # Check for skipped levels and add suggestion
+    # Validate header nesting - levels should only increment by 1
     if last_header is not None and level > current_level + 1:
         suggested_level = current_level + 1
         suggested_header = '#' * suggested_level
