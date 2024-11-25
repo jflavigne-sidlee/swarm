@@ -43,64 +43,90 @@ from .constants import (
     SUGGESTION_HEADER_LEVEL,
     SUGGESTION_TASK_LIST_FORMAT,
     URL_PREFIXES,
+    PATTERN_HEADER_LEVEL,
+    PATTERN_HEADER_TEXT,
 )
-from .file_io import read_file, write_file, atomic_write, validate_path_permissions, ensure_file_readable
+from .file_io import read_file, ensure_file_readable
 
 logger = logging.getLogger(__name__)
+
+
+def check_mdformat_availability(gfm: bool = False) -> Tuple[bool, Optional[str]]:
+    """
+    Check if mdformat and its extensions are available.
+    
+    Args:
+        gfm: Whether to check for GFM extension support
+        
+    Returns:
+        Tuple containing:
+            - Boolean indicating if mdformat is available
+            - Error message if not available, None otherwise
+    """
+    try:
+        import mdformat
+        if gfm:
+            try:
+                mdformat.text("test", extensions=["gfm"])
+            except ValueError:
+                return False, "mdformat-gfm extension not installed"
+        return True, None
+    except ImportError:
+        return False, "mdformat not installed"
 
 
 def validate_markdown(file_name: str) -> Tuple[bool, List[str]]:
     """Validate the Markdown document for syntax and structural issues."""
     try:
         file_path = Path(file_name)
-
-        # First validate file extension before checking existence
+        
+        # Validate file first
         if file_path.suffix != MD_EXTENSION:
             raise WriterError(ERROR_INVALID_FILE_FORMAT)
-
-        # Then validate file properties and permissions
-        ensure_file_readable(file_path)
-        validate_file(file_path)
-
-        # Check for empty files early
-        if file_path.stat().st_size == 0:
-            logger.warning(LOG_EMPTY_FILE_DETECTED)
-            return False, [ERROR_EMPTY_FILE]
-
-        # Read file content using file_io utility with default encoding
+            
+        # Read content
         content = read_file(file_path, encoding=DEFAULT_ENCODING)
-
+        
         errors = []
-        try:
-            # Validate markdown formatting using mdformat
+        
+        # Check for empty file first
+        if not content.strip():
+            logger.warning(LOG_EMPTY_FILE_DETECTED)
+            errors.append(ERROR_EMPTY_FILE)
+            return False, errors
+
+        # Check mdformat availability once
+        mdformat_available, mdformat_error = check_mdformat_availability()
+        gfm_available = None  # Will be checked only if needed
+        
+        # Standard markdown validation
+        if mdformat_available:
             try:
                 import mdformat
-
                 mdformat.text(content)
             except ValueError as e:
                 errors.append(f"Markdown formatting error: {str(e)}")
-            except ImportError:
-                logger.warning("mdformat not installed, skipping format validation")
+        else:
+            logger.warning(f"Skipping format validation: {mdformat_error}")
 
-            # Validate GFM features
-            try:
-                if "~~" in content:  # Strikethrough validation
+        # GFM feature validation
+        if "~~" in content or "- [ ]" in content:  # GFM features detected
+            if gfm_available is None:  # Only check if not checked yet
+                gfm_available, gfm_error = check_mdformat_availability(gfm=True)
+            
+            if gfm_available:
+                try:
                     import mdformat
-
                     mdformat.text(content, extensions=["gfm"])
-            except ValueError as e:
-                errors.append(f"GFM validation error: {str(e)}")
-            except ImportError:
-                logger.warning("mdformat-gfm not installed, skipping GFM validation")
+                except ValueError as e:
+                    errors.append(f"GFM validation error: {str(e)}")
+            else:
+                logger.warning(f"Skipping GFM validation: {gfm_error}")
 
-            # Add other validations
-            errors.extend(validate_markdown_content(content))
-            errors.extend(validate_content(content, file_path))
-            errors.extend(validate_pandoc_compatibility(content, file_path))
-
-        except subprocess.CalledProcessError as e:
-            errors.append(ERROR_PANDOC_COMPATIBILITY.format(error=e.stderr))
-            logger.warning(f"Pandoc validation failed: {e.stderr}")
+        # Add other validations
+        errors.extend(validate_markdown_content(content))
+        errors.extend(validate_content(content, file_path))
+        errors.extend(validate_pandoc_compatibility(content, file_path))
 
         return len(errors) == 0, errors
 
@@ -176,8 +202,7 @@ def validate_header(
 ) -> Tuple[List[str], int, Optional[str]]:
     """Validate a header line for proper formatting and nesting."""
     errors = []
-    level = len(re.match(r"^#+", line).group())  # Count leading #s
-    header_text = line.lstrip(SECTION_HEADER_PREFIX).strip()
+    level, header_text = extract_header_info(line)
 
     # Validate empty headers first
     if not header_text:
@@ -453,3 +478,30 @@ def is_valid_task_list_marker(text: str) -> bool:
 def get_header_level(text: str) -> int:
     """Get the header level from a line of text."""
     return len(text) - len(text.lstrip(SECTION_HEADER_PREFIX))
+
+
+def extract_header_info(line: str) -> Tuple[int, str]:
+    """
+    Extract header level and text from a markdown header line.
+    
+    Args:
+        line: The line containing the header
+        
+    Returns:
+        Tuple containing:
+            - Header level (number of #)
+            - Header text (stripped of #s and whitespace)
+            
+    Example:
+        >>> extract_header_info("### My Header")
+        (3, "My Header")
+    """
+    level_match = re.match(PATTERN_HEADER_LEVEL, line)
+    if not level_match:
+        return 0, ""
+        
+    level = len(level_match.group())
+    text_match = re.match(PATTERN_HEADER_TEXT, line)
+    text = text_match.group(1) if text_match else ""
+    
+    return level, text

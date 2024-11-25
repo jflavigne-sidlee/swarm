@@ -701,4 +701,8 @@ ERROR_PANDOC_EXECUTION: Final = "Error executing Pandoc: {error}"
 LOG_PATH_NOT_FOUND: Final = "Path not found: {path}"
 LOG_NO_READ_PERMISSION: Final = "No read permission for path: {path}"
 
+# Header-related patterns
+PATTERN_HEADER_LEVEL: Final = r"^#+"
+PATTERN_HEADER_TEXT: Final = r"^#+\s*(.*?)\s*$"
+
 
