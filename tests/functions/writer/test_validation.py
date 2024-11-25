@@ -7,10 +7,11 @@ from src.functions.writer.constants import ERROR_SUGGESTIONS
 import os
 import stat
 import shutil
+import subprocess
 
 def remove_readonly(func, path, _):
     """Clear the readonly bit and reattempt the removal"""
-    os.chmod(path, stat.S_IRWXU| stat.S_IRWXG| stat.S_IRWXO) # 0777
+    os.chmod(path, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)  # 0777
     func(path)
 
 @pytest.fixture(autouse=True)
@@ -157,15 +158,16 @@ Invalid latex: $\invalid$
     file_path.write_text(content)
     
     with patch('subprocess.run') as mock_run:
-        mock_run.return_value = Mock(
+        mock_run.side_effect = subprocess.CalledProcessError(
             returncode=1,
+            cmd='pandoc',
             stderr="Error parsing latex math"
         )
         
         is_valid, errors = validate_markdown(str(file_path))
         
         assert not is_valid
-        assert any("pandoc" in error.lower() for error in errors)
+        assert "Pandoc compatibility error: Error parsing latex math" in errors
 
 def test_validate_markdown_gfm_strikethrough(tmp_path):
     """Test validation of GFM strikethrough syntax."""

@@ -120,12 +120,10 @@ def validate_pandoc_compatibility(file_path: Path) -> List[str]:
              str(file_path)],
             capture_output=True,
             text=True,
-            check=False
+            check=True
         )
-        if result.returncode != 0:
-            errors.append(f"Pandoc compatibility error: {result.stderr}")
     except subprocess.CalledProcessError as e:
-        errors.append(f"Pandoc compatibility error: {str(e)}")
+        errors.append(f"Pandoc compatibility error: {e.stderr}")
     return errors
 
 def restore_file_permissions(file_path: Path):
