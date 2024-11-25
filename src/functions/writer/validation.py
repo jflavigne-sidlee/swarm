@@ -40,6 +40,10 @@ from .constants import (
     PANDOC_TO_ARG,
     ERROR_LINE_MESSAGE,
     ERROR_SUGGESTION_FORMAT,
+    HTTP_PREFIX,
+    HTTPS_PREFIX,
+    URL_PREFIXES,
+    SECTION_HEADER_PREFIX,
 )
 
 logger = logging.getLogger(__name__)
@@ -218,7 +222,7 @@ def validate_content(file_path: Path) -> List[str]:
         image_links = re.finditer(r"!\[([^\]]*)\]\(([^)]+)\)", content)
         for match in image_links:
             image_path = match.group(2)
-            if not image_path.startswith(("http://", "https://")):
+            if not image_path.startswith(URL_PREFIXES):
                 if not (file_path.parent / image_path).exists():
                     error_msg = ERROR_BROKEN_IMAGE.format(path=image_path)
                     error_msg += ERROR_SUGGESTION_FORMAT.format(suggestion=ERROR_SUGGESTIONS["broken_image"])
@@ -230,7 +234,7 @@ def validate_content(file_path: Path) -> List[str]:
         for match in file_links:
             link_path = match.group(2)
             if link_path not in validated_paths and not link_path.startswith(
-                ("http://", "https://", "#")
+                (HTTP_PREFIX, HTTPS_PREFIX, SECTION_HEADER_PREFIX)
             ):
                 if not (file_path.parent / link_path).exists():
                     error_msg = ERROR_BROKEN_FILE.format(path=link_path)

@@ -661,4 +661,7 @@ ERROR_LINE_MESSAGE: Final = "Line {line}: {message}"
 ERROR_SUGGESTION_FORMAT: Final = "\nSuggestion: {suggestion}"
 
 
-
+# URL prefixes
+HTTP_PREFIX: Final = "http://"
+HTTPS_PREFIX: Final = "https://"
+URL_PREFIXES: Final = (HTTP_PREFIX, HTTPS_PREFIX)
