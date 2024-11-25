@@ -1,7 +1,7 @@
 from pathlib import Path
 import subprocess
 import logging
-from typing import Tuple, List
+from typing import Tuple, List, Optional
 import re
 import mdformat
 from mdformat.renderer import MDRenderer
@@ -53,6 +53,7 @@ from .constants import (
     ERROR_TASK_LIST_MISSING_SPACE,
     ERROR_TASK_LIST_EXTRA_SPACE,
     ERROR_TASK_LIST_MISSING_SPACE_AFTER,
+    MAX_HEADER_DEPTH,
 )
 
 logger = logging.getLogger(__name__)
@@ -115,21 +116,120 @@ def validate_file_extension_and_access(file_path: Path):
         os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR)
 
 
+def validate_task_list(line: str, line_num: int) -> List[str]:
+    """
+    Validate a task list line for proper formatting.
+    
+    Args:
+        line: The line content to validate
+        line_num: The line number for error reporting
+        
+    Returns:
+        List[str]: List of validation errors for this line
+    """
+    errors = []
+    stripped = line.strip()
+    error_template = ERROR_LINE_MESSAGE + ERROR_SUGGESTION_FORMAT
+
+    # 1. Check for missing space after dash (-[ ] instead of - [ ])
+    if stripped.startswith("-["):
+        errors.append(
+            error_template.format(
+                line=line_num,
+                message=ERROR_TASK_LIST_MISSING_SPACE,
+                suggestion=SUGGESTION_TASK_LIST_FORMAT
+            )
+        )
+        return errors
+
+    # 2. Check for extra spaces after dash (-  [ ] instead of - [ ])
+    if stripped.startswith("-  "):
+        errors.append(
+            error_template.format(
+                line=line_num,
+                message=ERROR_TASK_LIST_EXTRA_SPACE,
+                suggestion=SUGGESTION_TASK_LIST_FORMAT
+            )
+        )
+
+    # 3. Check for invalid marker format (- [] instead of - [ ])
+    if "[]" in stripped:
+        errors.append(
+            error_template.format(
+                line=line_num,
+                message=ERROR_TASK_LIST_INVALID_MARKER,
+                suggestion=SUGGESTION_TASK_LIST_FORMAT
+            )
+        )
+
+    # 4. Check for missing space after brackets (- [ ]text instead of - [ ] text)
+    bracket_end = stripped.find("]")
+    if bracket_end != -1 and bracket_end + 1 < len(stripped):
+        if not stripped[bracket_end + 1:].startswith(" "):
+            errors.append(
+                error_template.format(
+                    line=line_num,
+                    message=ERROR_TASK_LIST_MISSING_SPACE_AFTER,
+                    suggestion=SUGGESTION_TASK_LIST_FORMAT
+                )
+            )
+
+    return errors
+
+
+def validate_header(line: str, line_num: int, current_level: int, last_header: Optional[str]) -> Tuple[List[str], int, Optional[str]]:
+    """Validate a header line for proper formatting and nesting."""
+    errors = []
+    level = get_header_level(line)
+    header_text = line.lstrip('#').strip()
+
+    # Check for empty headers
+    if not header_text:
+        errors.append(ERROR_HEADER_EMPTY.format(line=line_num))
+        return errors, level, None
+
+    # Check for maximum level exceeded
+    if level > MAX_HEADER_DEPTH:
+        errors.append(ERROR_HEADER_LEVEL_EXCEEDED.format(
+            line=line_num,
+            level=level
+        ))
+        return errors, level, None
+
+    # Check for invalid start (not level 1)
+    if current_level == 0 and level != 1:
+        errors.append(ERROR_HEADER_INVALID_START.format(
+            line=line_num,
+            level=level
+        ))
+
+    # Check for skipped levels and add suggestion
+    if last_header is not None and level > current_level + 1:
+        suggested_level = current_level + 1
+        suggested_header = '#' * suggested_level
+        errors.append(
+            ERROR_HEADER_LEVEL_SKIP.format(
+                line=line_num,
+                current=current_level,
+                level=level
+            ) + 
+            SUGGESTION_HEADER_LEVEL.format(
+                suggested=suggested_header,
+                current='#' * level
+            )
+        )
+
+    return errors, level, header_text
+
+
 def validate_markdown_content(content: str) -> List[str]:
     """
     Unified function to validate task lists, header nesting, and markdown formatting.
-    
-    Args:
-        content: The Markdown file content as a string.
-        
-    Returns:
-        List[str]: A list of validation error messages.
     """
     errors = []
     current_level = 0
     last_header = None
-    error_template = ERROR_LINE_MESSAGE + ERROR_SUGGESTION_FORMAT
-    in_code_block = False  # Add tracking for code blocks
+    in_code_block = False
 
     for line_num, line in enumerate(content.splitlines(), 1):
         stripped = line.strip()
@@ -149,106 +249,27 @@ def validate_markdown_content(content: str) -> List[str]:
 
         # Task List Validation
         if stripped.startswith("-"):
-            # 1. Check for missing space after dash (-[ ] instead of - [ ])
-            if stripped.startswith("-["):
-                errors.append(
-                    error_template.format(
-                        line=line_num,
-                        message=ERROR_TASK_LIST_MISSING_SPACE,
-                        suggestion=SUGGESTION_TASK_LIST_FORMAT
-                    )
-                )
-                continue
-
-            # 2. Check for extra spaces after dash (-  [ ] instead of - [ ])
-            if stripped.startswith("-  "):
-                errors.append(
-                    error_template.format(
-                        line=line_num,
-                        message=ERROR_TASK_LIST_EXTRA_SPACE,
-                        suggestion=SUGGESTION_TASK_LIST_FORMAT
-                    )
-                )
-
-            # 3. Check for invalid marker format (- [] instead of - [ ])
-            if "[]" in stripped:
-                errors.append(
-                    error_template.format(
-                        line=line_num,
-                        message=ERROR_TASK_LIST_INVALID_MARKER,
-                        suggestion=SUGGESTION_TASK_LIST_FORMAT
-                    )
-                )
-
-            # 4. Check for missing space after brackets (- [ ]text instead of - [ ] text)
-            bracket_end = stripped.find("]")
-            if bracket_end != -1 and bracket_end + 1 < len(stripped):
-                if not stripped[bracket_end + 1:].startswith(" "):
-                    errors.append(
-                        error_template.format(
-                            line=line_num,
-                            message=ERROR_TASK_LIST_MISSING_SPACE_AFTER,
-                            suggestion=SUGGESTION_TASK_LIST_FORMAT
-                        )
-                    )
+            errors.extend(validate_task_list(line, line_num))
+            continue
 
         # Header Validation
-        elif stripped.startswith(SECTION_HEADER_PREFIX):
-            # Count the number of # symbols
-            level = len(line.split()[0])
-            header_text = line.lstrip(SECTION_HEADER_PREFIX).strip()
-
-            # Check for empty headers
-            if not header_text:
-                errors.append(ERROR_HEADER_EMPTY.format(line=line_num))
-                continue
-
-            # Check if header level is valid (1-6)
-            if level > 6:
-                errors.append(ERROR_HEADER_LEVEL_EXCEEDED.format(
-                    line=line_num,
-                    level=level
-                ))
-                continue
-
-            # First header should be level 1
-            if last_header is None and level != 1:
-                errors.append(ERROR_HEADER_INVALID_START.format(
-                    line=line_num,
-                    level=level
-                ))
-
-            # Check for skipped levels
-            if last_header is not None:
-                if level > current_level + 1:
-                    error_msg = ERROR_HEADER_LEVEL_SKIP.format(
-                        line=line_num,
-                        current=current_level,
-                        level=level
-                    )
-                    error_msg += "\n" + SUGGESTION_HEADER_LEVEL.format(
-                        suggested=SECTION_HEADER_PREFIX * (current_level + 1),
-                        current=SECTION_HEADER_PREFIX * level
-                    )
-                    errors.append(error_msg)
-
-            current_level = level
-            last_header = header_text
+        if stripped.startswith(SECTION_HEADER_PREFIX):
+            header_errors, new_level, new_header = validate_header(
+                line, line_num, current_level, last_header
+            )
+            errors.extend(header_errors)
+            current_level = new_level
+            last_header = new_header
+            continue
 
         # Markdown Formatting Validation
         try:
             mdformat.text(line, options=MDFORMAT_OPTIONS, extensions=MDFORMAT_EXTENSIONS)
         except ValueError as e:
-            errors.append(
-                ERROR_MARKDOWN_FORMATTING.format(
-                    line=line_num,
-                    message=str(e)
-                )
-            )
-
-    # Final header level check
-    if current_level == 0:
-        errors.append(ERROR_HEADER_INVALID_START.format(line=1, level=0))
+            errors.append(ERROR_MARKDOWN_FORMATTING.format(
+                line=line_num,
+                message=str(e)
+            ))
 
     return errors
 
