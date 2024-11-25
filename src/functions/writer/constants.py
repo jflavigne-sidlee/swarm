@@ -568,6 +568,8 @@ PANDOC_TO_FORMAT: Final = "html"
 ERROR_REMARK_VALIDATION: Final = "Syntax validation failed: {error}"
 ERROR_MARKDOWNLINT_VALIDATION: Final = "Additional validation failed: {error}"
 ERROR_PANDOC_VALIDATION: Final = "Format compatibility check failed: {error}"
+ERROR_MARKDOWN_FORMATTING: Final = "Markdown formatting error: {error}"
+ERROR_PANDOC_COMPATIBILITY: Final = "Pandoc compatibility error: {error}"
 
 # Error suggestions for common markdown issues
 ERROR_SUGGESTIONS = {
@@ -627,3 +629,14 @@ ERROR_PANDOC_COMPATIBILITY: Final = "Pandoc compatibility error: {error}"
 ERROR_CONTENT_VALIDATION: Final = "Content validation error: {error}"
 ERROR_BROKEN_IMAGE: Final = "Broken image link: {path}"
 ERROR_BROKEN_FILE: Final = "Broken file link: {path}"
+
+# Log messages
+LOG_EMPTY_FILE_DETECTED: Final = "Empty markdown file detected"
+
+# Error messages
+ERROR_EMPTY_FILE: Final = "File is empty"
+
+# Error and log messages for validation
+ERROR_VALIDATION_FAILED: Final = "Validation failed: {error}"
+ERROR_MARKDOWN_VALIDATION: Final = "Failed to validate markdown: {error}"
+ERROR_RESTORE_PERMISSIONS: Final = "Failed to restore file permissions: {error}"

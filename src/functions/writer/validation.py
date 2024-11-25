@@ -27,6 +27,11 @@ from .constants import (
     ERROR_CONTENT_VALIDATION,
     ERROR_BROKEN_IMAGE,
     ERROR_BROKEN_FILE,
+    LOG_EMPTY_FILE_DETECTED,
+    ERROR_EMPTY_FILE,
+    ERROR_VALIDATION_FAILED,
+    ERROR_RESTORE_PERMISSIONS,
+    ERROR_MARKDOWN_VALIDATION,
 )
 
 logger = logging.getLogger(__name__)
@@ -55,8 +60,8 @@ def validate_markdown(file_name: str) -> Tuple[bool, List[str]]:
         validate_file(file_path)
 
         if file_path.stat().st_size == 0:
-            logger.warning("Empty markdown file detected")
-            return False, [ERROR_MESSAGES["empty_file"]]
+            logger.warning(LOG_EMPTY_FILE_DETECTED)
+            return False, [ERROR_EMPTY_FILE]
 
         errors = []
 
@@ -81,14 +86,14 @@ def validate_markdown(file_name: str) -> Tuple[bool, List[str]]:
         return len(errors) == 0, errors
 
     except Exception as e:
-        logger.error(f"Validation failed: {str(e)}")
-        raise WriterError(f"Failed to validate markdown: {str(e)}")
+        logger.error(ERROR_VALIDATION_FAILED.format(error=str(e)))
+        raise WriterError(ERROR_MARKDOWN_VALIDATION.format(error=str(e)))
     finally:
         # Ensure we restore reasonable permissions
         try:
             restore_file_permissions(file_path)
         except Exception as e:
-            logger.error(f"Failed to restore file permissions: {str(e)}")
+            logger.error(ERROR_RESTORE_PERMISSIONS.format(error=str(e)))
 
 
 def validate_file_extension_and_access(file_path: Path):
