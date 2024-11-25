@@ -22,6 +22,11 @@ from .constants import (
     DEFAULT_ENCODING,
     MD_EXTENSION,
     ERROR_MESSAGES,
+    ERROR_MARKDOWN_FORMATTING,
+    ERROR_PANDOC_COMPATIBILITY,
+    ERROR_CONTENT_VALIDATION,
+    ERROR_BROKEN_IMAGE,
+    ERROR_BROKEN_FILE,
 )
 
 logger = logging.getLogger(__name__)
@@ -51,7 +56,7 @@ def validate_markdown(file_name: str) -> Tuple[bool, List[str]]:
 
         if file_path.stat().st_size == 0:
             logger.warning("Empty markdown file detected")
-            return False, ["File is empty"]
+            return False, [ERROR_MESSAGES["empty_file"]]
 
         errors = []
 
@@ -105,7 +110,7 @@ def validate_markdown_formatting(content: str) -> List[str]:
             extensions=["gfm", "tables"],
         )
     except ValueError as e:
-        errors.append(f"Markdown formatting error: {str(e)}")
+        errors.append(ERROR_MARKDOWN_FORMATTING.format(error=str(e)))
     return errors
 
 
@@ -127,7 +132,7 @@ def validate_pandoc_compatibility(file_path: Path) -> List[str]:
             check=True,
         )
     except subprocess.CalledProcessError as e:
-        errors.append(f"Pandoc compatibility error: {e.stderr}")
+        errors.append(ERROR_PANDOC_COMPATIBILITY.format(error=e.stderr))
     return errors
 
 
@@ -202,7 +207,7 @@ def validate_content(file_path: Path) -> List[str]:
             image_path = match.group(2)
             if not image_path.startswith(("http://", "https://")):
                 if not (file_path.parent / image_path).exists():
-                    error_msg = f"Broken image link: {image_path}"
+                    error_msg = ERROR_BROKEN_IMAGE.format(path=image_path)
                     error_msg += f"\nSuggestion: {ERROR_SUGGESTIONS['broken_image']}"
                     errors.append(error_msg)
                 validated_paths.add(image_path)
@@ -215,12 +220,12 @@ def validate_content(file_path: Path) -> List[str]:
                 ("http://", "https://", "#")
             ):
                 if not (file_path.parent / link_path).exists():
-                    error_msg = f"Broken file link: {link_path}"
+                    error_msg = ERROR_BROKEN_FILE.format(path=link_path)
                     error_msg += f"\nSuggestion: {ERROR_SUGGESTIONS['broken_link']}"
                     errors.append(error_msg)
 
     except Exception as e:
-        errors.append(f"Content validation error: {str(e)}")
+        errors.append(ERROR_CONTENT_VALIDATION.format(error=str(e)))
 
     return errors
 

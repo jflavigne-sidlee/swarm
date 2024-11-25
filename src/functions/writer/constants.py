@@ -607,4 +607,23 @@ ERROR_MESSAGES: Final[Dict[str, str]] = {
     "invalid_spacing": "Invalid spacing in task list marker",
     "invalid_marker": "Invalid task list marker",
     "invalid_format": "Invalid task list format",
+    "empty_file": "File is empty",  # Added constant for empty file error message
 }
+
+# Additional error messages
+ERROR_DIRECTORY_EXISTS: Final = "Cannot create directory (file exists): %s"
+ERROR_DIRECTORY_PERMISSION: Final = "Permission denied creating directory: %s"
+ERROR_DIRECTORY_CREATION_FAILED: Final = "Directory creation error: %s"
+ERROR_SECTION_NOT_FOUND: Final = "Section '{section_title}' not found in document"
+ERROR_UNSUPPORTED_ENCODING: Final = "Unsupported encoding: {encoding}"
+ERROR_PERMISSION_DENIED_APPEND: Final = "Permission denied when writing to {file_path}"
+ERROR_APPEND_GENERAL: Final = "Failed to append section: {error}"
+ERROR_SECTION_VALIDATION_FAILED: Final = "Section validation failed: {error}"
+ERROR_SECTION_MARKER_MISMATCH: Final = "Section marker mismatch: expected '{expected}', found '{found}'"
+
+# Markdown validation error messages
+ERROR_MARKDOWN_FORMATTING: Final = "Markdown formatting error: {error}"
+ERROR_PANDOC_COMPATIBILITY: Final = "Pandoc compatibility error: {error}"
+ERROR_CONTENT_VALIDATION: Final = "Content validation error: {error}"
+ERROR_BROKEN_IMAGE: Final = "Broken image link: {path}"
+ERROR_BROKEN_FILE: Final = "Broken file link: {path}"
