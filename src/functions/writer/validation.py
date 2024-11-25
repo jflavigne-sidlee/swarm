@@ -32,6 +32,9 @@ from .constants import (
     ERROR_VALIDATION_FAILED,
     ERROR_RESTORE_PERMISSIONS,
     ERROR_MARKDOWN_VALIDATION,
+    ERROR_INVALID_FILE_FORMAT,
+    MDFORMAT_OPTIONS,
+    MDFORMAT_EXTENSIONS,
 )
 
 logger = logging.getLogger(__name__)
@@ -99,7 +102,7 @@ def validate_markdown(file_name: str) -> Tuple[bool, List[str]]:
 def validate_file_extension_and_access(file_path: Path):
     """Validate file extension and ensure file is readable."""
     if file_path.suffix != MD_EXTENSION:
-        raise WriterError("Invalid file format: File must have .md extension")
+        raise WriterError(ERROR_INVALID_FILE_FORMAT)
 
     if not os.access(file_path, os.R_OK):
         os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR)
@@ -111,8 +114,8 @@ def validate_markdown_formatting(content: str) -> List[str]:
     try:
         mdformat.text(
             content,
-            options={"check": True, "number": True, "wrap": "no"},
-            extensions=["gfm", "tables"],
+            options=MDFORMAT_OPTIONS,
+            extensions=MDFORMAT_EXTENSIONS,
         )
     except ValueError as e:
         errors.append(ERROR_MARKDOWN_FORMATTING.format(error=str(e)))

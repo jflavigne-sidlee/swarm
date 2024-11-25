@@ -640,3 +640,14 @@ ERROR_EMPTY_FILE: Final = "File is empty"
 ERROR_VALIDATION_FAILED: Final = "Validation failed: {error}"
 ERROR_MARKDOWN_VALIDATION: Final = "Failed to validate markdown: {error}"
 ERROR_RESTORE_PERMISSIONS: Final = "Failed to restore file permissions: {error}"
+
+# File validation error messages
+ERROR_INVALID_FILE_FORMAT: Final = "Invalid file format: File must have .md extension"
+
+# Markdown formatting options
+MDFORMAT_OPTIONS: Final[Dict[str, bool]] = {
+    "check": True,
+    "number": True,
+    "wrap": "no"
+}
+MDFORMAT_EXTENSIONS: Final[List[str]] = ["gfm", "tables"]
