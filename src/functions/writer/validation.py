@@ -190,7 +190,7 @@ def validate_header(
     """Validate a header line for proper formatting and nesting."""
     errors = []
     level = len(re.match(r"^#+", line).group())  # Count leading #s
-    header_text = line.lstrip("#").strip()
+    header_text = line.lstrip(SECTION_HEADER_PREFIX).strip()
 
     # Validate empty headers first
     if not header_text:
@@ -212,13 +212,13 @@ def validate_header(
         # Headers should only increment by 1 level at a time
         if level > current_level + 1:
             suggested_level = current_level + 1
-            suggested_header = "#" * suggested_level
+            suggested_header = SECTION_HEADER_PREFIX * suggested_level
             errors.append(
                 ERROR_HEADER_LEVEL_SKIP.format(
                     line=line_num, current=current_level, level=level
                 )
                 + SUGGESTION_HEADER_LEVEL.format(
-                    suggested=suggested_header, current="#" * level
+                    suggested=suggested_header, current=SECTION_HEADER_PREFIX * level
                 )
             )
 
@@ -250,7 +250,7 @@ def validate_markdown_content(content: str) -> List[str]:
             continue
 
         # Header validation
-        if stripped.startswith("#"):
+        if stripped.startswith(SECTION_HEADER_PREFIX):
             header_errors, level, header_text = validate_header(
                 stripped, line_num, current_level, last_header
             )
@@ -465,4 +465,4 @@ def is_valid_task_list_marker(text: str) -> bool:
 
 def get_header_level(text: str) -> int:
     """Get the header level from a line of text."""
-    return len(text) - len(text.lstrip("#"))
+    return len(text) - len(text.lstrip(SECTION_HEADER_PREFIX))
