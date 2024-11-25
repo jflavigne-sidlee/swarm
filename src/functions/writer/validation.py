@@ -81,7 +81,10 @@ def validate_markdown(file_name: str) -> Tuple[bool, List[str]]:
         raise WriterError(f"Failed to validate markdown: {str(e)}")
     finally:
         # Ensure we restore reasonable permissions
-        restore_file_permissions(file_path)
+        try:
+            restore_file_permissions(file_path)
+        except Exception as e:
+            logger.error(f"Failed to restore file permissions: {str(e)}")
 
 def validate_file_extension_and_access(file_path: Path):
     """Validate file extension and ensure file is readable."""
