@@ -35,6 +35,9 @@ from .constants import (
     ERROR_INVALID_FILE_FORMAT,
     MDFORMAT_OPTIONS,
     MDFORMAT_EXTENSIONS,
+    PANDOC_COMMAND,
+    PANDOC_FROM_ARG,
+    PANDOC_TO_ARG,
 )
 
 logger = logging.getLogger(__name__)
@@ -128,10 +131,10 @@ def validate_pandoc_compatibility(file_path: Path) -> List[str]:
     try:
         result = subprocess.run(
             [
-                "pandoc",
-                "--from",
+                PANDOC_COMMAND,
+                PANDOC_FROM_ARG,
                 PANDOC_FROM_FORMAT,
-                "--to",
+                PANDOC_TO_ARG,
                 PANDOC_TO_FORMAT,
                 str(file_path),
             ],

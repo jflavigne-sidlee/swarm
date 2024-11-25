@@ -563,6 +563,10 @@ REMARK_CONFIG_FILE: Final = ".remarkrc.js"
 MARKDOWNLINT_CONFIG_FILE: Final = ".markdownlint.json"
 PANDOC_FROM_FORMAT: Final = "markdown"
 PANDOC_TO_FORMAT: Final = "html"
+# External tool configurations
+PANDOC_COMMAND: Final = "pandoc"
+PANDOC_FROM_ARG: Final = "--from"
+PANDOC_TO_ARG: Final = "--to"
 
 # External tool error messages
 ERROR_REMARK_VALIDATION: Final = "Syntax validation failed: {error}"
@@ -651,3 +655,6 @@ MDFORMAT_OPTIONS: Final[Dict[str, bool]] = {
     "wrap": "no"
 }
 MDFORMAT_EXTENSIONS: Final[List[str]] = ["gfm", "tables"]
+
+
+
