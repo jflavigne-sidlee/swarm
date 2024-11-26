@@ -210,69 +210,80 @@ ERROR_CUSTOM_VALIDATION: Final = (
 )
 
 
-ERROR_PATH_NOT_DIR: Final = "{name} is not a directory: {path}"
-ERROR_PATH_NOT_EXIST: Final = "{name} does not exist: {path}"
-ERROR_PATH_NO_READ: Final = "No read permission for {name}: {path}"
-ERROR_PATH_NO_WRITE: Final = "No write permission for {name}: {path}"
-ERROR_PATH_PROCESS: Final = "Failed to process {name}: {error}"
-ERROR_UNKNOWN_FIELD: Final = "Unknown configuration fields: {fields}"
-ERROR_VALIDATION_FAILED: Final = "Validation failed: {error}"
-ERROR_UNEXPECTED: Final = "Unexpected error validating {name}: {error}"
+ERROR_APPEND_SECTION_FAILED: Final = "Failed to append section: {error}"
+ERROR_BROKEN_FILE: Final = "Broken file link: {path}"
+ERROR_BROKEN_IMAGE: Final = "Broken image link: {path}"
+ERROR_CONTENT_UPDATE_FAILED: Final = "Failed to update content: {error}"
+ERROR_DIR_CREATION: Final = "Directory creation error: {error}"
+ERROR_DIR_EXISTS: Final = "Cannot create directory: {path} (file exists)"
+ERROR_DIRECTORY_PERMISSION: Final = "Permission denied creating directory: {path}"
+ERROR_EMPTY_FILE: Final = "File is empty"
+ERROR_FAILED_APPEND_SECTION: Final = "Failed to append section: {error}"
+ERROR_FILE_EXISTS: Final = "File already exists: {path}"
+ERROR_FILE_WRITE: Final = "File writing error: {error}"
 ERROR_GET_DEFAULT: Final = "Failed to get default for {name}: {error}"
 ERROR_INVALID_CONFIG: Final = "Invalid configuration: {error}"
-ERROR_UNKNOWN_FIELD_NAME: Final = "Unknown field: {name}"
-
-# Error messages for file operations
 ERROR_INVALID_FILENAME: Final = "Invalid filename"
+ERROR_INVALID_FILE_FORMAT: Final = "Invalid file format: File must have .md extension"
 ERROR_INVALID_METADATA_TYPE: Final = "Invalid metadata type"
-ERROR_FILE_EXISTS: Final = "File already exists: {path}"
-ERROR_PERMISSION_DENIED_PATH: Final = "Permission denied accessing path: {path}"
-ERROR_PERMISSION_DENIED_DIR: Final = "Permission denied creating directory: {path}"
+ERROR_INVALID_SECTION_FORMAT: Final = "Invalid section format in file: {file_path}"
+ERROR_LINE_MESSAGE: Final = "Line {line}: {message}"
+ERROR_MARKDOWN_FORMATTING: Final = "Markdown formatting error: {error}"
+ERROR_MARKDOWNLINT_VALIDATION: Final = "Additional validation failed: {error}"
 ERROR_MISSING_METADATA: Final = "Missing required metadata fields: {fields}"
-ERROR_DIR_EXISTS: Final = "Cannot create directory: {path} (file exists)"
-ERROR_DIR_CREATION: Final = "Directory creation error: {error}"
-ERROR_YAML_SERIALIZATION: Final = "YAML serialization error: {error}"
-ERROR_FILE_WRITE: Final = "File writing error: {error}"
+ERROR_NO_WRITE_PERMISSION: Final = "No write permission for Path: {path}"
+ERROR_PANDOC_COMPATIBILITY: Final = "Pandoc compatibility error: {error}"
+ERROR_PANDOC_VALIDATION: Final = "Format compatibility check failed: {error}"
+ERROR_PATH_NO_READ: Final = "No read permission for {name}: {path}"
+ERROR_PATH_NO_WRITE: Final = "No write permission for {name}: {path}"
+ERROR_PATH_NOT_DIR: Final = "{name} is not a directory: {path}"
+ERROR_PATH_NOT_EXIST: Final = "{name} does not exist: {path}"
+ERROR_PATH_NOT_FOUND: Final = "Path does not exist: {path}"
+ERROR_PATH_PROCESS: Final = "Failed to process {name}: {error}"
+ERROR_PERMISSION_DENIED_DIR: Final = "Permission denied creating directory: {path}"
 ERROR_PERMISSION_DENIED_FILE: Final = "Permission denied writing file: {path}"
+ERROR_PERMISSION_DENIED_PATH: Final = "Permission denied accessing path: {path}"
+ERROR_PERMISSION_DENIED_WRITE: Final = "Permission denied when writing to {file_path}"
+ERROR_SECTION_NOT_FOUND: Final = "Section '{section_title}' not found in document"
+ERROR_SECTION_UPDATE_FAILED: Final = "Failed to update section: {error}"
+ERROR_SECTION_VALIDATION_FAILED: Final = "Section validation failed: {error}"
+ERROR_UNEXPECTED: Final = "Unexpected error validating {name}: {error}"
+ERROR_UNKNOWN_FIELD: Final = "Unknown configuration fields: {fields}"
+ERROR_UNKNOWN_FIELD_NAME: Final = "Unknown field: {name}"
+ERROR_VALIDATION_FAILED: Final = "Validation failed: {error}"
+ERROR_YAML_SERIALIZATION: Final = "YAML serialization error: {error}"
+
+
+
+
+
+
+
+
+
+ERROR_REMARK_VALIDATION: Final = "Syntax validation failed: {error}"
+ERROR_SUGGESTION_FORMAT: Final = "\nSuggestion: {suggestion}"
+ERROR_UNSUPPORTED_ENCODING: Final = "Unsupported encoding: {encoding}"
+
+
 ERROR_PATH_TOO_LONG: Final = (
     "Full path exceeds maximum length of {max_length} characters: {path}"
 )
-# Error messages for section operations
 ERROR_DUPLICATE_SECTION_MARKER: Final = (
     "Duplicate section marker found: '{marker_title}'"
 )
 ERROR_ORPHANED_SECTION_MARKER: Final = (
     "Found marker '{marker_title}' without a corresponding header"
 )
-ERROR_APPEND_SECTION_FAILED: Final = "Failed to append section: {error}"
-ERROR_DIRECTORY_EXISTS: Final = "Cannot create directory (file exists): %s"
-ERROR_DIRECTORY_PERMISSION: Final = "Permission denied creating directory: %s"
-ERROR_DIRECTORY_CREATION_FAILED: Final = "Directory creation error: %s"
-ERROR_SECTION_UPDATE_FAILED: Final = "Failed to update section: {error}"
-
-ERROR_INVALID_SECTION_FORMAT: Final = "Invalid section format in file: {file_path}"
-ERROR_CONTENT_UPDATE_FAILED: Final = "Failed to update content: {error}"
-ERROR_SECTION_VALIDATION_FAILED: Final = "Section validation failed: {error}"
 ERROR_SECTION_MARKER_MISMATCH: Final = (
     "Section marker mismatch: expected '{expected}', found '{found}'"
 )
-# Error messages for section operations
-ERROR_SECTION_NOT_FOUND: Final = "Section '{section_title}' not found in document"
-
-# Section operation errors
 ERROR_MISSING_SECTION_MARKER: Final = (
     "Header '{header_title}' is missing its section marker"
 )
 ERROR_MISMATCHED_SECTION_MARKER: Final = (
     "Section marker for '{header_title}' does not match header title"
 )
-
-
-# Path validation errors
-ERROR_PATH_NOT_FOUND: Final = "Path does not exist: {path}"
-ERROR_NO_WRITE_PERMISSION: Final = "No write permission for Path: {path}"
-
-# Dependency check messages
 ERROR_ATOMIC_MOVE_UNSUPPORTED: Final = (
     "Atomic file operations not fully supported: {error}"
 )
@@ -298,25 +309,8 @@ ERROR_HEADER_LEVEL: Final = "Header level error: {error}"
 ERROR_SECTION_INSERT_AFTER_NOT_FOUND: Final = (
     "Section to insert after not found: {insert_after}"
 )
-# Error messages for file operations
-ERROR_PERMISSION_DENIED_WRITE: Final = "Permission denied when writing to {file_path}"
-ERROR_FAILED_APPEND_SECTION: Final = "Failed to append section: {error}"
-# External tool error messages
-ERROR_REMARK_VALIDATION: Final = "Syntax validation failed: {error}"
-ERROR_MARKDOWNLINT_VALIDATION: Final = "Additional validation failed: {error}"
-ERROR_PANDOC_VALIDATION: Final = "Format compatibility check failed: {error}"
-ERROR_MARKDOWN_FORMATTING: Final = "Markdown formatting error: {error}"
 
-ERROR_UNSUPPORTED_ENCODING: Final = "Unsupported encoding: {encoding}"
-# Markdown validation error messages
-ERROR_PANDOC_COMPATIBILITY: Final = "Pandoc compatibility error: {error}"
-ERROR_BROKEN_IMAGE: Final = "Broken image link: {path}"
-ERROR_BROKEN_FILE: Final = "Broken file link: {path}"
-ERROR_EMPTY_FILE: Final = "File is empty"
 
-ERROR_INVALID_FILE_FORMAT: Final = "Invalid file format: File must have .md extension"
-ERROR_LINE_MESSAGE: Final = "Line {line}: {message}"
-ERROR_SUGGESTION_FORMAT: Final = "\nSuggestion: {suggestion}"
 # Header validation messages
 ERROR_HEADER_EMPTY: Final = (
     "Line {line}: Empty header detected. Headers must contain text."

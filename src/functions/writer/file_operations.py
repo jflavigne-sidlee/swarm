@@ -10,7 +10,7 @@ from types import SimpleNamespace
 from .config import WriterConfig
 from .exceptions import WriterError, FileValidationError, FilePermissionError, SectionNotFoundError, DuplicateSectionError
 from .constants import (
-    ERROR_DIRECTORY_EXISTS,
+    ERROR_DIR_EXISTS,
     ERROR_DIR_CREATION,
     ERROR_DIR_EXISTS,
     ERROR_DIRECTORY_PERMISSION,
@@ -166,7 +166,7 @@ def ensure_directory_exists(dir_path: Path) -> None:
         logger.debug(LOG_CREATING_DIRECTORY.format(path=dir_path))
         dir_path.mkdir(parents=True, exist_ok=True)
     except FileExistsError:
-        logger.error(ERROR_DIRECTORY_EXISTS.format(path=dir_path))
+        logger.error(ERROR_DIR_EXISTS.format(path=dir_path))
         raise WriterError(ERROR_DIR_EXISTS.format(path=dir_path))
     except PermissionError:
         logger.error(ERROR_DIRECTORY_PERMISSION.format(path=dir_path))
