@@ -5,16 +5,6 @@ from typing import Set, List, Dict, Type, Final
 import os
 import re
 
-# Metadata keys
-METADATA_KEY_VALIDATION: Final = "validation"
-METADATA_KEY_DEFAULT: Final = "default"
-METADATA_KEY_HELP: Final = "help"
-METADATA_KEY_EXAMPLE: Final = "example"
-METADATA_KEY_CONSTRAINTS: Final = "constraints"
-METADATA_KEY_TYPE: Final = "type"
-METADATA_KEY_REQUIRED: Final = "required"
-METADATA_KEY_IS_PATH: Final = "is_path"
-
 # Environment variable names
 ENV_PREFIX: Final = "WRITER_"
 ENV_TEMP_DIR: Final = f"{ENV_PREFIX}TEMP_DIR"
@@ -267,7 +257,6 @@ LOG_APPEND_SECTION_ERROR: Final = "Error appending section: %s - %s"
 # Section Validation Logs
 LOG_VALIDATE_SECTION_START: Final = "Starting section validation for: %s"
 LOG_SECTION_UPDATE_START: Final = "Updating section '%s' in %s"
-LOG_SECTION_VALIDATION_ERROR: Final = "Section validation failed: %s"
 LOG_MISSING_MARKER: Final = "Missing marker for header: {header_title}"
 LOG_MISMATCHED_MARKER: Final = (
     "Mismatched marker for header '{header_title}': expected '{expected}', found '{found}'"
@@ -371,7 +360,6 @@ MARKER_TITLE_GROUP: Final = 1  # Index of the marker title group in regex match
 LOG_VALIDATE_SECTION_START: Final = "Starting section validation for: %s"
 LOG_SECTION_APPEND_SUCCESS: Final = "Successfully appended section '%s' to %s"
 LOG_SECTION_UPDATE_START: Final = "Updating section '%s' in %s"
-LOG_SECTION_VALIDATION_ERROR: Final = "Section validation failed: %s"
 
 # Error messages
 ERROR_SECTION_VALIDATION_FAILED: Final = "Section validation failed: {error}"
@@ -622,9 +610,7 @@ ERROR_SECTION_VALIDATION_FAILED: Final = "Section validation failed: {error}"
 ERROR_SECTION_MARKER_MISMATCH: Final = "Section marker mismatch: expected '{expected}', found '{found}'"
 
 # Markdown validation error messages
-ERROR_MARKDOWN_FORMATTING: Final = "Line {line}: Markdown formatting error - {message}"
 ERROR_PANDOC_COMPATIBILITY: Final = "Pandoc compatibility error: {error}"
-ERROR_CONTENT_VALIDATION: Final = "Content validation error: {error}"
 ERROR_BROKEN_IMAGE: Final = "Broken image link: {path}"
 ERROR_BROKEN_FILE: Final = "Broken file link: {path}"
 
@@ -636,8 +622,6 @@ ERROR_EMPTY_FILE: Final = "File is empty"
 
 # Error and log messages for validation
 ERROR_VALIDATION_FAILED: Final = "Validation failed: {error}"
-ERROR_MARKDOWN_VALIDATION: Final = "Failed to validate markdown: {error}"
-ERROR_RESTORE_PERMISSIONS: Final = "Failed to restore file permissions: {error}"
 
 # File validation error messages
 ERROR_INVALID_FILE_FORMAT: Final = "Invalid file format: File must have .md extension"
@@ -704,10 +688,6 @@ LOG_NO_READ_PERMISSION: Final = "No read permission for path: {path}"
 # Header-related patterns
 PATTERN_HEADER_LEVEL: Final = r"^#+"
 PATTERN_HEADER_TEXT: Final = r"^#+\s*(.*?)\s*$"
-
-# Add these new constants for task list validation
-PATTERN_TASK_LIST: Final = r"^(-\s*\[[ xX]\].*)|(-\[[ xX]\].*)|(-\s{2,}\[[ xX]\].*)$"
-PATTERN_TASK_LIST_VALID: Final = r"^- \[[ xX]\] .+$"
 
 # Pandoc error messages
 ERROR_PANDOC_NOT_INSTALLED: Final = "Pandoc is not installed or not accessible"

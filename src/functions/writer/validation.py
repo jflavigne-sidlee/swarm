@@ -3,9 +3,6 @@ import subprocess
 import logging
 from typing import Tuple, List, Optional
 import re
-import os
-import stat
-import tempfile
 from .exceptions import WriterError
 from .constants import (
     DEFAULT_ENCODING,
@@ -43,8 +40,6 @@ from .constants import (
     URL_PREFIXES,
     PATTERN_HEADER_LEVEL,
     PATTERN_HEADER_TEXT,
-    PATTERN_TASK_LIST,
-    PATTERN_TASK_LIST_VALID,
     ERROR_PANDOC_NOT_INSTALLED,
     ERROR_PANDOC_LATEX_MATH,
 )
