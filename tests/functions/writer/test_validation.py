@@ -191,15 +191,24 @@ Invalid latex: $\invalid$
     file_path = tmp_path / "pandoc_test.md"
     file_path.write_text(content)
 
-    with patch("subprocess.run") as mock_run:
-        mock_run.side_effect = subprocess.CalledProcessError(
-            returncode=1, cmd="pandoc", stderr="Error parsing latex math"
-        )
+    with patch("src.functions.writer.validation.subprocess.run") as mock_run:
+        # First call for pandoc version check should succeed
+        mock_run.side_effect = [
+            Mock(returncode=0),  # pandoc --version succeeds
+            subprocess.CalledProcessError(
+                returncode=1,
+                cmd="pandoc",
+                stderr="Error parsing latex math"
+            )  # actual conversion fails
+        ]
 
         is_valid, errors = validate_markdown(str(file_path))
 
         assert not is_valid
-        assert "Pandoc compatibility error: Error parsing latex math" in errors
+        assert len(errors) > 0, "Should have validation errors"
+        assert any(
+            "latex math" in error.lower() for error in errors
+        ), f"Expected latex math error in: {errors}"
 
 
 def test_validate_markdown_gfm_strikethrough(tmp_path):

@@ -6,9 +6,7 @@ import re
 import os
 import stat
 import tempfile
-
 from .exceptions import WriterError
-from .file_operations import validate_file
 from .constants import (
     DEFAULT_ENCODING,
     ERROR_BROKEN_FILE,
@@ -45,8 +43,12 @@ from .constants import (
     URL_PREFIXES,
     PATTERN_HEADER_LEVEL,
     PATTERN_HEADER_TEXT,
+    PATTERN_TASK_LIST,
+    PATTERN_TASK_LIST_VALID,
+    ERROR_PANDOC_NOT_INSTALLED,
+    ERROR_PANDOC_LATEX_MATH,
 )
-from .file_io import read_file, ensure_file_readable
+from .file_io import read_file
 
 logger = logging.getLogger(__name__)
 
@@ -75,57 +77,98 @@ def check_mdformat_availability(gfm: bool = False) -> Tuple[bool, Optional[str]]
         return False, "mdformat not installed"
 
 
+def validate_markdown_formatting(content: str) -> List[str]:
+    """
+    Validate markdown formatting using mdformat.
+    
+    Args:
+        content: Markdown content to validate
+        
+    Returns:
+        List of formatting errors
+    """
+    errors = []
+    mdformat_available, mdformat_error = check_mdformat_availability()
+    gfm_available = None
+    
+    # Standard markdown validation
+    if mdformat_available:
+        try:
+            import mdformat
+            mdformat.text(content)
+        except ValueError as e:
+            errors.append(f"Markdown formatting error: {str(e)}")
+    else:
+        logger.warning(f"Skipping format validation: {mdformat_error}")
+
+    # GFM feature validation
+    if "~~" in content or "- [ ]" in content:  # GFM features detected
+        if gfm_available is None:
+            gfm_available, gfm_error = check_mdformat_availability(gfm=True)
+        
+        if gfm_available:
+            try:
+                import mdformat
+                mdformat.text(content, extensions=["gfm"])
+            except ValueError as e:
+                errors.append(f"GFM validation error: {str(e)}")
+        else:
+            logger.warning(f"Skipping GFM validation: {gfm_error}")
+            
+    return errors
+
+
+def validate_file_basics(file_path: Path) -> Tuple[str, List[str]]:
+    """
+    Validate basic file properties and read content.
+    
+    Args:
+        file_path: Path to the markdown file
+        
+    Returns:
+        Tuple containing:
+            - File content
+            - List of validation errors
+    """
+    errors = []
+    
+    # Validate file extension
+    if file_path.suffix != MD_EXTENSION:
+        raise WriterError(ERROR_INVALID_FILE_FORMAT)
+        
+    # Read and validate content
+    content = read_file(file_path, encoding=DEFAULT_ENCODING)
+    
+    # Check for empty file
+    if not content.strip():
+        logger.warning(LOG_EMPTY_FILE_DETECTED)
+        errors.append(ERROR_EMPTY_FILE)
+        
+    return content, errors
+
+
 def validate_markdown(file_name: str) -> Tuple[bool, List[str]]:
     """Validate the Markdown document for syntax and structural issues."""
     try:
         file_path = Path(file_name)
-        
-        # Validate file first
-        if file_path.suffix != MD_EXTENSION:
-            raise WriterError(ERROR_INVALID_FILE_FORMAT)
-            
-        # Read content
-        content = read_file(file_path, encoding=DEFAULT_ENCODING)
-        
         errors = []
         
-        # Check for empty file first
-        if not content.strip():
-            logger.warning(LOG_EMPTY_FILE_DETECTED)
-            errors.append(ERROR_EMPTY_FILE)
-            return False, errors
-
-        # Check mdformat availability once
-        mdformat_available, mdformat_error = check_mdformat_availability()
-        gfm_available = None  # Will be checked only if needed
+        # Basic file validation
+        content, basic_errors = validate_file_basics(file_path)
+        errors.extend(basic_errors)
         
-        # Standard markdown validation
-        if mdformat_available:
-            try:
-                import mdformat
-                mdformat.text(content)
-            except ValueError as e:
-                errors.append(f"Markdown formatting error: {str(e)}")
-        else:
-            logger.warning(f"Skipping format validation: {mdformat_error}")
-
-        # GFM feature validation
-        if "~~" in content or "- [ ]" in content:  # GFM features detected
-            if gfm_available is None:  # Only check if not checked yet
-                gfm_available, gfm_error = check_mdformat_availability(gfm=True)
+        # If file is empty, return early
+        if not content.strip():
+            return False, errors
             
-            if gfm_available:
-                try:
-                    import mdformat
-                    mdformat.text(content, extensions=["gfm"])
-                except ValueError as e:
-                    errors.append(f"GFM validation error: {str(e)}")
-            else:
-                logger.warning(f"Skipping GFM validation: {gfm_error}")
-
-        # Add other validations
+        # Formatting validation
+        errors.extend(validate_markdown_formatting(content))
+        
+        # Content validation
         errors.extend(validate_markdown_content(content))
         errors.extend(validate_content(content, file_path))
+        
+        # Pandoc compatibility
         errors.extend(validate_pandoc_compatibility(content, file_path))
 
         return len(errors) == 0, errors
@@ -149,50 +192,48 @@ def validate_task_list(line: str, line_num: int) -> List[str]:
     """
     errors = []
     stripped = line.strip()
-    error_template = ERROR_LINE_MESSAGE + ERROR_SUGGESTION_FORMAT
 
-    # Check for missing space between dash and bracket (-[ ] instead of - [ ])
-    if stripped.startswith("-["):
+    # Skip early if not a task list line
+    if not stripped.startswith('-'):
+        return errors
+
+    # Check for specific error cases in order of precedence
+    if stripped.startswith('-['):
         errors.append(
-            error_template.format(
+            ERROR_LINE_MESSAGE.format(
                 line=line_num,
-                message=ERROR_TASK_LIST_MISSING_SPACE,
-                suggestion=SUGGESTION_TASK_LIST_FORMAT,
+                message=ERROR_TASK_LIST_MISSING_SPACE
+            ) + ERROR_SUGGESTION_FORMAT.format(
+                suggestion=SUGGESTION_TASK_LIST_FORMAT
             )
         )
-        return errors  # Early return since this is a critical formatting error
-
-    # Check for extra spaces after dash (-  [ ] instead of - [ ])
-    if stripped.startswith("-  "):
+    elif stripped.startswith('-  '):
         errors.append(
-            error_template.format(
+            ERROR_LINE_MESSAGE.format(
                 line=line_num,
-                message=ERROR_TASK_LIST_EXTRA_SPACE,
-                suggestion=SUGGESTION_TASK_LIST_FORMAT,
+                message=ERROR_TASK_LIST_EXTRA_SPACE
+            ) + ERROR_SUGGESTION_FORMAT.format(
+                suggestion=SUGGESTION_TASK_LIST_FORMAT
             )
         )
-
-    # Validate the task list marker format (must be [ ] or [x])
-    if "[]" in stripped:
+    elif re.match(r'^- \[[ xX]\](?!\s)', stripped):
         errors.append(
-            error_template.format(
+            ERROR_LINE_MESSAGE.format(
                 line=line_num,
-                message=ERROR_TASK_LIST_INVALID_MARKER,
-                suggestion=SUGGESTION_TASK_LIST_FORMAT,
+                message=ERROR_TASK_LIST_MISSING_SPACE_AFTER
+            ) + ERROR_SUGGESTION_FORMAT.format(
+                suggestion=SUGGESTION_TASK_LIST_FORMAT
             )
         )
-
-    # Ensure there's a space after the closing bracket before the task text
-    bracket_end = stripped.find("]")
-    if bracket_end != -1 and bracket_end + 1 < len(stripped):
-        if not stripped[bracket_end + 1 :].startswith(" "):
-            errors.append(
-                error_template.format(
-                    line=line_num,
-                    message=ERROR_TASK_LIST_MISSING_SPACE_AFTER,
-                    suggestion=SUGGESTION_TASK_LIST_FORMAT,
-                )
+    elif not re.match(r'^- \[[ xX]\] .+$', stripped):
+        errors.append(
+            ERROR_LINE_MESSAGE.format(
+                line=line_num,
+                message=ERROR_TASK_LIST_INVALID_MARKER
+            ) + ERROR_SUGGESTION_FORMAT.format(
+                suggestion=SUGGESTION_TASK_LIST_FORMAT
             )
+        )
 
     return errors
 
@@ -311,64 +352,40 @@ def validate_pandoc_compatibility(content: str, file_path: Path) -> List[str]:
 
     try:
         # Check if pandoc is installed
-        subprocess.run([PANDOC_COMMAND, "--version"], capture_output=True, check=True)
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        logger.warning("Pandoc is not installed or not accessible")
+        subprocess.run(
+            [PANDOC_COMMAND, "--version"],
+            capture_output=True,
+            check=True,
+            text=True
+        )
 
-    try:
-        # Use a temporary file for pandoc processing
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".md", delete=False
-        ) as temp_file:
-            temp_file.write(content)
-            temp_file.flush()
-
-            try:
-                result = subprocess.run(
-                    [
-                        PANDOC_COMMAND,
-                        PANDOC_FROM_ARG,
-                        PANDOC_FROM_FORMAT,
-                        PANDOC_TO_ARG,
-                        PANDOC_TO_FORMAT,
-                        temp_file.name,
-                    ],
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                )
-            except subprocess.CalledProcessError as e:
-                # Check if the error is related to latex math
-                if "Error parsing latex math" in e.stderr:
-                    errors.append(
-                        "Pandoc compatibility error: Error parsing latex math"
-                    )
-                else:
-                    errors.append(ERROR_PANDOC_COMPATIBILITY.format(error=e.stderr))
-                logger.warning(f"Pandoc validation failed: {e.stderr}")
-    except Exception as e:
-        if (
-            isinstance(e, subprocess.CalledProcessError)
-            and "Error parsing latex math" in e.stderr
-        ):
-            errors.append("Pandoc compatibility error: Error parsing latex math")
+        # Run the actual pandoc conversion
+        subprocess.run(
+            [
+                PANDOC_COMMAND,
+                PANDOC_FROM_ARG,
+                PANDOC_FROM_FORMAT,
+                PANDOC_TO_ARG,
+                PANDOC_TO_FORMAT,
+            ],
+            input=content,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+    except subprocess.CalledProcessError as e:
+        if "Error parsing latex math" in getattr(e, 'stderr', ''):
+            errors.append(ERROR_PANDOC_LATEX_MATH)
         else:
-            errors.append(ERROR_PANDOC_EXECUTION.format(error=str(e)))
-    finally:
-        try:
-            os.unlink(temp_file.name)
-        except:
-            pass
-
+            errors.append(ERROR_PANDOC_COMPATIBILITY.format(error=e.stderr))
+        logger.warning(f"Pandoc validation failed: {e.stderr}")
+    except FileNotFoundError:
+        logger.warning("Pandoc is not installed or not accessible")
+        errors.append(ERROR_PANDOC_NOT_INSTALLED)
+    except Exception as e:
+        errors.append(ERROR_PANDOC_EXECUTION.format(error=str(e)))
+            
     return errors
-
-
-def restore_file_permissions(file_path: Path):
-    """Restore reasonable file permissions."""
-    try:
-        os.chmod(file_path, stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IROTH)
-    except Exception:
-        pass
 
 
 def parse_remark_errors(error_output: str) -> List[str]:

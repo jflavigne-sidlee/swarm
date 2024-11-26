@@ -705,4 +705,13 @@ LOG_NO_READ_PERMISSION: Final = "No read permission for path: {path}"
 PATTERN_HEADER_LEVEL: Final = r"^#+"
 PATTERN_HEADER_TEXT: Final = r"^#+\s*(.*?)\s*$"
 
+# Add these new constants for task list validation
+PATTERN_TASK_LIST: Final = r"^(-\s*\[[ xX]\].*)|(-\[[ xX]\].*)|(-\s{2,}\[[ xX]\].*)$"
+PATTERN_TASK_LIST_VALID: Final = r"^- \[[ xX]\] .+$"
+
+# Pandoc error messages
+ERROR_PANDOC_NOT_INSTALLED: Final = "Pandoc is not installed or not accessible"
+ERROR_PANDOC_LATEX_MATH: Final = "Invalid LaTeX math expression detected"
+ERROR_PANDOC_COMPATIBILITY: Final = "Pandoc compatibility error: {error}"
+ERROR_PANDOC_EXECUTION: Final = "Pandoc execution error: {error}"
 
