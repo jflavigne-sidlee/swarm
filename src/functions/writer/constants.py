@@ -229,9 +229,16 @@ PATTERN_HEADER_WITH_NEWLINE: Final = r"^(#{1,6}\s+.+\n)"
 PATTERN_NEXT_HEADER: Final = r"^#{1,6}\s+.*$"
 PATTERN_UNTIL_NEXT_HEADER: Final = r"^#{1,6}\s"
 PATTERN_NEWLINE: Final = r"\n"
+# Regular expression patterns
+SECTION_CONTENT_PATTERN: Final = (
+    r"<!--\s*(?:Section|SECTION):"  # For checking marker format
+)
+
+# Header-related patterns
+PATTERN_HEADER_LEVEL: Final = r"^#+"
+PATTERN_HEADER_TEXT: Final = r"^#+\s*(.*?)\s*$"
 
 # Error messages for section operations
-ERROR_SECTION_MARKER_NOT_FOUND: Final = "Section '{section_title}' marker not found"
 ERROR_DUPLICATE_SECTION_MARKER: Final = (
     "Duplicate section marker found: '{marker_title}'"
 )
@@ -253,8 +260,6 @@ LOG_SECTION_NOT_FOUND: Final = "Section marker not found: {section_title}"
 LOG_APPEND_SECTION_SUCCESS: Final = "Successfully appended section '%s' to %s"
 LOG_PERMISSION_DENIED_APPEND: Final = "Permission denied appending to file: %s"
 LOG_APPEND_SECTION_ERROR: Final = "Error appending section: %s - %s"
-
-# Section Validation Logs
 LOG_VALIDATE_SECTION_START: Final = "Starting section validation for: %s"
 LOG_SECTION_UPDATE_START: Final = "Updating section '%s' in %s"
 LOG_MISSING_MARKER: Final = "Missing marker for header: {header_title}"
@@ -268,11 +273,6 @@ LOG_DUPLICATE_MARKER: Final = "Duplicate section marker found: '{marker_title}'"
 DEFAULT_NEWLINE: Final = "\n"
 DOUBLE_NEWLINE: Final = "\n\n"
 
-# Regular expression patterns
-HEADER_NEXT_PATTERN: Final = r"^#{1,6}\s+.*$"  # For finding next header
-SECTION_CONTENT_PATTERN: Final = (
-    r"<!--\s*(?:Section|SECTION):"  # For checking marker format
-)
 
 # Additional log messages
 LOG_APPEND_SECTION_SUCCESS: Final = "Successfully appended section '%s' to %s"
@@ -480,14 +480,12 @@ LOG_INVALID_CONTENT: Final = "Invalid content provided: {content}"
 LOG_INVALID_SECTION_TITLE: Final = "Invalid section title: {title}"
 LOG_FILE_NOT_FOUND: Final = "File not found: %s"
 LOG_INVALID_FILE_FORMAT: Final = "Invalid file format: %s"
-LOG_PERMISSION_ERROR_CHECKING_FILE: Final = "Permission error checking file: %s - %s"
 
 # Error messages for append_section
 ERROR_INVALID_CONTENT: Final = "Content must be a non-empty string"
 ERROR_INVALID_SECTION_TITLE: Final = "Section title must be a non-empty string"
 ERROR_DOCUMENT_NOT_EXIST: Final = "Document does not exist: {file_path}"
 ERROR_INVALID_MARKDOWN_FILE: Final = "File must be a Markdown document: {file_path}"
-ERROR_PERMISSION_DENIED_ACCESS: Final = "Permission denied when accessing {file_path}"
 
 # Log messages for section operations
 LOG_SECTION_EXISTS: Final = "Section already exists: %s in %s"
@@ -502,7 +500,9 @@ ERROR_INVALID_HEADER_LEVEL: Final = "Header level must be an integer between 1 a
 ERROR_HEADER_LEVEL: Final = "Header level error: {error}"
 
 # Error messages for section operations
-ERROR_SECTION_INSERT_AFTER_NOT_FOUND: Final = "Section to insert after not found: {insert_after}"
+ERROR_SECTION_INSERT_AFTER_NOT_FOUND: Final = (
+    "Section to insert after not found: {insert_after}"
+)
 
 # File mode constants
 FILE_MODE_READ: Final = "r"
@@ -513,7 +513,9 @@ FILE_MODE_WRITE_BINARY: Final = "wb"
 FILE_MODE_APPEND_BINARY: Final = "ab"
 
 # Log messages for section operations
-LOG_SECTION_INSERT_SUCCESS: Final = "Successfully inserted section '%s' after '%s' in %s"
+LOG_SECTION_INSERT_SUCCESS: Final = (
+    "Successfully inserted section '%s' after '%s' in %s"
+)
 LOG_SECTION_APPEND_SUCCESS: Final = "Successfully appended section '%s' to %s"
 LOG_PERMISSION_DENIED_APPEND: Final = "Permission denied appending to file: %s"
 LOG_ERROR_APPENDING_SECTION: Final = "Error appending section: %s - %s"
@@ -523,7 +525,9 @@ ERROR_PERMISSION_DENIED_WRITE: Final = "Permission denied when writing to {file_
 ERROR_FAILED_APPEND_SECTION: Final = "Failed to append section: {error}"
 
 # Section content format
-SECTION_CONTENT_FORMAT: Final = "{spacing}{header_prefix} {section_title}\n{section_marker}\n{content}\n"
+SECTION_CONTENT_FORMAT: Final = (
+    "{spacing}{header_prefix} {section_title}\n{section_marker}\n{content}\n"
+)
 
 # Regular expression pattern for section markers
 SECTION_MARKER_REGEX: Final = r"<!-- Section: .* -->"
@@ -533,7 +537,9 @@ HEADER_LEVEL_2_PREFIX: Final = "\n##"
 
 # Log messages for section operations
 LOG_SECTION_MARKER_NOT_FOUND: Final = "Section marker not found: {section_title}"
-LOG_FOUND_SECTION_BOUNDARIES: Final = "Found section boundaries for '{section_title}': start={start}, end={end}"
+LOG_FOUND_SECTION_BOUNDARIES: Final = (
+    "Found section boundaries for '{section_title}': start={start}, end={end}"
+)
 
 # Keys for section data
 SECTION_HEADER_KEY: Final = "header"
@@ -566,36 +572,32 @@ ERROR_PANDOC_COMPATIBILITY: Final = "Pandoc compatibility error: {error}"
 # Error suggestions for common markdown issues
 ERROR_SUGGESTIONS = {
     # Markdownlint rules
-    'MD007': 'Fix list indentation to use 2 spaces',
-    'MD022': 'Add blank lines before and after headers',
-    'MD031': 'Add blank lines around code blocks',
-    'MD032': 'Add blank lines before lists',
-    'MD034': 'Use bare URLs in angle brackets <url>',
-    'MD037': 'Remove spaces inside emphasis markers',
-    
+    "MD007": "Fix list indentation to use 2 spaces",
+    "MD022": "Add blank lines before and after headers",
+    "MD031": "Add blank lines around code blocks",
+    "MD032": "Add blank lines before lists",
+    "MD034": "Use bare URLs in angle brackets <url>",
+    "MD037": "Remove spaces inside emphasis markers",
     # Remark-lint rules
-    'no-undefined-references': 'Ensure all referenced links and images are defined',
-    'no-empty-sections': 'Add content to empty sections or remove them',
-    'heading-increment': 'Headers should increment by one level at a time',
-    'no-duplicate-headings': 'Use unique heading text within sections',
-    
+    "no-undefined-references": "Ensure all referenced links and images are defined",
+    "no-empty-sections": "Add content to empty sections or remove them",
+    "heading-increment": "Headers should increment by one level at a time",
+    "no-duplicate-headings": "Use unique heading text within sections",
     # Content validation
-    'broken_image': 'Ensure image file exists in the specified path',
-    'broken_link': 'Verify the linked file exists in the correct location',
-    'empty_file': 'Add content to the markdown file',
-    
+    "broken_image": "Ensure image file exists in the specified path",
+    "broken_link": "Verify the linked file exists in the correct location",
+    "empty_file": "Add content to the markdown file",
     # GFM-specific suggestions
-    'table-pipe-alignment': 'Align table pipes vertically for better readability',
-    'table-cell-padding': 'Add single space padding around table cell content',
-    'no-undefined-references': 'Define all referenced links at the bottom of the document',
-    'heading-increment': 'Headers should only increment by one level at a time',
-    'no-duplicate-headings': 'Use unique heading text within each section',
-    'task-list-marker': 'Use "[ ]" or "[x]" for task list items',
-    'task-list-indent': 'Task lists should be indented with 2 spaces',
-    'task-list-empty': 'Task list items should not be empty',
-    'task-list-spacing': 'Add a space after the dash: "- [ ]"',
+    "table-pipe-alignment": "Align table pipes vertically for better readability",
+    "table-cell-padding": "Add single space padding around table cell content",
+    "no-undefined-references": "Define all referenced links at the bottom of the document",
+    "heading-increment": "Headers should only increment by one level at a time",
+    "no-duplicate-headings": "Use unique heading text within each section",
+    "task-list-marker": 'Use "[ ]" or "[x]" for task list items',
+    "task-list-indent": "Task lists should be indented with 2 spaces",
+    "task-list-empty": "Task list items should not be empty",
+    "task-list-spacing": 'Add a space after the dash: "- [ ]"',
 }
-
 
 
 # Additional error messages
@@ -607,7 +609,9 @@ ERROR_UNSUPPORTED_ENCODING: Final = "Unsupported encoding: {encoding}"
 ERROR_PERMISSION_DENIED_APPEND: Final = "Permission denied when writing to {file_path}"
 ERROR_APPEND_GENERAL: Final = "Failed to append section: {error}"
 ERROR_SECTION_VALIDATION_FAILED: Final = "Section validation failed: {error}"
-ERROR_SECTION_MARKER_MISMATCH: Final = "Section marker mismatch: expected '{expected}', found '{found}'"
+ERROR_SECTION_MARKER_MISMATCH: Final = (
+    "Section marker mismatch: expected '{expected}', found '{found}'"
+)
 
 # Markdown validation error messages
 ERROR_PANDOC_COMPATIBILITY: Final = "Pandoc compatibility error: {error}"
@@ -627,11 +631,7 @@ ERROR_VALIDATION_FAILED: Final = "Validation failed: {error}"
 ERROR_INVALID_FILE_FORMAT: Final = "Invalid file format: File must have .md extension"
 
 # Markdown formatting options
-MDFORMAT_OPTIONS: Final[Dict[str, bool]] = {
-    "check": True,
-    "number": True,
-    "wrap": "no"
-}
+MDFORMAT_OPTIONS: Final[Dict[str, bool]] = {"check": True, "number": True, "wrap": "no"}
 MDFORMAT_EXTENSIONS: Final[List[str]] = ["gfm", "tables"]
 
 # Error message formats
@@ -649,12 +649,18 @@ PATTERN_IMAGE_LINK: Final = r"!\[([^\]]*)\]\(([^)]+)\)"
 PATTERN_FILE_LINK: Final = r"\[([^\]]+)\]\(([^)]+)\)"
 
 # Validation suggestions
-SUGGESTION_BROKEN_IMAGE: Final = "Ensure the image file exists in the correct location and the path is correct"
-SUGGESTION_BROKEN_LINK: Final = "Check if the linked file exists and the path is correct"
+SUGGESTION_BROKEN_IMAGE: Final = (
+    "Ensure the image file exists in the correct location and the path is correct"
+)
+SUGGESTION_BROKEN_LINK: Final = (
+    "Check if the linked file exists and the path is correct"
+)
 
 # Task list validation messages
 ERROR_TASK_LIST_INVALID_MARKER: Final = "Invalid task list marker"
-SUGGESTION_TASK_LIST_FORMAT: Final = "Use exactly one space after dash: '- [ ]' or '- [x]'"
+SUGGESTION_TASK_LIST_FORMAT: Final = (
+    "Use exactly one space after dash: '- [ ]' or '- [x]'"
+)
 
 # Error messages for validation
 ERROR_MESSAGES: Final[Dict[str, str]] = {
@@ -665,33 +671,42 @@ ERROR_MESSAGES: Final[Dict[str, str]] = {
 }
 
 # Header validation messages
-ERROR_HEADER_EMPTY: Final = "Line {line}: Empty header detected. Headers must contain text."
-ERROR_HEADER_LEVEL_EXCEEDED: Final = "Line {line}: Header level {level} exceeds maximum allowed level of 6"
-ERROR_HEADER_INVALID_START: Final = "Line {line}: Document should start with a level 1 header (found level {level})"
-ERROR_HEADER_LEVEL_SKIP: Final = "Line {line}: Header level jumps from {current} to {level}. Headers should increment by only one level at a time."
+ERROR_HEADER_EMPTY: Final = (
+    "Line {line}: Empty header detected. Headers must contain text."
+)
+ERROR_HEADER_LEVEL_EXCEEDED: Final = (
+    "Line {line}: Header level {level} exceeds maximum allowed level of 6"
+)
+ERROR_HEADER_INVALID_START: Final = (
+    "Line {line}: Document should start with a level 1 header (found level {level})"
+)
+ERROR_HEADER_LEVEL_SKIP: Final = (
+    "Line {line}: Header level jumps from {current} to {level}. Headers should increment by only one level at a time."
+)
 SUGGESTION_HEADER_LEVEL: Final = "Suggestion: Use {suggested} instead of {current}"
 
 # Task list validation error messages
-ERROR_TASK_LIST_MISSING_SPACE: Final = "Missing space after dash in task list marker (e.g., '-[ ]' instead of '- [ ]')"
-ERROR_TASK_LIST_EXTRA_SPACE: Final = "Extra spaces after dash in task list marker (e.g., '-  [ ]' instead of '- [ ]')"
-ERROR_TASK_LIST_MISSING_SPACE_AFTER: Final = "Missing space after closing bracket in task list marker (e.g., '- [ ]text' instead of '- [ ] text')"
+ERROR_TASK_LIST_MISSING_SPACE: Final = (
+    "Missing space after dash in task list marker (e.g., '-[ ]' instead of '- [ ]')"
+)
+ERROR_TASK_LIST_EXTRA_SPACE: Final = (
+    "Extra spaces after dash in task list marker (e.g., '-  [ ]' instead of '- [ ]')"
+)
+ERROR_TASK_LIST_MISSING_SPACE_AFTER: Final = (
+    "Missing space after closing bracket in task list marker (e.g., '- [ ]text' instead of '- [ ] text')"
+)
 
-# Pandoc-related constants and error messages
-PANDOC_COMMAND: Final = "pandoc"
-ERROR_PANDOC_MISSING: Final = "Pandoc validation skipped: {suggestion}"
-ERROR_PANDOC_EXECUTION: Final = "Error executing Pandoc: {error}"
 
 # Add these with the other log messages (around line 308-314)
 LOG_PATH_NOT_FOUND: Final = "Path not found: {path}"
 LOG_NO_READ_PERMISSION: Final = "No read permission for path: {path}"
 
-# Header-related patterns
-PATTERN_HEADER_LEVEL: Final = r"^#+"
-PATTERN_HEADER_TEXT: Final = r"^#+\s*(.*?)\s*$"
 
-# Pandoc error messages
+# Pandoc-related constants and error messages
+PANDOC_COMMAND: Final = "pandoc"
+ERROR_PANDOC_MISSING: Final = "Pandoc validation skipped: {suggestion}"
+ERROR_PANDOC_EXECUTION: Final = "Error executing Pandoc: {error}"
 ERROR_PANDOC_NOT_INSTALLED: Final = "Pandoc is not installed or not accessible"
 ERROR_PANDOC_LATEX_MATH: Final = "Invalid LaTeX math expression detected"
 ERROR_PANDOC_COMPATIBILITY: Final = "Pandoc compatibility error: {error}"
 ERROR_PANDOC_EXECUTION: Final = "Pandoc execution error: {error}"
-

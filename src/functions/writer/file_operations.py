@@ -31,22 +31,18 @@ from .constants import (
     ERROR_MISSING_SECTION_MARKER,
     ERROR_ORPHANED_SECTION_MARKER,
     ERROR_PATH_TOO_LONG,
-    ERROR_PERMISSION_DENIED_ACCESS,
     ERROR_PERMISSION_DENIED_DIR,
     ERROR_PERMISSION_DENIED_FILE,
     ERROR_PERMISSION_DENIED_PATH,
     ERROR_PERMISSION_DENIED_WRITE,
     ERROR_SECTION_EXISTS,
     ERROR_SECTION_INSERT_AFTER_NOT_FOUND,
-    ERROR_SECTION_MARKER_NOT_FOUND,
     ERROR_SECTION_NOT_FOUND,
     ERROR_YAML_SERIALIZATION,
     FILE_MODE_APPEND,
     FILE_MODE_READ,
     FILE_MODE_WRITE,
     FORBIDDEN_FILENAME_CHARS,
-    HEADER_NEXT_PATTERN,
-    PATTERN_HEADER,
     HEADER_TITLE_GROUP,
     INSERT_AFTER_MARKER,
     LOG_ADDED_EXTENSION,
@@ -73,7 +69,6 @@ from .constants import (
     LOG_ORPHANED_MARKER,
     LOG_PATH_TOO_LONG,
     LOG_PERMISSION_ERROR,
-    LOG_PERMISSION_ERROR_CHECKING_FILE,
     LOG_PERMISSION_DENIED_APPEND,
     LOG_REMOVING_PARTIAL_FILE,
     LOG_SECTION_APPEND_SUCCESS,
@@ -92,6 +87,8 @@ from .constants import (
     MAX_FILENAME_LENGTH,
     MAX_PATH_LENGTH,
     MD_EXTENSION,
+    PATTERN_HEADER,
+    PATTERN_NEXT_HEADER,
     RESERVED_WINDOWS_FILENAMES,
     SECTION_CONTENT_PATTERN,
     SECTION_CONTENT_SPACING,
@@ -655,7 +652,7 @@ def find_section_boundaries(content: str, section_title: str) -> tuple[int, int]
         return -1, -1
 
     # Find the next section marker or EOF
-    next_section = re.search(HEADER_NEXT_PATTERN, content[marker_end:])
+    next_section = re.search(PATTERN_NEXT_HEADER, content[marker_end:])
     section_end = next_section.start() + marker_end if next_section else len(content)
 
     logger.debug(
