@@ -241,10 +241,6 @@ ERROR_PATH_TOO_LONG: Final = (
 ERROR_DUPLICATE_SECTION_MARKER: Final = (
     "Duplicate section marker found: '{marker_title}'"
 )
-
-ERROR_MISMATCHED_SECTION_MARKER: Final = (
-    "Section marker for '{header_title}' does not match header title"
-)
 ERROR_ORPHANED_SECTION_MARKER: Final = (
     "Found marker '{marker_title}' without a corresponding header"
 )
@@ -270,17 +266,12 @@ ERROR_MISSING_SECTION_MARKER: Final = (
 ERROR_MISMATCHED_SECTION_MARKER: Final = (
     "Section marker for '{header_title}' does not match header title"
 )
-ERROR_ORPHANED_SECTION_MARKER: Final = (
-    "Found marker '{marker_title}' without a corresponding header"
-)
-ERROR_DUPLICATE_SECTION_MARKER: Final = (
-    "Duplicate section marker found: '{marker_title}'"
-)
+
+
 # Path validation errors
 ERROR_PATH_NOT_FOUND: Final = "Path does not exist: {path}"
 ERROR_NO_WRITE_PERMISSION: Final = "No write permission for Path: {path}"
-ERROR_PERMISSION_DENIED: Final = "No write permission for Path: {path}"
-ERROR_TEMP_DIR_NOT_FOUND: Final = "Path does not exist: {path}"
+
 # Dependency check messages
 ERROR_ATOMIC_MOVE_UNSUPPORTED: Final = (
     "Atomic file operations not fully supported: {error}"

@@ -14,8 +14,8 @@ from src.functions.writer.file_io import (
 import shutil
 import errno
 from src.functions.writer.constants import (
-    ERROR_TEMP_DIR_NOT_FOUND,
-    ERROR_PERMISSION_DENIED,
+    ERROR_PATH_NOT_FOUND,
+    ERROR_NO_WRITE_PERMISSION,
     ERROR_UNSUPPORTED_ENCODING,
     ERROR_PATH_NO_READ,
     ERROR_PATH_NO_WRITE,
@@ -217,7 +217,7 @@ class TestAtomicWrite:
         with pytest.raises(FileNotFoundError) as exc_info:
             atomic_write(file_path, "test", "utf-8", temp_dir)
 
-        expected_msg = ERROR_TEMP_DIR_NOT_FOUND.format(path=temp_dir)
+        expected_msg = ERROR_PATH_NOT_FOUND.format(path=temp_dir)
         assert str(exc_info.value) == expected_msg
 
     def test_atomic_write_concurrent_access(self, tmp_path):
@@ -270,7 +270,7 @@ class TestAtomicWrite:
         with pytest.raises(PermissionError) as exc_info:
             atomic_write(file_path, "test", "utf-8", temp_dir)
 
-        expected_msg = ERROR_PERMISSION_DENIED.format(path=file_path)
+        expected_msg = ERROR_NO_WRITE_PERMISSION.format(path=file_path)
         assert str(exc_info.value) == expected_msg
 
     def test_atomic_write_unsupported_encoding(self, tmp_path):
