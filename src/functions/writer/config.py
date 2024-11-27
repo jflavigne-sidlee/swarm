@@ -34,15 +34,14 @@ from .errors import (
 )
 from .patterns import (
     ALLOWED_VERSION_PLACEHOLDERS,
-    DEFAULT_SECTION_MARKER,
+    SECTION_MARKER_TEMPLATE,
     EXTENSION_PATTERN,
     VERSION_FORMAT_PLACEHOLDERS,
     VERSION_FORMAT_SPEC_PATTERN,
     VERSION_PADDING_PATTERN,
     VERSION_PLACEHOLDER_PATTERN,
     VALID_MARKDOWN_FLAVORS,
-    MAX_HEADER_DEPTH,
-    MIN_HEADER_DEPTH,
+    HEADER_LEVEL_RANGE,
 )
 
 from .validation_constants import (
@@ -413,7 +412,7 @@ class WriterConfig:
 
     # String settings with pattern
     section_marker_template: str = field(
-        default=DEFAULT_SECTION_MARKER,
+        default=SECTION_MARKER_TEMPLATE,
         metadata={
             MetadataKeys.VALIDATION: {
                 ValidationKeys.TYPE: str,
@@ -734,10 +733,12 @@ class WriterConfig:
             "test".encode(self.default_encoding)
         except LookupError:
             raise ConfigurationError(f"Invalid encoding: {self.default_encoding}")
-
-        if not MIN_HEADER_DEPTH <= self.max_section_depth <= MAX_HEADER_DEPTH:
+        
+        min_header_depth = HEADER_LEVEL_RANGE[0]
+        max_header_depth = HEADER_LEVEL_RANGE[-1]
+        if not min_header_depth <= self.max_section_depth <= max_header_depth:
             raise ConfigurationError(
-                f"max_section_depth must be between {MIN_HEADER_DEPTH} and {MAX_HEADER_DEPTH}"
+                f"max_section_depth must be between {min_header_depth} and {max_header_depth}"
             )
 
     def _validate_file_operations(self) -> None:

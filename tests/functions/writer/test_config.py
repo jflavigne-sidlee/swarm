@@ -20,7 +20,7 @@ from src.functions.writer.errors import (
     ERROR_PATH_PROCESS,
 )
 from src.functions.writer.patterns import (
-    DEFAULT_SECTION_MARKER,
+    SECTION_MARKER_TEMPLATE,
 )
 import re
 import shutil
@@ -81,7 +81,7 @@ def basic_config(test_directories):
         "temp_dir": test_directories["temp"],
         "drafts_dir": test_directories["drafts"],
         "finalized_dir": test_directories["finalized"],
-        "section_marker_template": DEFAULT_SECTION_MARKER,
+        "section_marker_template": SECTION_MARKER_TEMPLATE,
         "lock_timeout": DEFAULT_LOCK_TIMEOUT,
         "max_file_size": DEFAULT_MAX_FILE_SIZE,
         "allowed_extensions": ALLOWED_EXTENSIONS,
@@ -215,7 +215,7 @@ class TestWriterConfig:
         """Test basic configuration initialization."""
         config = WriterConfig(**basic_config)
         assert config.temp_dir == basic_config["temp_dir"]
-        assert config.section_marker_template == DEFAULT_SECTION_MARKER
+        assert config.section_marker_template == SECTION_MARKER_TEMPLATE
         assert config.lock_timeout == DEFAULT_LOCK_TIMEOUT
 
     def test_invalid_section_marker(self, basic_config):

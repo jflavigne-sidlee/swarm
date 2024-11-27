@@ -3,6 +3,7 @@ from typing import Set, List, Dict, Final
 import re
 
 SECTION_MARKER_TEMPLATE: Final = "<!-- Section: {section_title} -->"
+
 PATTERN_SECTION_MARKER: Final = r"<!--\s*(?:Section|SECTION):\s*(.+?)\s*-->"
 PATTERN_HEADER: Final = r"^(#{1,6})\s+(.+?)$"
 PATTERN_HEADER_WITH_NEWLINE: Final = r"^(#{1,6}\s+.+\n)"
@@ -18,7 +19,7 @@ PATTERN_HEADER_TEXT: Final = r"^#+\s*(.*?)\s*$"
 
 PATTERN_IMAGE_LINK: Final = r"!\[([^\]]*)\]\(([^)]+)\)"
 PATTERN_FILE_LINK: Final = r"\[([^\]]+)\]\(([^)]+)\)"
-DEFAULT_SECTION_MARKER: Final = "<!-- Section: {section_title} -->"
+
 INSERT_AFTER_MARKER: Final = "<!-- Section: {insert_after} -->"
 
 
@@ -45,19 +46,16 @@ YAML_FRONTMATTER_PATTERN: Final = (
 
 # Regular expression pattern for section markers
 SECTION_MARKER_REGEX: Final = r"<!-- Section: .* -->"
+
+
 # Validation patterns
 HEADER_TITLE_GROUP: Final = 2  # Index of the header title group in regex match
 MARKER_TITLE_GROUP: Final = 1  # Index of the marker title group in regex match
 
 VALID_MARKDOWN_FLAVORS: Final[Set[str]] = {"github", "commonmark", "strict"}
 
-MIN_HEADER_DEPTH: Final = 1
-MAX_HEADER_DEPTH: Final = 6
-
-# File operation constants
-DEFAULT_HEADER_LEVEL: Final = 1
+# Header level constants
 HEADER_LEVEL_RANGE: Final = range(1, 7)  # Valid header levels (1-6)
-VALID_HEADER_LEVELS: Final = range(1, 7)  # Valid markdown header levels
 
 SECTION_HEADER_PREFIX: Final = "#"  # Markdown header prefix
 
@@ -67,8 +65,9 @@ HEADER_LEVEL_2_PREFIX: Final = "\n##"
 # YAML frontmatter markers
 YAML_FRONTMATTER_START: Final = "---\n"
 YAML_FRONTMATTER_END: Final = "\n---\n"
-
 FRONTMATTER_MARKER: Final = "---"  # YAML frontmatter delimiter
+
+
 YAML_DUMP_SETTINGS: Final[Dict[str, bool]] = {
     "default_flow_style": False,
     "sort_keys": False,
@@ -77,10 +76,6 @@ YAML_DUMP_SETTINGS: Final[Dict[str, bool]] = {
 # File content formatting
 DEFAULT_NEWLINE: Final = "\n"
 DOUBLE_NEWLINE: Final = "\n\n"
-
-SECTION_CONTENT_SPACING: Final = "\n\n"  # Spacing between sections
-# File Operation Constants
-DEFAULT_CONTENT_BUFFER: Final = "\n\n"  
 
 # Section content format
 SECTION_CONTENT_FORMAT: Final = (

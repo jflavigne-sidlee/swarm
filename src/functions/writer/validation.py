@@ -19,7 +19,7 @@ from .patterns import (
     PATTERN_IMAGE_LINK,
     PATTERN_HEADER_LEVEL,
     PATTERN_HEADER_TEXT,
-    MAX_HEADER_DEPTH,
+    HEADER_LEVEL_RANGE,
     SECTION_HEADER_PREFIX,
 )
 from .errors import (
@@ -254,7 +254,8 @@ def validate_header(
         return errors, level, None
 
     # Check if header level exceeds maximum allowed depth
-    if level > MAX_HEADER_DEPTH:
+    max_header_depth = HEADER_LEVEL_RANGE[-1]
+    if level > max_header_depth:
         errors.append(ERROR_HEADER_LEVEL_EXCEEDED.format(line=line_num, level=level))
         return errors, level, None
 

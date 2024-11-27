@@ -32,7 +32,7 @@ from .patterns import (
     HEADER_TITLE_GROUP,
     MARKER_TITLE_GROUP,
     SECTION_CONTENT_FORMAT,
-    SECTION_CONTENT_SPACING,
+    DOUBLE_NEWLINE,
     SECTION_HEADER_PREFIX,
     YAML_FRONTMATTER_END,
     YAML_FRONTMATTER_START,
@@ -478,9 +478,9 @@ def append_to_existing_section(
         # Insert new content before the next section
         updated_content = (
             existing_content[:section_end]
-            + SECTION_CONTENT_SPACING
+            + DOUBLE_NEWLINE
             + new_content.strip()
-            + SECTION_CONTENT_SPACING
+            + DOUBLE_NEWLINE
             + existing_content[section_end:]
         )
 
