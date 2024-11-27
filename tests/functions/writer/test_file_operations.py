@@ -16,11 +16,12 @@ from src.functions.writer.file_operations import (
 )
 from src.functions.writer.config import WriterConfig
 from src.functions.writer.exceptions import WriterError
-from src.functions.writer.constants import (
+from src.functions.writer.validation_constants import (
     MAX_PATH_LENGTH,
+)
+from src.functions.writer.patterns import (
     PATTERN_SECTION_MARKER,
 )
-
 
 @pytest.fixture
 def test_config(tmp_path):

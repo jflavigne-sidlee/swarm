@@ -1,7 +1,5 @@
 """Utility functions for system-related constraints."""
-import os
 import shutil
-import platform
 from typing import List
 from pathlib import Path
 

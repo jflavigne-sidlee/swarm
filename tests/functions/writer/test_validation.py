@@ -9,18 +9,19 @@ from src.functions.writer.validation import (
     get_header_level,
 )
 from src.functions.writer.exceptions import WriterError
-from src.functions.writer.constants import (
-    ERROR_SUGGESTIONS,
+from src.functions.writer.suggestions import (
+    SUGGESTION_HEADER_LEVEL,
     SUGGESTION_TASK_LIST_FORMAT,
-    ERROR_TASK_LIST_MISSING_SPACE,
+)
+from src.functions.writer.errors import (
+    ERROR_HEADER_EMPTY,
+    ERROR_HEADER_INVALID_START,
+    ERROR_HEADER_LEVEL_EXCEEDED,
+    ERROR_HEADER_LEVEL_SKIP,
     ERROR_TASK_LIST_EXTRA_SPACE,
     ERROR_TASK_LIST_INVALID_MARKER,
+    ERROR_TASK_LIST_MISSING_SPACE,
     ERROR_TASK_LIST_MISSING_SPACE_AFTER,
-    ERROR_HEADER_LEVEL_EXCEEDED,
-    ERROR_HEADER_INVALID_START,
-    ERROR_HEADER_LEVEL_SKIP,
-    ERROR_HEADER_EMPTY,
-    SUGGESTION_HEADER_LEVEL,
 )
 import os
 import stat

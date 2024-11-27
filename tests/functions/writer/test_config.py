@@ -5,19 +5,22 @@ import os
 from src.functions.writer.config import WriterConfig, PathHandler
 from src.functions.writer.exceptions import ConfigurationError, PathValidationError
 from src.functions.writer.constants import (
-    DEFAULT_SECTION_MARKER,
     DEFAULT_LOCK_TIMEOUT,
     DEFAULT_MAX_FILE_SIZE,
     ALLOWED_EXTENSIONS,
     DEFAULT_ENCODING,
     DEFAULT_METADATA_FIELDS,
+
+)
+from src.functions.writer.errors import (
     ERROR_VALUE_TOO_SMALL,
     ERROR_PATH_NO_WRITE,
     ERROR_INVALID_TYPE,
     ERROR_PATH_NO_READ,
     ERROR_PATH_PROCESS,
-    ERROR_PATH_NOT_DIR,
-    ERROR_PATH_NOT_EXIST
+)
+from src.functions.writer.patterns import (
+    DEFAULT_SECTION_MARKER,
 )
 import re
 import shutil

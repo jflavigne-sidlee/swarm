@@ -12,8 +12,7 @@ from src.functions.writer.file_io import (
     validate_encoding,
 )
 import shutil
-import errno
-from src.functions.writer.constants import (
+from src.functions.writer.errors import (
     ERROR_PATH_NOT_FOUND,
     ERROR_NO_WRITE_PERMISSION,
     ERROR_UNSUPPORTED_ENCODING,
