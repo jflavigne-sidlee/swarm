@@ -136,6 +136,19 @@ class MetadataOperations:
         self.validate_metadata(metadata)
         return metadata
     
+    def _format_metadata_block(self, metadata: Dict[str, Any], content: str = "") -> str:
+        """
+        Format metadata and content into a YAML front matter block.
+        
+        Args:
+            metadata: Dictionary of metadata to format
+            content: Optional content to append after metadata block
+            
+        Returns:
+            Formatted string with YAML front matter
+        """
+        return f"---\n{yaml.dump(metadata, default_flow_style=False, allow_unicode=True)}---\n{content}"
+
     def update_metadata(self, file_name: str, new_metadata: Dict[str, Any]) -> None:
         """
         Update metadata in a markdown file while preserving content.
@@ -156,10 +169,10 @@ class MetadataOperations:
         parts = content.split('---', 2)
         if len(parts) < 3:
             # No existing metadata, create new
-            new_content = f"---\n{yaml.dump(new_metadata)}---\n{content}"
+            new_content = self._format_metadata_block(new_metadata, content)
         else:
             # Replace existing metadata
-            new_content = f"---\n{yaml.dump(new_metadata)}---{parts[2]}"
+            new_content = self._format_metadata_block(new_metadata, parts[2])
         
         # Write updated content
         atomic_write(file_path, new_content, self.config.default_encoding, self.config.temp_dir)
