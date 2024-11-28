@@ -459,6 +459,28 @@ class WriterConfig:
         },
     )
 
+    initialize_missing_metadata: bool = field(
+        default=False,
+        metadata={
+            MetadataKeys.VALIDATION: {
+                ValidationKeys.TYPE: bool,
+                ValidationKeys.REQUIRED: False,
+            },
+            MetadataKeys.HELP: "Whether to initialize missing metadata with defaults instead of returning empty dict",
+        },
+    )
+
+    metadata_defaults: Dict[str, Any] = field(
+        default_factory=dict,
+        metadata={
+            MetadataKeys.VALIDATION: {
+                ValidationKeys.TYPE: dict,
+                ValidationKeys.REQUIRED: False,
+            },
+            MetadataKeys.HELP: "Default values for metadata fields when initialization is enabled",
+        },
+    )
+
     def __post_init__(self):
         """Initialize after instance creation."""
         # Set up logging

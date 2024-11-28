@@ -213,7 +213,7 @@ class TestCreateDocument:
             "date": datetime.now(),  # datetime object instead of string
         }
 
-        with pytest.raises(WriterError, match="Invalid metadata type"):
+        with pytest.raises(WriterError, match="Invalid type for"):
             create_document("test_doc.md", invalid_metadata, test_config)
 
     def test_create_document_directory_creation_failure(
@@ -243,7 +243,7 @@ class TestCreateDocument:
             "date": UnserializableObject(),  # This object can't be serialized to YAML
         }
 
-        with pytest.raises(WriterError, match="Invalid metadata type"):
+        with pytest.raises(WriterError, match="Invalid type for"):
             create_document("test_doc.md", invalid_metadata, test_config)
 
     def test_create_document_preserves_metadata_order(self, test_config):

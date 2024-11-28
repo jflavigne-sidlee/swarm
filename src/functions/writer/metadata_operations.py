@@ -98,17 +98,6 @@ class MetadataOperations:
     def get_metadata(self, file_name: str) -> Dict[str, Any]:
         """
         Extract metadata from a markdown file's YAML front matter.
-        
-        Args:
-            file_name: Path to the markdown file
-            
-        Returns:
-            Dictionary containing metadata fields and their values. Returns empty dict if no
-            metadata block is found.
-            
-        Raises:
-            WriterError: If file doesn't exist, is empty, has invalid metadata format,
-                        or is missing required fields
         """
         file_path = Path(file_name)
         
@@ -135,6 +124,19 @@ class MetadataOperations:
         metadata_match = content.split('---', 2)
         if len(metadata_match) < 3:
             logger.warning(LOG_NO_METADATA_BLOCK.format(path=file_name))
+            if self.config.initialize_missing_metadata:
+                # Initialize with configured defaults
+                metadata = self.config.metadata_defaults.copy()
+                # Add required fields with None if not in defaults
+                for field, rules in self.config.metadata_validation_rules.items():
+                    if rules.get(ValidationKeys.REQUIRED, False) and field not in metadata:
+                        metadata[field] = None
+                try:
+                    self.validate_metadata(metadata)
+                    return metadata
+                except WriterError:
+                    logger.warning("Default metadata failed validation, returning empty dict")
+                    return {}
             return {}
             
         try:
@@ -220,9 +222,9 @@ class MetadataOperations:
                             actual=type(value).__name__
                         ))
                 
-                # Pattern validation
+                # Pattern validation with fallback
                 if ValidationKeys.PATTERN in rules and isinstance(value, str):
-                    pattern = self.compiled_patterns[field]
+                    pattern = self.compiled_patterns.get(field) or re.compile(rules[ValidationKeys.PATTERN])
                     if not pattern.match(value):
                         logger.error(LOG_INVALID_METADATA_PATTERN.format(field=field))
                         raise WriterError(ERROR_INVALID_METADATA_PATTERN.format(field=field))
