@@ -1,4 +1,4 @@
-from typing import List, Optional, Union, Dict, Any, Final
+from typing import List, Optional, Union, Dict, Any, Final, Tuple
 from pathlib import Path
 import base64
 from pydantic import Field, HttpUrl, field_validator, ConfigDict
@@ -13,6 +13,11 @@ from tenacity import Retrying, stop_after_attempt, wait_fixed
 from pydantic import ValidationError
 import logging
 import asyncio
+import aiohttp
+from aiohttp import ClientError, ClientTimeout
+from dataclasses import dataclass
+import aiofiles
+from aiofiles.os import stat as aio_stat
 
 from ...models.config import get_model, ModelProvider
 from ...models.base import ModelConfig
@@ -24,11 +29,9 @@ from .constants import (
     DEFAULT_LOG_LEVEL,
     DEFAULT_MAX_IMAGE_SIZE,
     DEFAULT_MAX_TOKENS,
-    MIN_MAX_TOKENS,
     SUPPORTED_IMAGE_FORMATS,
     LOG_UNEXPECTED_ERROR,
     LOG_RETRY_ATTEMPT,
-    LOG_IMAGE_VALIDATION,
     LOG_MODEL_VALIDATION,
     LOG_ANALYSIS_STARTED,
     LOG_ANALYSIS_COMPLETED,
@@ -41,7 +44,17 @@ from .constants import (
     ERROR_IMAGE_SIZE,
     ERROR_MIME_TYPE,
     ERROR_API,
+    DEFAULT_URL_TIMEOUT,
+    DEFAULT_DOWNLOAD_TIMEOUT,
 )
+
+@dataclass
+class ImageProcessingResult:
+    """Result of image processing attempt."""
+    success: bool
+    image: Optional[InstructorImage] = None
+    error: Optional[str] = None
+    source: Optional[Union[str, Path]] = None
 
 MAX_IMAGE_SIZE = 20 * 1024 * 1024  # 20MB
 SUPPORTED_IMAGE_FORMATS = {".jpg", ".jpeg", ".png", ".gif"}
@@ -193,13 +206,28 @@ class ImageAnalyzer:
         client,
         model_name: Optional[str] = None,
         logger: Optional[logging.Logger] = None,
-        config: Optional[ImageAnalyzerConfig] = None
+        config: Optional[ImageAnalyzerConfig] = None,
+        url_timeout: Optional[float] = None,
+        download_timeout: Optional[float] = None
     ):
+        """
+        Initialize the ImageAnalyzer with client and configuration.
+
+        Args:
+            client: API client for image analysis
+            model_name: Optional model name (overrides config)
+            logger: Optional logger instance
+            config: Optional configuration object
+            url_timeout: Timeout for URL validation in seconds
+            download_timeout: Timeout for image download in seconds
+        """
         self.config = config or ImageAnalyzerConfig()
         self.client = patch(client)
         self.model_name = model_name or self.config.deployment_name
         self.logger = logger or self._setup_default_logger()
         self.model_config = self._get_model_config()
+        self.url_timeout = url_timeout or DEFAULT_URL_TIMEOUT
+        self.download_timeout = download_timeout or DEFAULT_DOWNLOAD_TIMEOUT
         
         # Validate model capabilities
         if not self.model_config.capabilities.supports_vision:
@@ -249,23 +277,127 @@ class ImageAnalyzer:
             )
         return max_tokens
 
-    def validate_image(self, image_path: Union[str, Path]) -> None:
-        """Validate image file for size, format, and MIME type."""
-        path = Path(image_path)
+    async def _validate_url(self, url: str, timeout: Optional[float] = None) -> None:
+        """
+        Validate URL accessibility asynchronously with timeout.
         
-        # Skip file system checks for URLs
-        if not str(image_path).startswith("http"):
-            _check_file_exists(path)
-            _check_file_format(path)
-            _check_file_size(path)
-            _check_mime_type(path, self.model_config.supported_mime_types)
+        Args:
+            url: URL to validate
+            timeout: Optional timeout in seconds (defaults to DEFAULT_URL_TIMEOUT)
+        """
+        timeout_config = ClientTimeout(total=timeout or DEFAULT_URL_TIMEOUT)
+        
+        try:
+            async with aiohttp.ClientSession(timeout=timeout_config) as session:
+                async with session.head(url, allow_redirects=True) as response:
+                    if response.status != 200:
+                        raise ImageValidationError(
+                            f"URL not accessible (status {response.status}): {url}"
+                        )
+                    
+                    # Validate content type if available
+                    content_type = response.headers.get('content-type', '')
+                    if not any(mime in content_type.lower() for mime in ['image/', 'application/octet-stream']):
+                        raise ImageValidationError(
+                            f"URL does not point to an image resource: {url} (content-type: {content_type})"
+                        )
+        except asyncio.TimeoutError:
+            raise ImageValidationError(f"Timeout while accessing URL: {url} (timeout: {timeout or DEFAULT_URL_TIMEOUT}s)")
+        except ClientError as e:
+            raise ImageValidationError(f"Failed to access URL: {url} (error: {str(e)})")
+
+    async def _read_file_async(self, path: Path) -> bytes:
+        """Read file contents asynchronously."""
+        async with aiofiles.open(str(path), mode='rb') as file:
+            return await file.read()
+
+    async def _get_file_size_async(self, path: Path) -> int:
+        """Get file size asynchronously."""
+        stats = await aio_stat(str(path))
+        return stats.st_size
+
+    async def _validate_local_image_async(self, path: Path) -> None:
+        """Validate local image file asynchronously."""
+        if not path.exists():
+            raise ImageValidationError(ERROR_IMAGE_SOURCE.format(source=path))
+
+        if path.suffix.lower() not in SUPPORTED_IMAGE_FORMATS:
+            raise ImageValidationError(ERROR_IMAGE_FORMAT.format(format=path.suffix))
+
+        file_size = await self._get_file_size_async(path)
+        if file_size > self.config.max_image_size:
+            raise ImageValidationError(
+                ERROR_IMAGE_SIZE.format(limit=self.config.max_image_size / (1024 * 1024))
+            )
+
+        mime_type = mimetypes.guess_type(str(path))[0]
+        if mime_type not in self.model_config.supported_mime_types:
+            raise ImageValidationError(
+                ERROR_MIME_TYPE.format(
+                    mime_type=mime_type,
+                    supported=", ".join(self.model_config.supported_mime_types)
+                )
+            )
+
+    async def _prepare_single_image(
+        self, 
+        image: Union[str, Path, HttpUrl]
+    ) -> ImageProcessingResult:
+        """Prepare a single image with error handling."""
+        try:
+            if isinstance(image, str) and image.startswith(('http://', 'https://')):
+                # Handle remote URLs
+                await self._validate_url(image, timeout=self.url_timeout)
+                try:
+                    async with asyncio.timeout(self.download_timeout):
+                        prepared_image = await instructor.Image.from_url_async(image)
+                except asyncio.TimeoutError:
+                    raise ImageValidationError(
+                        f"Timeout while downloading image: {image} (timeout: {self.download_timeout}s)"
+                    )
+            else:
+                # Handle local files asynchronously
+                path = Path(image)
+                await self._validate_local_image_async(path)
+                
+                # Read file contents asynchronously
+                file_content = await self._read_file_async(path)
+                base64_content = base64.b64encode(file_content).decode('utf-8')
+                
+                # Create instructor Image instance
+                mime_type = mimetypes.guess_type(str(path))[0] or 'application/octet-stream'
+                prepared_image = instructor.Image(
+                    base64=base64_content,
+                    source_type="base64",
+                    media_type=mime_type
+                )
+            
+            return ImageProcessingResult(
+                success=True,
+                image=prepared_image,
+                source=image
+            )
+        except (ImageValidationError, ClientError, asyncio.TimeoutError) as e:
+            self.logger.warning(f"Failed to process image {image}: {str(e)}")
+            return ImageProcessingResult(
+                success=False,
+                error=str(e),
+                source=image
+            )
+        except Exception as e:
+            self.logger.error(f"Unexpected error processing image {image}: {str(e)}")
+            return ImageProcessingResult(
+                success=False,
+                error=str(e),
+                source=image
+            )
 
     async def prepare_image(self, image: Union[str, Path, HttpUrl]) -> InstructorImage:
         """Prepare a single image for analysis asynchronously."""
-        self.validate_image(image)
-        if str(image).startswith("http"):
-            return await instructor.Image.from_url_async(str(image))
-        return await instructor.Image.from_path_async(str(image))
+        result = await self._prepare_single_image(image)
+        if not result.success:
+            raise ImageValidationError(result.error)
+        return result.image
 
     async def prepare_images(self, images: List[Union[str, Path, HttpUrl]]) -> List[InstructorImage]:
         """Prepare multiple images concurrently."""
@@ -279,7 +411,7 @@ class ImageAnalyzer:
     ) -> SingleImageAnalysis:
         """Analyze a single image."""
         self.logger.info(LOG_ANALYSIS_STARTED.format(model=self.model_name))
-        image_content = self.prepare_image(image)
+        image_content = await self.prepare_image(image)
         max_tokens = self._validate_max_tokens(max_tokens)
 
         default_prompt = (

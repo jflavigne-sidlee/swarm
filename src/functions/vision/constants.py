@@ -31,5 +31,31 @@ DEFAULT_MAX_IMAGE_SIZE = 20 * 1024 * 1024  # 20MB
 DEFAULT_MAX_TOKENS = 2000
 MIN_MAX_TOKENS = 100
 
+# Timeout settings
+DEFAULT_URL_TIMEOUT = 30  # seconds
+DEFAULT_DOWNLOAD_TIMEOUT = 60  # seconds
+
+# Supported formats
+SUPPORTED_IMAGE_FORMATS = {".jpg", ".jpeg", ".png", ".gif"}
+
+# Log messages
+LOG_UNEXPECTED_ERROR = "Unexpected error during analysis: {error}"
+LOG_RETRY_ATTEMPT = "Retry attempt {attempts} failed: {error}"
+LOG_IMAGE_VALIDATION = "Validating image: {image}"
+LOG_MODEL_VALIDATION = "Validating model configuration for {model}"
+LOG_ANALYSIS_STARTED = "Starting analysis with model: {model}"
+LOG_ANALYSIS_COMPLETED = "Analysis completed successfully"
+
+# Error messages
+ERROR_RETRY_FAILED = "Analysis failed after {attempts} attempts: {error}"
+ERROR_MODEL_CONFIG = "Invalid model configuration: {error}"
+ERROR_MODEL_CAPABILITY = "Model {name} does not support vision capabilities"
+ERROR_TOKEN_LIMIT = "Requested tokens ({tokens}) exceeds model limit ({limit})"
+ERROR_IMAGE_SOURCE = "Image file not found: {source}"
+ERROR_IMAGE_FORMAT = "Unsupported image format: {format}"
+ERROR_IMAGE_SIZE = "Image file too large (max size: {limit}MB)"
+ERROR_MIME_TYPE = "Unsupported MIME type: {mime_type}. Supported types: {supported}"
+ERROR_API = "API error during analysis: {error}"
+
 # Supported formats
 SUPPORTED_IMAGE_FORMATS = {".jpg", ".jpeg", ".png", ".gif"} 
