@@ -81,3 +81,5 @@ DOUBLE_NEWLINE: Final = "\n\n"
 SECTION_CONTENT_FORMAT: Final = (
     "{spacing}{header_prefix} {section_title}\n{section_marker}\n{content}\n"
 )
+
+# pytest tests/functions/writer/test_metadata_operations.py -v -s

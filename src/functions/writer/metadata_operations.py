@@ -52,8 +52,19 @@ class MetadataOperations:
     """Handles metadata operations with consistent configuration."""
     
     def __init__(self, config: Optional[WriterConfig] = None):
-        """Initialize with optional configuration."""
+        """
+        Initialize with optional configuration.
+        
+        Args:
+            config: Optional configuration object. If not provided, uses default config.
+        """
         self.config = config or WriterConfig()
+        # Precompile regex patterns from validation rules
+        self.compiled_patterns = {
+            field: re.compile(rules[ValidationKeys.PATTERN])
+            for field, rules in self.config.metadata_validation_rules.items()
+            if ValidationKeys.PATTERN in rules
+        }
     
     def _validate_file_access(self, file_path: Path, require_write: bool = False) -> None:
         """
@@ -223,7 +234,8 @@ class MetadataOperations:
                 
                 # Pattern validation
                 if ValidationKeys.PATTERN in rules and isinstance(value, str):
-                    if not re.match(rules[ValidationKeys.PATTERN], value):
+                    pattern = self.compiled_patterns[field]
+                    if not pattern.match(value):
                         logger.error(LOG_INVALID_METADATA_PATTERN.format(field=field))
                         raise WriterError(ERROR_INVALID_METADATA_PATTERN.format(field=field))
                 
