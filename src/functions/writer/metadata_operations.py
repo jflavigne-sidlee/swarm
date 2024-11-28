@@ -16,6 +16,11 @@ from .errors import (
     ERROR_MISSING_REQUIRED_METADATA,
     ERROR_PERMISSION_DENIED_PATH,
     ERROR_PERMISSION_DENIED_WRITE,
+    ERROR_METADATA_BELOW_MIN,
+    ERROR_METADATA_ABOVE_MAX,
+    ERROR_METADATA_VALIDATION_FAILED,
+    ERROR_INVALID_METADATA_TYPE,
+    ERROR_INVALID_METADATA_PATTERN,
 )
 from .logs import (
     LOG_EMPTY_FILE_DETECTED,
@@ -28,10 +33,16 @@ from .logs import (
     LOG_NO_READ_PERMISSION,
     LOG_NO_WRITE_PERMISSION,
     LOG_ENCODING_ERROR,
+    LOG_INVALID_METADATA_TYPE,
+    LOG_INVALID_METADATA_PATTERN,
+    LOG_METADATA_BELOW_MIN,
+    LOG_METADATA_ABOVE_MAX,
+    LOG_METADATA_VALIDATION_FAILED,
 )
 from .file_operations import validate_path_permissions
 from .file_io import read_file, atomic_write
 from .config import WriterConfig
+from .validation_constants import ValidationKeys
 
 logger = logging.getLogger(__name__)
 
@@ -161,11 +172,7 @@ class MetadataOperations:
             metadata: Metadata to validate
         
         Raises:
-            WriterError: If metadata is invalid, with specific error messages for:
-                - Missing required fields
-                - Invalid field types
-                - Pattern mismatches
-                - Custom validation failures
+            WriterError: If metadata is invalid
         """
         # Check required fields
         missing_fields = self.config.metadata_keys - set(metadata.keys())
@@ -181,31 +188,59 @@ class MetadataOperations:
                 value = metadata[field]
                 
                 # Type validation
-                if 'type' in rules:
-                    expected_type = rules['type']
+                if ValidationKeys.TYPE in rules:
+                    expected_type = rules[ValidationKeys.TYPE]
                     if not isinstance(value, expected_type):
-                        raise WriterError(
-                            f"Invalid type for {field}: expected {expected_type.__name__}, "
-                            f"got {type(value).__name__}"
-                        )
+                        logger.error(LOG_INVALID_METADATA_TYPE.format(
+                            field=field,
+                            expected=expected_type.__name__,
+                            actual=type(value).__name__
+                        ))
+                        raise WriterError(ERROR_INVALID_METADATA_TYPE.format(
+                            field=field,
+                            expected=expected_type.__name__,
+                            actual=type(value).__name__
+                        ))
                 
                 # Pattern validation
-                if 'pattern' in rules and isinstance(value, str):
-                    if not re.match(rules['pattern'], value):
-                        raise WriterError(f"Invalid format for {field}")
+                if ValidationKeys.PATTERN in rules and isinstance(value, str):
+                    if not re.match(rules[ValidationKeys.PATTERN], value):
+                        logger.error(LOG_INVALID_METADATA_PATTERN.format(field=field))
+                        raise WriterError(ERROR_INVALID_METADATA_PATTERN.format(field=field))
                 
                 # Value range validation
-                if 'min_value' in rules and value < rules['min_value']:
-                    raise WriterError(f"Value for {field} must be >= {rules['min_value']}")
-                if 'max_value' in rules and value > rules['max_value']:
-                    raise WriterError(f"Value for {field} must be <= {rules['max_value']}")
+                if ValidationKeys.MIN in rules and value < rules[ValidationKeys.MIN]:
+                    logger.error(LOG_METADATA_BELOW_MIN.format(
+                        field=field,
+                        min_value=rules[ValidationKeys.MIN]
+                    ))
+                    raise WriterError(ERROR_METADATA_BELOW_MIN.format(
+                        field=field,
+                        min_value=rules[ValidationKeys.MIN]
+                    ))
+                if ValidationKeys.MAX in rules and value > rules[ValidationKeys.MAX]:
+                    logger.error(LOG_METADATA_ABOVE_MAX.format(
+                        field=field,
+                        max_value=rules[ValidationKeys.MAX]
+                    ))
+                    raise WriterError(ERROR_METADATA_ABOVE_MAX.format(
+                        field=field,
+                        max_value=rules[ValidationKeys.MAX]
+                    ))
                 
                 # Custom validation function
-                if 'validator' in rules:
+                if ValidationKeys.VALIDATE in rules:
                     try:
-                        rules['validator'](value)
+                        rules[ValidationKeys.VALIDATE](value)
                     except Exception as e:
-                        raise WriterError(f"Validation failed for {field}: {str(e)}")
+                        logger.error(LOG_METADATA_VALIDATION_FAILED.format(
+                            field=field,
+                            error=str(e)
+                        ))
+                        raise WriterError(ERROR_METADATA_VALIDATION_FAILED.format(
+                            field=field,
+                            error=str(e)
+                        ))
     
     def merge_metadata(self, base: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
         """

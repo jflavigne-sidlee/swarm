@@ -21,7 +21,8 @@ ERROR_INVALID_FILE_FORMAT: Final = "Invalid file format: File must have .md exte
 ERROR_INVALID_FILENAME: Final = "Invalid filename"
 ERROR_INVALID_HEADER_LEVEL: Final = "Header level must be an integer between 1 and 6"
 ERROR_INVALID_MARKDOWN_FILE: Final = "File must be a Markdown document: {file_path}"
-ERROR_INVALID_METADATA_TYPE: Final = "Invalid metadata type"
+ERROR_INVALID_METADATA_TYPE: Final = "Invalid type for {field}: expected {expected}, got {actual}"
+ERROR_INVALID_METADATA_PATTERN: Final = "Invalid format for {field}"
 ERROR_INVALID_SECTION_FORMAT: Final = "Invalid section format in file: {file_path}"
 ERROR_INVALID_SECTION_TITLE: Final = "Section title must be a non-empty string"
 ERROR_INVALID_TYPE: Final = "Invalid type for '{name}': got {got}, expected {expected}."
@@ -148,3 +149,6 @@ from typing import Final
 # Metadata-related errors
 ERROR_INVALID_METADATA_FORMAT: Final = "Invalid metadata format: Must be valid YAML dictionary"
 ERROR_MISSING_REQUIRED_METADATA: Final = "Missing required metadata fields: {fields}"
+ERROR_METADATA_BELOW_MIN: Final = "Value for {field} must be >= {min_value}"
+ERROR_METADATA_ABOVE_MAX: Final = "Value for {field} must be <= {max_value}"
+ERROR_METADATA_VALIDATION_FAILED: Final = "Validation failed for {field}: {error}"

@@ -173,3 +173,9 @@ LOG_NO_METADATA_BLOCK: Final = "No metadata block found in {path}"
 LOG_INVALID_YAML_METADATA: Final = "Invalid YAML in metadata block: {error}"
 LOG_MISSING_METADATA_FIELDS: Final = "Missing required metadata fields: {fields}"
 
+LOG_INVALID_METADATA_TYPE = "Invalid type detected for field '{field}': expected {expected}, got {actual}"
+LOG_INVALID_METADATA_PATTERN = "Invalid pattern format for field '{field}'"
+LOG_METADATA_BELOW_MIN = "Value for '{field}' is below minimum allowed value of {min_value}"
+LOG_METADATA_ABOVE_MAX = "Value for '{field}' is above maximum allowed value of {max_value}"
+LOG_METADATA_VALIDATION_FAILED = "Validation failed for field '{field}': {error}"
+
