@@ -19,7 +19,7 @@ DEFAULT_PATHS: Final[Dict[str, str]] = {
     "finalized": os.getenv(ENV_FINALIZED_DIR, f"{DEFAULT_BASE_PATH}/finalized"),
 }
 
-DEFAULT_METADATA_FIELDS: Final[List[str]] = ["title", "author", "date"]
+DEFAULT_METADATA_FIELDS: Final[Set[str]] = {'title', 'author', 'date'}
 DEFAULT_ENCODING: Final = "utf-8"
 
 # File operations

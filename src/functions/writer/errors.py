@@ -141,3 +141,10 @@ ERROR_MESSAGES: Final[Dict[str, str]] = {
     "invalid_format": "Invalid task list format",
     "empty_file": "File is empty",  # Added constant for empty file error message
 }
+
+ERROR_FILE_NOT_FOUND: Final = "File not found: {path}"
+from typing import Final
+
+# Metadata-related errors
+ERROR_INVALID_METADATA_FORMAT: Final = "Invalid metadata format: Must be valid YAML dictionary"
+ERROR_MISSING_REQUIRED_METADATA: Final = "Missing required metadata fields: {fields}"

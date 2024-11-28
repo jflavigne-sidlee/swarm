@@ -387,12 +387,12 @@ class TestWriterConfig:
     def test_metadata_keys_validation(self, basic_config):
         """Test validation of metadata keys."""
         # Test valid metadata keys
-        basic_config["metadata_keys"] = ["title", "author", "custom"]
+        basic_config["metadata_keys"] = {"title", "author", "custom"}
         config = WriterConfig(**basic_config)
-        assert config.metadata_keys == ["title", "author", "custom"]
+        assert config.metadata_keys == {"title", "author", "custom"}
         
         # Test invalid metadata key type
-        basic_config["metadata_keys"] = ["title", 123, "author"]
+        basic_config["metadata_keys"] = {"title", 123, "author"}
         expected_error = ERROR_INVALID_TYPE.format(
             name="metadata_keys",
             got="mixed types",
@@ -401,10 +401,10 @@ class TestWriterConfig:
         with pytest.raises(ConfigurationError, match=re.escape(expected_error)):
             WriterConfig(**basic_config)
         
-        # Test empty metadata keys list
-        basic_config["metadata_keys"] = []
+        # Test empty metadata keys set
+        basic_config["metadata_keys"] = set()
         config = WriterConfig(**basic_config)
-        assert config.metadata_keys == []
+        assert config.metadata_keys == set()
 
     def test_encoding_validation(self, basic_config):
         """Test validation of default encoding."""
@@ -436,7 +436,7 @@ class TestWriterConfig:
         
         # Check defaults
         assert config.create_directories is True
-        assert config.metadata_keys == DEFAULT_METADATA_FIELDS
+        assert config.metadata_keys == set(DEFAULT_METADATA_FIELDS)  # Convert DEFAULT_METADATA_FIELDS to set
         assert config.default_encoding == DEFAULT_ENCODING
 
     def test_directory_permission_validation(self, basic_config):

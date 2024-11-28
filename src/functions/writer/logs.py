@@ -79,7 +79,7 @@ LOG_SECTION_APPEND_SUCCESS: Final = "Successfully appended section '%s' to %s"
 LOG_SECTION_UPDATE_START: Final = "Updating section '%s' in %s"
 # Metadata validation logs
 LOG_INVALID_METADATA_TYPES: Final = "Invalid metadata types detected in: %s"
-LOG_MISSING_METADATA_FIELDS: Final = "Missing required metadata fields: %s"
+LOG_MISSING_METADATA_FIELDS: Final = "Missing required metadata fields: {fields}"
 # Configuration logs
 LOG_USING_DEFAULT_CONFIG: Final = "Using default configuration"
 LOG_CONFIG_DEBUG: Final = "Debug configuration: %s"
@@ -94,6 +94,7 @@ LOG_UNEXPECTED_ERROR: Final = "Unexpected error: %s (%s)"
 LOG_READING_FILE: Final = "Reading file: {path} with encoding: {encoding}"
 LOG_READ_SUCCESS: Final = "Successfully read {count} characters from {path}"
 LOG_ENCODING_ERROR: Final = "Encoding error reading {path} with {encoding}: {error}"
+LOG_FILE_READ_ERROR: Final = "Error reading file {path}: {error}"
 # File operation log messages
 LOG_NO_WRITE_PERMISSION: Final = "No write permission for target file: {path}"
 LOG_ENCODING_WRITE_ERROR: Final = (
@@ -165,4 +166,10 @@ LOG_PATH_NOT_FOUND: Final = "Path not found: {path}"
 LOG_NO_READ_PERMISSION: Final = "No read permission for path: {path}"
 # Log messages
 LOG_EMPTY_FILE_DETECTED: Final = "Empty markdown file detected"
+
+# Metadata operation messages
+LOG_NO_METADATA_BLOCK: Final = "No metadata block found in {path}"
+
+LOG_INVALID_YAML_METADATA: Final = "Invalid YAML in metadata block: {error}"
+LOG_MISSING_METADATA_FIELDS: Final = "Missing required metadata fields: {fields}"
 

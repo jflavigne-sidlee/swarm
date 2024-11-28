@@ -162,7 +162,7 @@ def validate_metadata(metadata: Dict[str, str], config: WriterConfig) -> None:
 
     missing_fields = [field for field in config.metadata_keys if field not in metadata]
     if missing_fields:
-        logger.warning(LOG_MISSING_METADATA_FIELDS, missing_fields)
+        logger.warning(LOG_MISSING_METADATA_FIELDS.format(fields=missing_fields))
         raise WriterError(
             ERROR_MISSING_METADATA.format(fields=", ".join(missing_fields))
         )

@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field, fields, MISSING
 from pathlib import Path
-from typing import List, Dict, Optional, Union, Pattern, Any
+from typing import List, Dict, Optional, Union, Pattern, Any, Set
 import logging
 from .exceptions import ConfigurationError, PathValidationError
 import os
@@ -424,16 +424,25 @@ class WriterConfig:
     )
 
     # Metadata and encoding configuration
-    metadata_keys: List[str] = field(
+    metadata_keys: Set[str] = field(
         default_factory=lambda: DEFAULT_METADATA_FIELDS,
         metadata={
             MetadataKeys.VALIDATION: {
-                ValidationKeys.TYPE: list,
-                ValidationKeys.ELEMENT_TYPE: str,
-                ValidationKeys.REQUIRED: True,
+                ValidationKeys.TYPE: set,
+                ValidationKeys.REQUIRED: False,
             },
-            MetadataKeys.HELP: "List of metadata keys for Markdown documents",
-            MetadataKeys.EXAMPLE: ["title", "author", "date", "tags"],
+            MetadataKeys.HELP: "Required metadata fields for documents",
+        },
+    )
+
+    metadata_validation_rules: Dict[str, Dict] = field(
+        default_factory=dict,
+        metadata={
+            MetadataKeys.VALIDATION: {
+                ValidationKeys.TYPE: dict,
+                ValidationKeys.REQUIRED: False,
+            },
+            MetadataKeys.HELP: "Custom validation rules for metadata fields",
         },
     )
 
