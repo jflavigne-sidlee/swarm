@@ -20,4 +20,16 @@ ERROR_IMAGE_SOURCE: Final = "Image source not found: {source}"
 ERROR_IMAGE_FORMAT: Final = "Unsupported image format: {format}"
 ERROR_IMAGE_SIZE: Final = "Image size exceeds the limit of {limit}MB"
 ERROR_MIME_TYPE: Final = "Unsupported MIME type {mime_type}. Supported types: {supported}"
-ERROR_API: Final = "Error analyzing image: {error}" 
+ERROR_API: Final = "Error analyzing image: {error}"
+
+# Default configuration values
+DEFAULT_MODEL_NAME = "gpt-4o"
+DEFAULT_MAX_RETRIES = 3
+DEFAULT_RETRY_DELAY = 1
+DEFAULT_LOG_LEVEL = "WARNING"
+DEFAULT_MAX_IMAGE_SIZE = 20 * 1024 * 1024  # 20MB
+DEFAULT_MAX_TOKENS = 2000
+MIN_MAX_TOKENS = 100
+
+# Supported formats
+SUPPORTED_IMAGE_FORMATS = {".jpg", ".jpeg", ".png", ".gif"} 

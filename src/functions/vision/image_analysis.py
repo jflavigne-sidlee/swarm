@@ -1,7 +1,8 @@
 from typing import List, Optional, Union, Dict, Any, Final
 from pathlib import Path
 import base64
-from pydantic import Field, HttpUrl, field_validator
+from pydantic import Field, HttpUrl, field_validator, ConfigDict
+from pydantic_settings import BaseSettings
 from instructor import OpenAISchema, patch
 from instructor.multimodal import Image as InstructorImage
 import instructor
@@ -11,11 +12,20 @@ from instructor.exceptions import InstructorRetryException
 from tenacity import Retrying, stop_after_attempt, wait_fixed
 from pydantic import ValidationError
 import logging
+import asyncio
 
 from ...models.config import get_model, ModelProvider
 from ...models.base import ModelConfig
 from ...exceptions.vision import ImageValidationError, APIError, ImageAnalysisError
 from .constants import (
+    DEFAULT_MODEL_NAME,
+    DEFAULT_MAX_RETRIES,
+    DEFAULT_RETRY_DELAY,
+    DEFAULT_LOG_LEVEL,
+    DEFAULT_MAX_IMAGE_SIZE,
+    DEFAULT_MAX_TOKENS,
+    MIN_MAX_TOKENS,
+    SUPPORTED_IMAGE_FORMATS,
     LOG_UNEXPECTED_ERROR,
     LOG_RETRY_ATTEMPT,
     LOG_IMAGE_VALIDATION,
@@ -159,17 +169,35 @@ def _prepare_image_content(image: InstructorImage) -> Dict[str, Any]:
         }
 
 
+class ImageAnalyzerConfig(BaseSettings):
+    """Configuration settings for ImageAnalyzer."""
+    
+    deployment_name: str = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", DEFAULT_MODEL_NAME)
+    max_retries: int = int(os.getenv("IMAGE_ANALYZER_MAX_RETRIES", str(DEFAULT_MAX_RETRIES)))
+    retry_delay: int = int(os.getenv("IMAGE_ANALYZER_RETRY_DELAY", str(DEFAULT_RETRY_DELAY)))
+    log_level: str = os.getenv("IMAGE_ANALYZER_LOG_LEVEL", DEFAULT_LOG_LEVEL)
+    max_image_size: int = int(os.getenv("IMAGE_ANALYZER_MAX_SIZE", str(DEFAULT_MAX_IMAGE_SIZE)))
+    
+    model_config = ConfigDict(
+        env_prefix="IMAGE_ANALYZER_",
+        case_sensitive=False,
+        protected_namespaces=('settings_',)
+    )
+
+
 class ImageAnalyzer:
     """Class to handle image validation, preparation, and analysis."""
 
     def __init__(
         self, 
-        client, 
+        client,
         model_name: Optional[str] = None,
-        logger: Optional[logging.Logger] = None
+        logger: Optional[logging.Logger] = None,
+        config: Optional[ImageAnalyzerConfig] = None
     ):
-        self.client = patch(client)  # Patch client once during initialization
-        self.model_name = model_name or os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4o")
+        self.config = config or ImageAnalyzerConfig()
+        self.client = patch(client)
+        self.model_name = model_name or self.config.deployment_name
         self.logger = logger or self._setup_default_logger()
         self.model_config = self._get_model_config()
         
@@ -232,12 +260,16 @@ class ImageAnalyzer:
             _check_file_size(path)
             _check_mime_type(path, self.model_config.supported_mime_types)
 
-    def prepare_image(self, image: Union[str, Path, HttpUrl]) -> InstructorImage:
-        """Prepare an image for analysis."""
+    async def prepare_image(self, image: Union[str, Path, HttpUrl]) -> InstructorImage:
+        """Prepare a single image for analysis asynchronously."""
         self.validate_image(image)
         if str(image).startswith("http"):
-            return instructor.Image.from_url(str(image))
-        return instructor.Image.from_path(str(image))
+            return await instructor.Image.from_url_async(str(image))
+        return await instructor.Image.from_path_async(str(image))
+
+    async def prepare_images(self, images: List[Union[str, Path, HttpUrl]]) -> List[InstructorImage]:
+        """Prepare multiple images concurrently."""
+        return await asyncio.gather(*[self.prepare_image(img) for img in images])
 
     async def analyze_single_image(
         self,
@@ -287,21 +319,12 @@ class ImageAnalyzer:
         prompt: Optional[str] = None,
         max_tokens: Optional[int] = None
     ) -> ImageSetAnalysis:
-        """Analyze a set of images.
-        
-        Args:
-            images: List of image paths or URLs to analyze
-            prompt: Optional custom prompt for analysis
-            max_tokens: Optional maximum tokens for response
-            
-        Returns:
-            ImageSetAnalysis object containing comparative analysis
-        """
+        """Analyze a set of images concurrently."""
         self.logger.info(LOG_ANALYSIS_STARTED.format(model=self.model_name))
         max_tokens = self._validate_max_tokens(max_tokens)
         
-        # Prepare all images
-        image_contents = [self.prepare_image(img) for img in images]
+        # Prepare all images concurrently
+        image_contents = await self.prepare_images(images)
         
         default_prompt = (
             "Analyze these images as a set and provide a structured response including:\n"
