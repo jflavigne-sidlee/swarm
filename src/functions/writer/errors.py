@@ -152,3 +152,4 @@ ERROR_MISSING_REQUIRED_METADATA: Final = "Missing required metadata fields: {fie
 ERROR_METADATA_BELOW_MIN: Final = "Value for {field} must be >= {min_value}"
 ERROR_METADATA_ABOVE_MAX: Final = "Value for {field} must be <= {max_value}"
 ERROR_METADATA_VALIDATION_FAILED: Final = "Validation failed for {field}: {error}"
+ERROR_INVALID_METADATA_CHOICE: Final = "Invalid value for metadata field '{field}'. Must be one of: {choices}"

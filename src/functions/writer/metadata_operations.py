@@ -21,6 +21,7 @@ from .errors import (
     ERROR_METADATA_VALIDATION_FAILED,
     ERROR_INVALID_METADATA_TYPE,
     ERROR_INVALID_METADATA_PATTERN,
+    ERROR_INVALID_METADATA_CHOICE,
 )
 from .logs import (
     LOG_EMPTY_FILE_DETECTED,
@@ -38,6 +39,7 @@ from .logs import (
     LOG_METADATA_BELOW_MIN,
     LOG_METADATA_ABOVE_MAX,
     LOG_METADATA_VALIDATION_FAILED,
+    LOG_INVALID_METADATA_CHOICE,
 )
 from .file_operations import validate_path_permissions
 from .file_io import read_file, atomic_write
@@ -188,7 +190,11 @@ class MetadataOperations:
             WriterError: If metadata is invalid
         """
         # Check required fields
-        missing_fields = self.config.metadata_keys - set(metadata.keys())
+        required_fields = {
+            field for field, rules in self.config.metadata_validation_rules.items()
+            if rules.get(ValidationKeys.REQUIRED, False)
+        }
+        missing_fields = required_fields - set(metadata.keys())
         if missing_fields:
             logger.error(LOG_MISSING_METADATA_FIELDS.format(fields=', '.join(missing_fields)))
             raise WriterError(ERROR_MISSING_REQUIRED_METADATA.format(
@@ -239,6 +245,17 @@ class MetadataOperations:
                     raise WriterError(ERROR_METADATA_ABOVE_MAX.format(
                         field=field,
                         max_value=rules[ValidationKeys.MAX]
+                    ))
+                
+                # Choices validation
+                if ValidationKeys.CHOICES in rules and value not in rules[ValidationKeys.CHOICES]:
+                    logger.error(LOG_INVALID_METADATA_CHOICE.format(
+                        field=field,
+                        choices=', '.join(str(c) for c in rules[ValidationKeys.CHOICES])
+                    ))
+                    raise WriterError(ERROR_INVALID_METADATA_CHOICE.format(
+                        field=field,
+                        choices=', '.join(str(c) for c in rules[ValidationKeys.CHOICES])
                     ))
                 
                 # Custom validation function

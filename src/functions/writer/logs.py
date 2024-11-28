@@ -179,3 +179,5 @@ LOG_METADATA_BELOW_MIN = "Value for '{field}' is below minimum allowed value of 
 LOG_METADATA_ABOVE_MAX = "Value for '{field}' is above maximum allowed value of {max_value}"
 LOG_METADATA_VALIDATION_FAILED = "Validation failed for field '{field}': {error}"
 
+LOG_INVALID_METADATA_CHOICE = "Invalid choice for metadata field '{field}'. Allowed values are: {choices}"
+

@@ -26,7 +26,11 @@ class ValidationKeys(str, Enum):
     ELEMENT_TYPE = "element_type"
     VALIDATE = "validate"
     REQUIRED = "required"
-    
+    DEFAULT = "default"
+    HELP = "help"
+    EXAMPLE = "example"
+    CONSTRAINTS = "constraints"
+
 # Validation keys
 VALIDATION_KEY_TYPE: Final = "type"
 VALIDATION_KEY_MIN_VALUE: Final = "min_value"

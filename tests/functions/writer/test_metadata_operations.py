@@ -7,6 +7,7 @@ from src.functions.writer.exceptions import WriterError
 from src.functions.writer.config import WriterConfig
 from src.functions.writer.constants import DEFAULT_ENCODING
 from datetime import date
+from src.functions.writer.validation_constants import ValidationKeys
 
 @pytest.fixture
 def temp_md_file(tmp_path):
@@ -87,6 +88,13 @@ class TestMetadataOperations:
 
     def test_validate_metadata_missing_required(self, metadata_ops):
         """Test metadata validation with missing required fields."""
+        # Set up required fields in config
+        metadata_ops.config.metadata_validation_rules = {
+            'title': {ValidationKeys.REQUIRED: True},
+            'author': {ValidationKeys.REQUIRED: True},
+            'date': {ValidationKeys.REQUIRED: True}
+        }
+        
         incomplete_metadata = {'title': 'Test'}  # Missing required fields
         with pytest.raises(WriterError, match="Missing required metadata fields"):
             metadata_ops.validate_metadata(incomplete_metadata)
