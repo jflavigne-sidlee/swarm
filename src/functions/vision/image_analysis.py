@@ -60,47 +60,33 @@ def encode_image_to_base64(image_path: Union[str, Path]) -> str:
         return base64.b64encode(image_file.read()).decode("utf-8")
 
 
-def validate_image_file(image_path: Union[str, Path]) -> bool:
-    """Validate image file size and format."""
-    path = Path(image_path)
+def _check_file_exists(path: Path) -> None:
+    """Check if file exists at given path."""
     if not path.exists():
-        raise ImageValidationError(ERROR_IMAGE_SOURCE.format(source=image_path))
-    
+        raise ImageValidationError(ERROR_IMAGE_SOURCE.format(source=path))
+
+def _check_file_format(path: Path) -> None:
+    """Check if file format is supported."""
     if path.suffix.lower() not in SUPPORTED_IMAGE_FORMATS:
         raise ImageValidationError(ERROR_IMAGE_FORMAT.format(format=path.suffix))
-    
+
+def _check_file_size(path: Path) -> None:
+    """Check if file size is within limits."""
     if path.stat().st_size > MAX_IMAGE_SIZE:
         raise ImageValidationError(
             ERROR_IMAGE_SIZE.format(limit=MAX_IMAGE_SIZE / (1024 * 1024))
         )
-    
-    return True
 
-def validate_image_source(
-    image_path: Union[str, Path], supported_mime_types: List[str]
-) -> None:
-    """Validates image source for format and size."""
-    logger.debug(LOG_IMAGE_VALIDATION.format(source=image_path))
-    
-    path = Path(image_path)
-    if not path.exists() and not str(image_path).startswith("http"):
-        raise ImageValidationError(ERROR_IMAGE_SOURCE.format(source=image_path))
-
-    if not str(image_path).startswith("http"):
-        if path.suffix.lower() not in SUPPORTED_IMAGE_FORMATS:
-            raise ImageValidationError(ERROR_IMAGE_FORMAT.format(format=path.suffix))
-        if path.stat().st_size > MAX_IMAGE_SIZE:
-            raise ImageValidationError(
-                ERROR_IMAGE_SIZE.format(limit=MAX_IMAGE_SIZE / (1024 * 1024))
+def _check_mime_type(path: Path, supported_mime_types: List[str]) -> None:
+    """Check if file MIME type is supported."""
+    mime_type = mimetypes.guess_type(str(path))[0]
+    if mime_type not in supported_mime_types:
+        raise ImageValidationError(
+            ERROR_MIME_TYPE.format(
+                mime_type=mime_type,
+                supported=", ".join(supported_mime_types)
             )
-        mime_type = mimetypes.guess_type(str(path))[0]
-        if mime_type not in supported_mime_types:
-            raise ImageValidationError(
-                ERROR_MIME_TYPE.format(
-                    mime_type=mime_type,
-                    supported=", ".join(supported_mime_types)
-                )
-            )
+        )
 
 
 class SingleImageAnalysis(OpenAISchema):
@@ -172,74 +158,48 @@ def _prepare_image_content(image: InstructorImage) -> Dict[str, Any]:
             "image_url": {"url": f"data:{image.media_type};base64,{image.base64}"}
         }
 
-async def analyze_images(
-    client,
-    images: Union[str, Path, HttpUrl, List[Union[str, Path, HttpUrl]]],
-    prompt: Optional[str] = None,
-    max_tokens: Optional[int] = None,
-    model_name: Optional[str] = None,
-) -> SingleImageAnalysis:
-    """Analyzes one or more images with optional custom prompt."""
-    # Get model configuration
-    model_name = model_name or os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4o")
-    try:
-        logger.debug(LOG_MODEL_VALIDATION.format(model=model_name))
-        model_config = get_model(model_name, provider=ModelProvider.AZURE)
-    except ValueError as e:
-        raise ImageValidationError(ERROR_MODEL_CONFIG.format(error=e))
 
-    # Validate model capabilities
-    if not model_config.capabilities.supports_vision:
-        raise ImageValidationError(
-            ERROR_MODEL_CAPABILITY.format(name=model_config.name)
-        )
+class ImageAnalyzer:
+    """Class to handle image validation, preparation, and analysis."""
 
-    # Token validation
-    if max_tokens is None:
-        max_tokens = model_config.capabilities.max_output_tokens or DEFAULT_MAX_TOKENS
-    elif max_tokens > model_config.capabilities.max_output_tokens:
-        raise ImageValidationError(
-            ERROR_TOKEN_LIMIT.format(
-                tokens=max_tokens,
-                limit=model_config.capabilities.max_output_tokens
-            )
-        )
-
-    logger.info(LOG_ANALYSIS_STARTED.format(model=model_name))
-    
-    # Convert to list if single image
-    if not isinstance(images, list):
-        images = [images]
-
-    # Validate and convert images to instructor format
-    instructor_images = []
-    for img in images:
-        validate_image_source(img, model_config.supported_mime_types)
-        if str(img).startswith("http"):
-            instructor_images.append(instructor.Image.from_url(str(img)))
-        else:
-            instructor_images.append(instructor.Image.from_path(str(img)))
-
-    default_prompt = (
-        "Analyze this image in detail and provide a structured response including:\n"
-        "- Detailed description\n"
-        "- Main objects identified\n"
-        "- Scene type (indoor/outdoor)\n"
-        "- Dominant colors\n"
-        "- Image quality assessment"
-    )
-
-    try:
-        patched_client = patch(client)
+    def __init__(
+        self, 
+        client, 
+        model_name: Optional[str] = None,
+        logger: Optional[logging.Logger] = None
+    ):
+        self.client = patch(client)  # Patch client once during initialization
+        self.model_name = model_name or os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4o")
+        self.logger = logger or self._setup_default_logger()
+        self.model_config = self._get_model_config()
         
-        # Create content array with prompt and images
-        content = []
-        if prompt:
-            content.append(prompt or default_prompt)
-        content.extend(instructor_images)  # Add images directly to content
+        # Validate model capabilities
+        if not self.model_config.capabilities.supports_vision:
+            raise ImageValidationError(
+                ERROR_MODEL_CAPABILITY.format(name=self.model_config.name)
+            )
 
-        # Add retry logic
-        retries = Retrying(
+    def _setup_default_logger(self) -> logging.Logger:
+        """Set up a default logger."""
+        logger = logging.getLogger(__name__)
+        logger.setLevel(logging.WARNING)
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        return logger
+
+    def _get_model_config(self) -> ModelConfig:
+        """Fetch and validate model configuration."""
+        try:
+            self.logger.debug(LOG_MODEL_VALIDATION.format(model=self.model_name))
+            return get_model(self.model_name, provider=ModelProvider.AZURE)
+        except ValueError as e:
+            raise ImageValidationError(ERROR_MODEL_CONFIG.format(error=str(e)))
+
+    def _get_retry_config(self) -> Retrying:
+        """Configure retry behavior."""
+        return Retrying(
             stop=stop_after_attempt(3),
             wait=wait_fixed(1),
             retry=lambda retry_state: isinstance(
@@ -247,124 +207,128 @@ async def analyze_images(
             )
         )
 
-        completion = patched_client.chat.completions.create(
-            model=model_config.deployment_name or model_config.name,
-            messages=[
-                {
-                    "role": "user",
-                    "content": content
-                }
-            ],
-            max_tokens=max_tokens,
-            temperature=model_config.capabilities.default_temperature,
-            response_model=SingleImageAnalysis,
-            max_retries=retries
-        )
-
-        logger.info(LOG_ANALYSIS_COMPLETED)
-        return completion
-
-    except InstructorRetryException as e:
-        logger.warning(LOG_RETRY_ATTEMPT.format(attempts=e.n_attempts, error=str(e)))
-        raise APIError(ERROR_RETRY_FAILED.format(attempts=e.n_attempts, error=str(e)))
-    except Exception as e:
-        logger.error(LOG_UNEXPECTED_ERROR.format(error=str(e)))
-        raise APIError(ERROR_API.format(error=str(e)))
-
-async def interpretImages(
-    client, images: List[Union[str, Path, HttpUrl]], prompt: Optional[str] = None
-) -> List[SingleImageAnalysis]:
-    """Analyzes multiple images individually."""
-    results = []
-    for image in images:
-        # Added await here for testing purposes
-        result = await analyze_images(client, image, prompt)
-        results.append(result)
-    return results
-
-
-async def interpretImageSet(
-    client,
-    images: List[Union[str, Path, HttpUrl]],
-    prompt: Optional[str] = None,
-    model_name: Optional[str] = None,
-) -> ImageSetAnalysis:
-    """Analyzes multiple images as a set."""
-    # Get model configuration
-    model_name = model_name or os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4o")
-    try:
-        model_config = get_model(model_name, provider=ModelProvider.AZURE)
-    except ValueError as e:
-        raise ImageValidationError(ERROR_MODEL_CONFIG.format(error=str(e)))
-
-    # Validate model capabilities
-    if not model_config.capabilities.supports_vision:
-        raise ImageValidationError(
-            ERROR_MODEL_CAPABILITY.format(name=model_config.name)
-        )
-
-    patched_client = patch(client)
-
-    # Convert all images to instructor format with validation
-    instructor_images = []
-    for img in images:
-        if isinstance(img, (str, Path)) and (
-            Path(img).exists() or str(img).startswith("http")
-        ):
-            # Validate file type against model's supported formats
-            if not str(img).startswith("http"):
-                file_type = mimetypes.guess_type(str(img))[0]
-                if file_type not in model_config.supported_mime_types:
-                    raise ImageValidationError(
-                        ERROR_MIME_TYPE.format(
-                            mime_type=file_type,
-                            supported=", ".join(model_config.supported_mime_types)
-                        )
-                    )
-
-            if str(img).startswith("http"):
-                instructor_images.append(instructor.Image.from_url(str(img)))
-            else:
-                instructor_images.append(instructor.Image.from_path(str(img)))
-        else:
-            raise ImageValidationError(ERROR_IMAGE_SOURCE.format(source=img))
-
-    try:
-        # Create content array with prompt and images
-        content = []
-        if prompt:
-            content.append(prompt or default_prompt)
-        content.extend(instructor_images)
-
-        # Add retry logic
-        retries = Retrying(
-            stop=stop_after_attempt(3),
-            wait=wait_fixed(1),
-            retry=lambda retry_state: isinstance(
-                retry_state.outcome.exception(), (ValueError, ValidationError)
+    def _validate_max_tokens(self, max_tokens: Optional[int]) -> int:
+        """Validate and return appropriate max_tokens value."""
+        if max_tokens is None:
+            return self.model_config.capabilities.max_output_tokens or DEFAULT_MAX_TOKENS
+        
+        if max_tokens > self.model_config.capabilities.max_output_tokens:
+            raise ImageValidationError(
+                ERROR_TOKEN_LIMIT.format(
+                    tokens=max_tokens,
+                    limit=self.model_config.capabilities.max_output_tokens
+                )
             )
+        return max_tokens
+
+    def validate_image(self, image_path: Union[str, Path]) -> None:
+        """Validate image file for size, format, and MIME type."""
+        path = Path(image_path)
+        
+        # Skip file system checks for URLs
+        if not str(image_path).startswith("http"):
+            _check_file_exists(path)
+            _check_file_format(path)
+            _check_file_size(path)
+            _check_mime_type(path, self.model_config.supported_mime_types)
+
+    def prepare_image(self, image: Union[str, Path, HttpUrl]) -> InstructorImage:
+        """Prepare an image for analysis."""
+        self.validate_image(image)
+        if str(image).startswith("http"):
+            return instructor.Image.from_url(str(image))
+        return instructor.Image.from_path(str(image))
+
+    async def analyze_single_image(
+        self,
+        image: Union[str, Path, HttpUrl],
+        prompt: Optional[str] = None,
+        max_tokens: Optional[int] = None
+    ) -> SingleImageAnalysis:
+        """Analyze a single image."""
+        self.logger.info(LOG_ANALYSIS_STARTED.format(model=self.model_name))
+        image_content = self.prepare_image(image)
+        max_tokens = self._validate_max_tokens(max_tokens)
+
+        default_prompt = (
+            "Analyze this image in detail and provide a structured response including:\n"
+            "- Detailed description\n"
+            "- Main objects identified\n"
+            "- Scene type (indoor/outdoor)\n"
+            "- Dominant colors\n"
+            "- Image quality assessment"
         )
 
-        completion = patched_client.chat.completions.create(
-            model=model_config.deployment_name or model_config.name,
-            messages=[
-                {
+        try:
+            completion = self.client.chat.completions.create(
+                model=self.model_config.deployment_name or self.model_config.name,
+                messages=[{
                     "role": "user",
-                    "content": content
-                }
-            ],
-            max_tokens=model_config.capabilities.max_output_tokens,
-            temperature=model_config.capabilities.default_temperature,
-            response_model=ImageSetAnalysis,
-            max_retries=retries
+                    "content": [prompt or default_prompt, image_content]
+                }],
+                max_tokens=max_tokens,
+                temperature=self.model_config.capabilities.default_temperature,
+                response_model=SingleImageAnalysis,
+                max_retries=self._get_retry_config()
+            )
+            self.logger.info(LOG_ANALYSIS_COMPLETED)
+            return completion
+
+        except InstructorRetryException as e:
+            self.logger.warning(LOG_RETRY_ATTEMPT.format(attempts=e.n_attempts, error=str(e)))
+            raise APIError(ERROR_RETRY_FAILED.format(attempts=e.n_attempts, error=str(e)))
+        except Exception as e:
+            self.logger.error(LOG_UNEXPECTED_ERROR.format(error=str(e)))
+            raise APIError(ERROR_API.format(error=str(e)))
+
+    async def analyze_image_set(
+        self,
+        images: List[Union[str, Path, HttpUrl]],
+        prompt: Optional[str] = None,
+        max_tokens: Optional[int] = None
+    ) -> ImageSetAnalysis:
+        """Analyze a set of images.
+        
+        Args:
+            images: List of image paths or URLs to analyze
+            prompt: Optional custom prompt for analysis
+            max_tokens: Optional maximum tokens for response
+            
+        Returns:
+            ImageSetAnalysis object containing comparative analysis
+        """
+        self.logger.info(LOG_ANALYSIS_STARTED.format(model=self.model_name))
+        max_tokens = self._validate_max_tokens(max_tokens)
+        
+        # Prepare all images
+        image_contents = [self.prepare_image(img) for img in images]
+        
+        default_prompt = (
+            "Analyze these images as a set and provide a structured response including:\n"
+            "- Overall summary comparing all images\n"
+            "- Common objects found across multiple images\n"
+            "- Distinctive features of each image\n"
+            "- Detailed comparison between images"
         )
 
-        logger.info(LOG_ANALYSIS_COMPLETED)
-        return completion
+        try:
+            completion = self.client.chat.completions.create(
+                model=self.model_config.deployment_name or self.model_config.name,
+                messages=[{
+                    "role": "user",
+                    "content": [prompt or default_prompt, *image_contents]
+                }],
+                max_tokens=max_tokens,
+                temperature=self.model_config.capabilities.default_temperature,
+                response_model=ImageSetAnalysis,
+                max_retries=self._get_retry_config()
+            )
+            self.logger.info(LOG_ANALYSIS_COMPLETED)
+            return completion
 
-    except InstructorRetryException as e:
-        logger.warning(LOG_RETRY_ATTEMPT.format(attempts=e.n_attempts, error=str(e)))
-        raise APIError(ERROR_RETRY_FAILED.format(attempts=e.n_attempts, error=str(e)))
-    except Exception as e:
-        logger.error(LOG_UNEXPECTED_ERROR.format(error=str(e)))
-        raise APIError(ERROR_API.format(error=str(e)))
+        except InstructorRetryException as e:
+            self.logger.warning(LOG_RETRY_ATTEMPT.format(attempts=e.n_attempts, error=str(e)))
+            raise APIError(ERROR_RETRY_FAILED.format(attempts=e.n_attempts, error=str(e)))
+        except Exception as e:
+            self.logger.error(LOG_UNEXPECTED_ERROR.format(error=str(e)))
+            raise APIError(ERROR_API.format(error=str(e)))

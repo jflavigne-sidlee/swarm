@@ -6,8 +6,7 @@ from unittest.mock import MagicMock
 from src.functions.vision import (
     SingleImageAnalysis,
     ImageSetAnalysis,
-    analyze_images,
-    interpretImageSet,
+    ImageAnalyzer,
     encode_image_to_base64,
 )
 from src.aoai.client import AOAIClient
@@ -25,6 +24,12 @@ def ai_client() -> AOAIClient:
         api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
         azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
     )
+
+
+@pytest.fixture
+def analyzer(ai_client: AOAIClient) -> ImageAnalyzer:
+    """Fixture to create ImageAnalyzer instance."""
+    return ImageAnalyzer(ai_client, model_name="gpt-4o")
 
 
 @pytest.fixture
@@ -53,9 +58,9 @@ def create_mock_client(response_data: dict) -> MagicMock:
 
 
 @pytest.mark.asyncio
-async def test_analyze_single_local_image(ai_client: AOAIClient, test_images: List[Path]) -> None:
+async def test_analyze_single_local_image(analyzer: ImageAnalyzer, test_images: List[Path]) -> None:
     """Test analyzing a single local image."""
-    result = await analyze_images(ai_client, test_images[0])
+    result = await analyzer.analyze_single_image(test_images[0])
     assert isinstance(result, SingleImageAnalysis)
     assert result.description, "Should provide a description"
     assert len(result.objects) > 0, "Should identify objects"
@@ -74,9 +79,9 @@ async def test_analyze_single_local_image(ai_client: AOAIClient, test_images: Li
 
 
 @pytest.mark.asyncio
-async def test_analyze_single_url_image(ai_client: AOAIClient, test_image_urls: List[str]) -> None:
+async def test_analyze_single_url_image(analyzer: ImageAnalyzer, test_image_urls: List[str]) -> None:
     """Test analyzing a single image from URL."""
-    result = await analyze_images(ai_client, test_image_urls[0])
+    result = await analyzer.analyze_single_image(test_image_urls[0])
     assert isinstance(result, SingleImageAnalysis)
     assert result.description, "Should provide a description"
 
@@ -91,21 +96,27 @@ async def test_analyze_single_url_image(ai_client: AOAIClient, test_image_urls: 
 )
 @pytest.mark.asyncio
 async def test_analyze_images_with_various_models(
-    ai_client: AOAIClient, test_images: List[Path], model_name: str, expected_exception, error_message: str
+    ai_client: AOAIClient,
+    test_images: List[Path],
+    model_name: str,
+    expected_exception,
+    error_message: str
 ) -> None:
     """Test image analysis with various models."""
     if expected_exception:
         with pytest.raises(expected_exception) as exc_info:
-            await analyze_images(ai_client, test_images[0], model_name=model_name)
+            analyzer = ImageAnalyzer(ai_client, model_name=model_name)
+            await analyzer.analyze_single_image(test_images[0])
         assert error_message in str(exc_info.value)
     else:
-        result = await analyze_images(ai_client, test_images[0], model_name=model_name)
+        analyzer = ImageAnalyzer(ai_client, model_name=model_name)
+        result = await analyzer.analyze_single_image(test_images[0])
         assert isinstance(result, SingleImageAnalysis)
         assert result.description, "Should provide a description"
 
 
 @pytest.mark.asyncio
-async def test_mime_type_validation(ai_client: AOAIClient) -> None:
+async def test_mime_type_validation(analyzer: ImageAnalyzer) -> None:
     """Test MIME type validation."""
     # Resolve the path explicitly
     temp_file = (Path(__file__).parent / "test_assets" / "unsupported_format_image.webp").resolve()
@@ -116,32 +127,32 @@ async def test_mime_type_validation(ai_client: AOAIClient) -> None:
 
     # Test the behavior with the unsupported .webp file
     with pytest.raises(ImageValidationError) as exc_info:
-        await analyze_images(ai_client, str(temp_file))
+        await analyzer.analyze_single_image(str(temp_file))
 
     # Assert the exception contains the expected message
     assert "Unsupported image format" in str(exc_info.value), "Expected unsupported image format error"
 
 
 @pytest.mark.asyncio
-async def test_token_limit_validation(ai_client: AOAIClient, test_images: List[Path]) -> None:
+async def test_token_limit_validation(analyzer: ImageAnalyzer, test_images: List[Path]) -> None:
     """Test token limit validation."""
     model_config = get_model("gpt-4o", provider=ModelProvider.AZURE)
     max_tokens = model_config.capabilities.max_output_tokens
 
     # Test with tokens within limit
-    result = await analyze_images(ai_client, test_images[0], max_tokens=1000)
+    result = await analyzer.analyze_single_image(test_images[0], max_tokens=1000)
     assert result.description, "Should provide a description"
 
     # Test with tokens exceeding limit
     with pytest.raises(ImageValidationError) as exc_info:
-        await analyze_images(ai_client, test_images[0], max_tokens=max_tokens + 1000)
+        await analyzer.analyze_single_image(test_images[0], max_tokens=max_tokens + 1000)
     assert "exceeds model limit" in str(exc_info.value)
 
 
 @pytest.mark.asyncio
-async def test_image_set_analysis(ai_client: AOAIClient, test_images: List[Path]) -> None:
+async def test_image_set_analysis(analyzer: ImageAnalyzer, test_images: List[Path]) -> None:
     """Test image set analysis."""
-    result = await interpretImageSet(ai_client, test_images, model_name="gpt-4o")
+    result = await analyzer.analyze_image_set(test_images)
     assert isinstance(result, ImageSetAnalysis)
     assert result.summary, "Should provide a summary"
     assert len(result.common_objects) > 0, "Should identify common objects"
@@ -161,3 +172,6 @@ def test_model_capabilities_access() -> None:
     assert model.capabilities.supports_vision is True
     assert isinstance(model.capabilities.max_output_tokens, int)
     assert model.supported_mime_types is not None
+
+
+  #  pytest -v tests/functions/writer/test_validation.py -v

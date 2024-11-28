@@ -1,11 +1,9 @@
 """Vision analysis functions."""
 from .image_analysis import (
+    ImageAnalyzer,
     SingleImageAnalysis,
     ImageSetAnalysis,
-    analyze_images,
-    interpretImages,
-    interpretImageSet,
-    encode_image_to_base64
+    encode_image_to_base64,
 )
 from dataclasses import dataclass
 from typing import List, Optional
@@ -24,10 +22,8 @@ class ImageAnalysisResponse:
     brands: Optional[List[str]] = None
 
 __all__ = [
-    'SingleImageAnalysis',
-    'ImageSetAnalysis',
-    'analyze_images',
-    'interpretImages',
-    'interpretImageSet',
-    'encode_image_to_base64'
+    "ImageAnalyzer",
+    "SingleImageAnalysis",
+    "ImageSetAnalysis",
+    "encode_image_to_base64",
 ] 

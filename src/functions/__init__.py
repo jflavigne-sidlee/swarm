@@ -1,16 +1,14 @@
 """Functions module."""
 from .vision import (
+    ImageAnalyzer,
     SingleImageAnalysis,
     ImageSetAnalysis,
-    analyze_images,
-    interpretImages,
-    interpretImageSet
+    encode_image_to_base64,
 )
 
 __all__ = [
-    'SingleImageAnalysis',
-    'ImageSetAnalysis',
-    'analyze_images',
-    'interpretImages',
-    'interpretImageSet'
+    "ImageAnalyzer",
+    "SingleImageAnalysis", 
+    "ImageSetAnalysis",
+    "encode_image_to_base64",
 ] 
