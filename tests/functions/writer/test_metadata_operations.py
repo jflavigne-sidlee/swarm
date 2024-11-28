@@ -101,3 +101,5 @@ class TestMetadataOperations:
             'author': 'Author',
             'date': '2024-01-01'
         } 
+
+# pytest tests/functions/writer/test_metadata_operations.py -v -s
