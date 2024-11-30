@@ -1,11 +1,10 @@
-from typing import List, Optional, Union, Dict, Any, Final, Tuple
+from typing import List, Optional, Union, Dict, Any, Final, Tuple, Type
 from pathlib import Path
 import base64
 from pydantic import Field, HttpUrl, field_validator, ConfigDict
 from pydantic_settings import BaseSettings
 from instructor import OpenAISchema, patch
 from instructor.multimodal import Image as InstructorImage
-import instructor
 import os
 import mimetypes
 from instructor.exceptions import InstructorRetryException
@@ -14,7 +13,6 @@ from pydantic import ValidationError
 import logging
 import asyncio
 import aiohttp
-from aiohttp import ClientError, ClientTimeout
 from dataclasses import dataclass
 import aiofiles
 from aiofiles.os import stat as aio_stat
@@ -483,6 +481,48 @@ class ImageAnalyzer:
         """Prepare multiple images concurrently."""
         return await asyncio.gather(*[self.prepare_image(img) for img in images])
 
+    async def perform_analysis(
+        self, 
+        images: List[InstructorImage], 
+        prompt: str, 
+        max_tokens: int, 
+        response_model: Type[OpenAISchema]
+    ) -> Any:
+        """Perform analysis on one or more images.
+        
+        Args:
+            images: List of prepared images
+            prompt: Analysis prompt
+            max_tokens: Maximum tokens for response
+            response_model: Pydantic model for response
+            
+        Returns:
+            Analysis result matching response_model type
+        """
+        self.logger.info(LOG_ANALYSIS_STARTED.format(model=self.model_name))
+        
+        try:
+            completion = self.client.chat.completions.create(
+                model=self.model_config.deployment_name or self.model_config.name,
+                messages=[{
+                    "role": "user",
+                    "content": [prompt, *images]
+                }],
+                max_tokens=max_tokens,
+                temperature=self.model_config.capabilities.default_temperature,
+                response_model=response_model
+            )
+            
+            self.logger.info(LOG_ANALYSIS_COMPLETED)
+            return completion
+            
+        except InstructorRetryException as e:
+            self.logger.warning(LOG_RETRY_ATTEMPT.format(attempts=e.n_attempts, error=str(e)))
+            raise APIError(ERROR_RETRY_FAILED.format(attempts=e.n_attempts, error=str(e)))
+        except Exception as e:
+            self.logger.error(LOG_UNEXPECTED_ERROR.format(error=str(e)))
+            raise APIError(ERROR_API.format(error=str(e)))
+
     async def analyze_single_image(
         self,
         image: Union[str, Path, HttpUrl],
@@ -493,8 +533,6 @@ class ImageAnalyzer:
         download_timeout: Optional[float] = None
     ) -> SingleImageAnalysis:
         """Analyze a single image."""
-        self.logger.info(LOG_ANALYSIS_STARTED.format(model=self.model_name))
-        
         # Store original timeouts
         original_url_timeout = self.url_timeout
         original_download_timeout = self.download_timeout
@@ -519,26 +557,13 @@ class ImageAnalyzer:
                 "- Image quality assessment"
             )
             
-            completion = self.client.chat.completions.create(
-                model=self.model_config.deployment_name or self.model_config.name,
-                messages=[{
-                    "role": "user",
-                    "content": [prompt or default_prompt, image_content]
-                }],
+            return await self.perform_analysis(
+                images=[image_content],
+                prompt=prompt or default_prompt,
                 max_tokens=max_tokens,
-                temperature=self.model_config.capabilities.default_temperature,
                 response_model=SingleImageAnalysis
             )
-            
-            self.logger.info(LOG_ANALYSIS_COMPLETED)
-            return completion
-            
-        except ImageValidationError as e:
-            # Re-raise validation errors directly
-            raise
-        except Exception as e:
-            self.logger.error(LOG_UNEXPECTED_ERROR.format(error=str(e)))
-            raise APIError(ERROR_API.format(error=str(e)))
+                
         finally:
             # Restore original timeouts
             self.url_timeout = original_url_timeout
@@ -551,11 +576,9 @@ class ImageAnalyzer:
         max_tokens: Optional[int] = None
     ) -> ImageSetAnalysis:
         """Analyze a set of images concurrently."""
-        self.logger.info(LOG_ANALYSIS_STARTED.format(model=self.model_name))
-        max_tokens = self._validate_max_tokens(max_tokens)
-        
         # Prepare all images concurrently
         image_contents = await self.prepare_images(images)
+        max_tokens = self._validate_max_tokens(max_tokens)
         
         default_prompt = (
             "Analyze these images as a set and provide a structured response including:\n"
@@ -565,24 +588,9 @@ class ImageAnalyzer:
             "- Detailed comparison between images"
         )
 
-        try:
-            completion = self.client.chat.completions.create(
-                model=self.model_config.deployment_name or self.model_config.name,
-                messages=[{
-                    "role": "user",
-                    "content": [prompt or default_prompt, *image_contents]
-                }],
-                max_tokens=max_tokens,
-                temperature=self.model_config.capabilities.default_temperature,
-                response_model=ImageSetAnalysis,
-                max_retries=self._get_retry_config()
-            )
-            self.logger.info(LOG_ANALYSIS_COMPLETED)
-            return completion
-
-        except InstructorRetryException as e:
-            self.logger.warning(LOG_RETRY_ATTEMPT.format(attempts=e.n_attempts, error=str(e)))
-            raise APIError(ERROR_RETRY_FAILED.format(attempts=e.n_attempts, error=str(e)))
-        except Exception as e:
-            self.logger.error(LOG_UNEXPECTED_ERROR.format(error=str(e)))
-            raise APIError(ERROR_API.format(error=str(e)))
+        return await self.perform_analysis(
+            images=image_contents,
+            prompt=prompt or default_prompt,
+            max_tokens=max_tokens,
+            response_model=ImageSetAnalysis
+        )
