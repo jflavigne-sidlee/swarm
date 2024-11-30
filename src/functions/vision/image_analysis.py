@@ -327,6 +327,86 @@ class ImageAnalyzer:
         mime_type = mimetypes.guess_type(str(path))[0]
         validate_mime_type(mime_type, self.model_config.supported_mime_types)
 
+    async def prepare_image_from_url(
+        self,
+        url: str,
+        timeout: float
+    ) -> InstructorImage:
+        """Prepare image content from a URL."""
+        timeout_obj = aiohttp.ClientTimeout(total=timeout)
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=timeout_obj) as response:
+                    if response.status != 200:
+                        raise ImageValidationError(f"Failed to fetch image: HTTP {response.status}")
+                    
+                    content_type = response.headers.get("content-type", "")
+                    if not content_type.startswith('image/'):
+                        raise ImageValidationError("URL does not point to an image resource")
+                    
+                    validate_mime_type(content_type, self.model_config.supported_mime_types)
+                    
+                    try:
+                        image_data = await asyncio.wait_for(
+                            response.read(),
+                            timeout=timeout
+                        )
+                    except asyncio.TimeoutError:
+                        raise ImageValidationError(
+                            f"Timeout while downloading image: {url} (timeout: {timeout}s)"
+                        )
+
+        except asyncio.TimeoutError:
+            raise ImageValidationError(
+                f"Timeout while downloading image: {url} (timeout: {timeout}s)"
+            )
+        except aiohttp.ClientError as e:
+            if isinstance(e, aiohttp.ServerTimeoutError):
+                raise ImageValidationError(
+                    f"Timeout while downloading image: {url} (timeout: {timeout}s)"
+                )
+            raise ImageValidationError(f"Failed to download image: {str(e)}")
+
+        base64_content = base64.b64encode(image_data).decode("utf-8")
+        return InstructorImage(
+            source=url,
+            source_type="url",
+            media_type=content_type,
+            data=base64_content
+        )
+
+    async def prepare_image_from_file(
+        self,
+        path: Path,
+        max_size: int
+    ) -> InstructorImage:
+        """Prepare image content from a local file."""
+        mime_type = mimetypes.guess_type(str(path))[0]
+        
+        # Validate file and mime type
+        await validate_file(path, max_size, SUPPORTED_IMAGE_FORMATS)
+        validate_mime_type(mime_type, self.model_config.supported_mime_types)
+        
+        # Verify image can be opened
+        try:
+            with Image.open(path) as img:
+                if not img.format:
+                    raise ImageValidationError("Invalid or corrupted image file")
+        except (IOError, OSError) as e:
+            raise ImageValidationError(f"Failed to process image: {str(e)}")
+
+        # Read file content
+        async with aiofiles.open(str(path), "rb") as file:
+            image_data = await file.read()
+
+        base64_content = base64.b64encode(image_data).decode("utf-8")
+        return InstructorImage(
+            source=str(path),
+            source_type="local_file",
+            media_type=mime_type,
+            data=base64_content
+        )
+
     async def prepare_image_content(
         self,
         image_source: Union[str, Path],
@@ -336,77 +416,20 @@ class ImageAnalyzer:
         """Prepare image content from a URL or local file."""
         try:
             if is_url:
-                # Handle URL-specific validation and download
-                timeout_obj = aiohttp.ClientTimeout(total=timeout or self.download_timeout)
-                try:
-                    async with aiohttp.ClientSession() as session:
-                        async with session.get(image_source, timeout=timeout_obj) as response:
-                            if response.status != 200:
-                                raise ImageValidationError(f"Failed to fetch image: HTTP {response.status}")
-                            
-                            content_type = response.headers.get("content-type", "")
-                            if not content_type.startswith('image/'):
-                                raise ImageValidationError("URL does not point to an image resource")
-                            
-                            validate_mime_type(content_type, self.model_config.supported_mime_types)
-                            
-                            try:
-                                image_data = await asyncio.wait_for(
-                                    response.read(),
-                                    timeout=timeout or self.download_timeout
-                                )
-                            except asyncio.TimeoutError:
-                                raise ImageValidationError(
-                                    f"Timeout while downloading image: {image_source} "
-                                    f"(timeout: {timeout or self.download_timeout}s)"
-                                )
-                except asyncio.TimeoutError:
-                    raise ImageValidationError(
-                        f"Timeout while downloading image: {image_source} "
-                        f"(timeout: {timeout or self.download_timeout}s)"
-                    )
-                except aiohttp.ClientError as e:
-                    if isinstance(e, aiohttp.ServerTimeoutError):
-                        raise ImageValidationError(
-                            f"Timeout while downloading image: {image_source} "
-                            f"(timeout: {timeout or self.download_timeout}s)"
-                        )
-                    raise ImageValidationError(f"Failed to download image: {str(e)}")
+                prepared_image = await self.prepare_image_from_url(
+                    image_source,
+                    timeout or self.download_timeout
+                )
             else:
-                # Handle local file validation and reading
                 path = Path(image_source)
-                mime_type = mimetypes.guess_type(str(path))[0]
-                
-                # Validate file and mime type
-                await validate_file(path, self.config.max_image_size, SUPPORTED_IMAGE_FORMATS)
-                validate_mime_type(mime_type, self.model_config.supported_mime_types)
-                
-                async with aiofiles.open(str(path), "rb") as file:
-                    image_data = await file.read()
-                    
-                # Verify image can be opened
-                try:
-                    with Image.open(path) as img:
-                        if not img.format:
-                            return ImageProcessingResult(
-                                success=False,
-                                error="Invalid or corrupted image file"
-                            )
-                except (IOError, OSError) as e:
-                    return ImageProcessingResult(
-                        success=False,
-                        error=f"Failed to process image: {str(e)}"
-                    )
-
-            base64_content = base64.b64encode(image_data).decode("utf-8")
+                prepared_image = await self.prepare_image_from_file(
+                    path,
+                    self.config.max_image_size
+                )
+            
             return ImageProcessingResult(
                 success=True,
-                image=InstructorImage(
-                    source=str(image_source),
-                    source_type="url" if is_url else "local_file",
-                    media_type=content_type if is_url else mime_type,
-                    data=base64_content
-                ),
+                image=prepared_image,
                 source=image_source
             )
         except Exception as e:
