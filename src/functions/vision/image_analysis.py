@@ -101,16 +101,20 @@ def _check_file_size(path: Path) -> None:
             ERROR_IMAGE_SIZE.format(limit=MAX_IMAGE_SIZE / (1024 * 1024))
         )
 
-def _check_mime_type(path: Path, supported_mime_types: List[str]) -> None:
-    """Check if file MIME type is supported."""
-    mime_type = mimetypes.guess_type(str(path))[0]
+def validate_mime_type(mime_type: Optional[str], supported_mime_types: List[str]) -> None:
+    """Validate MIME type against a list of supported types."""
     if mime_type not in supported_mime_types:
         raise ImageValidationError(
             ERROR_MIME_TYPE.format(
-                mime_type=mime_type,
+                mime_type=mime_type or "unknown",
                 supported=", ".join(supported_mime_types)
             )
         )
+
+def _check_mime_type(path: Path, supported_mime_types: List[str]) -> None:
+    """Check if file MIME type is supported."""
+    mime_type = mimetypes.guess_type(str(path))[0]
+    validate_mime_type(mime_type, supported_mime_types)
 
 
 class SingleImageAnalysis(OpenAISchema):
@@ -337,13 +341,7 @@ class ImageAnalyzer:
             )
 
         mime_type = mimetypes.guess_type(str(path))[0]
-        if mime_type not in self.model_config.supported_mime_types:
-            raise ImageValidationError(
-                ERROR_MIME_TYPE.format(
-                    mime_type=mime_type,
-                    supported=", ".join(self.model_config.supported_mime_types)
-                )
-            )
+        validate_mime_type(mime_type, self.model_config.supported_mime_types)
 
     async def _prepare_single_image(
         self, 
@@ -435,8 +433,7 @@ class ImageAnalyzer:
                     'image/jpeg', 'image/png', 'image/gif'
                 ]
                 
-                if mime_type not in supported_mime_types:
-                    return ImageProcessingResult(success=False, error=f"Unsupported MIME type: {mime_type}")
+                validate_mime_type(mime_type, supported_mime_types)
 
                 # Try to open the image to validate it
                 try:
