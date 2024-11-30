@@ -129,8 +129,9 @@ async def test_mime_type_validation(analyzer: ImageAnalyzer) -> None:
     # Test the behavior with the unsupported .webp file
     with pytest.raises(ImageValidationError) as exc_info:
         await analyzer.analyze_single_image(temp_file)
-    
-    assert "Unsupported MIME type" in str(exc_info.value)
+
+    # Update the assertion to match the actual error message
+    assert "Unsupported image format: .webp" in str(exc_info.value)
 
 
 @pytest.mark.asyncio

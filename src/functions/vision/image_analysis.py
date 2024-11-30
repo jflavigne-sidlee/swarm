@@ -84,23 +84,6 @@ def encode_image_to_base64(image_path: Union[str, Path]) -> str:
         return base64.b64encode(image_file.read()).decode("utf-8")
 
 
-def _check_file_exists(path: Path) -> None:
-    """Check if file exists at given path."""
-    if not path.exists():
-        raise ImageValidationError(ERROR_IMAGE_SOURCE.format(source=path))
-
-def _check_file_format(path: Path) -> None:
-    """Check if file format is supported."""
-    if path.suffix.lower() not in SUPPORTED_IMAGE_FORMATS:
-        raise ImageValidationError(ERROR_IMAGE_FORMAT.format(format=path.suffix))
-
-def _check_file_size(path: Path) -> None:
-    """Check if file size is within limits."""
-    if path.stat().st_size > MAX_IMAGE_SIZE:
-        raise ImageValidationError(
-            ERROR_IMAGE_SIZE.format(limit=MAX_IMAGE_SIZE / (1024 * 1024))
-        )
-
 def validate_mime_type(mime_type: Optional[str], supported_mime_types: List[str]) -> None:
     """Validate MIME type against a list of supported types."""
     if mime_type not in supported_mime_types:
@@ -111,10 +94,17 @@ def validate_mime_type(mime_type: Optional[str], supported_mime_types: List[str]
             )
         )
 
-def _check_mime_type(path: Path, supported_mime_types: List[str]) -> None:
-    """Check if file MIME type is supported."""
-    mime_type = mimetypes.guess_type(str(path))[0]
-    validate_mime_type(mime_type, supported_mime_types)
+async def validate_file(path: Path, max_size: int, supported_formats: List[str]) -> None:
+    """Validate local file for existence, size, and format."""
+    if not path.exists():
+        raise ImageValidationError(ERROR_IMAGE_SOURCE.format(source=path))
+
+    if path.suffix.lower() not in supported_formats:
+        raise ImageValidationError(ERROR_IMAGE_FORMAT.format(format=path.suffix))
+
+    file_size = (await aio_stat(str(path))).st_size
+    if file_size > max_size:
+        raise ImageValidationError(ERROR_IMAGE_SIZE.format(limit=max_size / (1024 * 1024)))
 
 
 class SingleImageAnalysis(OpenAISchema):
@@ -328,18 +318,12 @@ class ImageAnalyzer:
 
     async def _validate_local_image_async(self, path: Path) -> None:
         """Validate local image file asynchronously."""
-        if not path.exists():
-            raise ImageValidationError(ERROR_IMAGE_SOURCE.format(source=path))
-
-        if path.suffix.lower() not in SUPPORTED_IMAGE_FORMATS:
-            raise ImageValidationError(ERROR_IMAGE_FORMAT.format(format=path.suffix))
-
-        file_size = await self._get_file_size_async(path)
-        if file_size > self.config.max_image_size:
-            raise ImageValidationError(
-                ERROR_IMAGE_SIZE.format(limit=self.config.max_image_size / (1024 * 1024))
-            )
-
+        await validate_file(
+            path,
+            self.config.max_image_size,
+            SUPPORTED_IMAGE_FORMATS
+        )
+        
         mime_type = mimetypes.guess_type(str(path))[0]
         validate_mime_type(mime_type, self.model_config.supported_mime_types)
 
@@ -417,38 +401,42 @@ class ImageAnalyzer:
                     raise ImageValidationError(f"Failed to download image: {str(e)}")
             else:
                 image_path = Path(image)
-                if not image_path.exists():
-                    return ImageProcessingResult(success=False, error=f"Image file not found: {image}")
-
-                # Get MIME type and validate it first
+                # Get MIME type before validation
                 mime_type = mimetypes.guess_type(str(image_path))[0]
-                if not mime_type:
-                    return ImageProcessingResult(success=False, error="Could not determine MIME type")
                 
-                # Make sure Python knows about webp MIME type
-                mimetypes.add_type('image/webp', '.webp')
+                # Validate file using our new utility
+                await validate_file(
+                    image_path,
+                    self.config.max_image_size,
+                    SUPPORTED_IMAGE_FORMATS
+                )
                 
-                # Check against supported types
-                supported_mime_types = [
-                    'image/jpeg', 'image/png', 'image/gif'
-                ]
-                
-                validate_mime_type(mime_type, supported_mime_types)
+                # Validate MIME type
+                validate_mime_type(mime_type, self.model_config.supported_mime_types)
 
                 # Try to open the image to validate it
                 try:
                     with Image.open(image_path) as img:
                         if not img.format:
-                            return ImageProcessingResult(success=False, error="Invalid or corrupted image file")
+                            return ImageProcessingResult(
+                                success=False, 
+                                error="Invalid or corrupted image file"
+                            )
                 except (IOError, OSError) as e:
-                    return ImageProcessingResult(success=False, error=f"Failed to process image: {str(e)}")
+                    return ImageProcessingResult(
+                        success=False, 
+                        error=f"Failed to process image: {str(e)}"
+                    )
 
                 # Read the file content
                 try:
                     with open(image_path, 'rb') as f:
                         image_data = f.read()
                 except IOError as e:
-                    return ImageProcessingResult(success=False, error=f"Failed to read image file: {str(e)}")
+                    return ImageProcessingResult(
+                        success=False, 
+                        error=f"Failed to read image file: {str(e)}"
+                    )
 
                 base64_content = base64.b64encode(image_data).decode('utf-8')
                 prepared_image = instructor.Image(
