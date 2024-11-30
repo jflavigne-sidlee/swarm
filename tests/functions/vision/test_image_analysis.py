@@ -13,6 +13,7 @@ from src.aoai.client import AOAIClient
 from src.models.base import ModelProvider
 from src.models.config import get_model
 from src.exceptions.vision import ImageValidationError
+from instructor.multimodal import Image as InstructorImage
 
 
 # Test fixtures and utilities
@@ -127,10 +128,9 @@ async def test_mime_type_validation(analyzer: ImageAnalyzer) -> None:
 
     # Test the behavior with the unsupported .webp file
     with pytest.raises(ImageValidationError) as exc_info:
-        await analyzer.analyze_single_image(str(temp_file))
-
-    # Assert the exception contains the expected message
-    assert "Unsupported image format" in str(exc_info.value), "Expected unsupported image format error"
+        await analyzer.analyze_single_image(temp_file)
+    
+    assert "Unsupported MIME type" in str(exc_info.value)
 
 
 @pytest.mark.asyncio
@@ -174,4 +174,96 @@ def test_model_capabilities_access() -> None:
     assert model.supported_mime_types is not None
 
 
-  #  pytest -v tests/functions/writer/test_validation.py -v
+@pytest.mark.asyncio
+async def test_url_validation_timeouts(analyzer: ImageAnalyzer) -> None:
+    """Test URL validation with various timeout scenarios."""
+    # Test timeout during URL validation
+    with pytest.raises(ImageValidationError) as exc_info:
+        await analyzer.analyze_single_image(
+            "https://very-slow-domain.com/image.jpg",
+            url_timeout=0.001  # Very short timeout
+        )
+    assert "Timeout while accessing URL" in str(exc_info.value)
+
+    # Test timeout during image download
+    with pytest.raises(ImageValidationError) as exc_info:
+        await analyzer.analyze_single_image(
+            "https://very-slow-domain.com/large-image.jpg",
+            download_timeout=0.001  # Very short timeout
+        )
+    assert "Timeout while downloading image" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_url_content_type_validation(analyzer: ImageAnalyzer) -> None:
+    """Test URL content type validation."""
+    # Test URL that returns non-image content type
+    with pytest.raises(ImageValidationError) as exc_info:
+        await analyzer.analyze_single_image("https://example.com/not-an-image.txt")
+    assert "URL does not point to an image resource" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_concurrent_image_processing(analyzer: ImageAnalyzer, test_images: List[Path]) -> None:
+    """Test concurrent processing of multiple images."""
+    # Create a list of duplicate images for testing
+    multiple_images = test_images * 3
+    
+    # Test prepare_images method directly
+    prepared_images = await analyzer.prepare_images(multiple_images)
+    assert len(prepared_images) == len(multiple_images)
+    assert all(isinstance(img, InstructorImage) for img in prepared_images)
+
+    # Test analyze_image_set with multiple images
+    result = await analyzer.analyze_image_set(multiple_images)
+    assert isinstance(result, ImageSetAnalysis)
+    assert result.summary
+    assert len(result.common_objects) > 0
+
+
+@pytest.mark.asyncio
+async def test_custom_prompts(analyzer: ImageAnalyzer, test_images: List[Path]) -> None:
+    """Test analysis with custom prompts."""
+    custom_prompt = "Focus only on identifying the colors present in this image."
+    
+    # Test single image analysis with custom prompt
+    single_result = await analyzer.analyze_single_image(
+        test_images[0],
+        prompt=custom_prompt
+    )
+    assert single_result.colors, "Should identify colors when specifically prompted"
+    
+    # Test image set analysis with custom prompt
+    set_prompt = "Compare only the lighting conditions in these images."
+    set_result = await analyzer.analyze_image_set(
+        test_images,
+        prompt=set_prompt
+    )
+    assert "lighting" in set_result.comparative_analysis.lower()
+
+
+@pytest.mark.asyncio
+async def test_corrupted_image_handling(analyzer: ImageAnalyzer, tmp_path: Path) -> None:
+    """Test handling of corrupted image files."""
+    # Create a corrupted image file
+    corrupted_file = tmp_path / "corrupted.jpg"
+    corrupted_file.write_bytes(b"Not a valid image content")
+    
+    with pytest.raises(ImageValidationError) as exc_info:
+        await analyzer.analyze_single_image(corrupted_file)
+    assert "Failed to process image" in str(exc_info.value)
+
+
+@pytest.fixture
+def corrupted_image(tmp_path: Path) -> Path:
+    """Fixture to provide a corrupted image file."""
+    corrupted_file = tmp_path / "corrupted.jpg"
+    corrupted_file.write_bytes(b"Not a valid image content")
+    return corrupted_file
+
+@pytest.fixture
+def non_image_url() -> str:
+    """Fixture to provide a URL that doesn't point to an image."""
+    return "https://example.com/not-an-image.txt"
+
+  #  pytest -v tests/functions/vision/test_image_analysis.py -v
