@@ -609,26 +609,47 @@ class ImageAnalyzer:
         
         Returns:
             List of successfully processed InstructorImage objects, with None for failed items
+        
+        Notes:
+            - Failed image processing returns None instead of raising exceptions
+            - Errors are logged at ERROR level with basic info and DEBUG level with full traceback
+            - The batch continues processing even if individual images fail
+            - URLs and local file paths are both supported in the input list
         """
         async def safe_prepare_image(img: str) -> Optional[InstructorImage]:
+            """
+            Safely prepare a single image with error handling.
+            
+            Args:
+                img: Image path or URL to process
+            
+            Returns:
+                InstructorImage if successful, None if processing failed
+            
+            Note:
+                Exceptions are caught and logged rather than propagated
+            """
             try:
                 return await self.prepare_image(img)
             except Exception as e:
+                # Log error at ERROR level for monitoring
                 logger.error(
                     ERROR_IMAGE_PROCESSING_FAILED.format(error=str(e))
                 )
+                # Log detailed traceback at DEBUG level for troubleshooting
                 logger.debug(
                     LOG_OPERATION_FAILED.format(error=str(e)),
                     exc_info=True
                 )
                 return None
 
+        # Process all images concurrently, suppressing exceptions
         results = await asyncio.gather(
             *(safe_prepare_image(img) for img in images),
             return_exceptions=False
         )
         
-        # Filter out None values from failed operations
+        # Remove failed operations (None values) from results
         successful_images = [img for img in results if img is not None]
         
         return successful_images
