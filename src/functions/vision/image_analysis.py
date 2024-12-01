@@ -22,7 +22,11 @@ from ...models.config import get_model, ModelProvider
 from ...models.base import ModelConfig
 from ...exceptions.vision import ImageValidationError, APIError, ImageAnalysisError
 from .constants import (
+    BINARY_READ_MODE,
+    CONTENT_TYPE_HEADER,
+    DATA_URL_PREFIX,
     DEFAULT_DOWNLOAD_TIMEOUT,
+    DEFAULT_ENCODING,
     DEFAULT_LOG_LEVEL,
     DEFAULT_MAX_IMAGE_SIZE,
     DEFAULT_MAX_RETRIES,
@@ -42,22 +46,33 @@ from .constants import (
     ERROR_MODEL_CAPABILITY,
     ERROR_MODEL_CONFIG,
     ERROR_RETRY_FAILED,
+    ERROR_TEMPLATE_SCENE_TYPE,
     ERROR_TOKEN_LIMIT,
     ERROR_URL_ACCESS_FAILED,
     ERROR_URL_NOT_ACCESSIBLE,
     ERROR_URL_NOT_IMAGE,
     ERROR_URL_TIMEOUT,
+    ENV_PREFIX,
+    HTTP_PREFIX, 
+    HTTPS_PREFIX,
+    IMAGE_CONTENT_TYPE_PREFIX,
     IMAGE_TYPE_KEY,
     IMAGE_TYPE_URL,
     IMAGE_URL_KEY,
     ImageAnalysisDescriptions,
+    LOCAL_FILE_SOURCE_TYPE,
     LOG_ANALYSIS_COMPLETED,
     LOG_ANALYSIS_STARTED,
     LOG_MODEL_VALIDATION,
     LOG_RETRY_ATTEMPT,
     LOG_UNEXPECTED_ERROR,
+    PROTECTED_NAMESPACE,
+    SCENE_TYPE_TEMPLATE_PATTERNS,
     SUPPORTED_IMAGE_FORMATS,
+    UNKNOWN_MIME_TYPE,
 )
+
+
 
 @dataclass
 class ImageProcessingResult:
@@ -87,8 +102,8 @@ def encode_image_to_base64(image_path: Union[str, Path]) -> str:
     Returns:
         base64 encoded string of the image
     """
-    with open(str(image_path), "rb") as image_file:
-        return base64.b64encode(image_file.read()).decode("utf-8")
+    with open(str(image_path), BINARY_READ_MODE) as image_file:
+        return base64.b64encode(image_file.read()).decode(DEFAULT_ENCODING)
 
 
 def validate_mime_type(mime_type: Optional[str], supported_mime_types: List[str]) -> None:
@@ -96,7 +111,7 @@ def validate_mime_type(mime_type: Optional[str], supported_mime_types: List[str]
     if mime_type not in supported_mime_types:
         raise ImageValidationError(
             ERROR_MIME_TYPE.format(
-                mime_type=mime_type or "unknown",
+                mime_type=mime_type or UNKNOWN_MIME_TYPE,
                 supported=", ".join(supported_mime_types)
             )
         )
@@ -137,16 +152,8 @@ class SingleImageAnalysis(OpenAISchema):
         """Validate that scene_type is a meaningful value, not a template."""
         if v is None:
             return v
-        # Check for template-like responses
-        template_patterns = [
-            "type of scene",
-            "(indoor/outdoor)",
-            "[insert",
-            "scene type here",
-            "describe scene type"
-        ]
-        if any(pattern.lower() in v.lower() for pattern in template_patterns):
-            raise ValueError("Scene type must be a specific description, not a template")
+        if any(pattern.lower() in v.lower() for pattern in SCENE_TYPE_TEMPLATE_PATTERNS):
+            raise ValueError(ERROR_TEMPLATE_SCENE_TYPE.format(value=v))
         return v
 
 
@@ -170,7 +177,7 @@ class ImageSetAnalysis(OpenAISchema):
 
 def _prepare_image_content(image: InstructorImage) -> Dict[str, Any]:
     """Convert instructor Image to OpenAI API format."""
-    if image.source_type == "url":
+    if image.source_type == DATA_URL_PREFIX:
         return {
             IMAGE_TYPE_KEY: IMAGE_TYPE_URL,
             IMAGE_TYPE_URL: {IMAGE_URL_KEY: str(image.source)}
@@ -192,9 +199,9 @@ class ImageAnalyzerConfig(BaseSettings):
     max_image_size: int = int(os.getenv("IMAGE_ANALYZER_MAX_SIZE", str(DEFAULT_MAX_IMAGE_SIZE)))
     
     model_config = ConfigDict(
-        env_prefix="IMAGE_ANALYZER_",
+        env_prefix=ENV_PREFIX,
         case_sensitive=False,
-        protected_namespaces=('settings_',)
+        protected_namespaces=(PROTECTED_NAMESPACE,)
     )
 
 
@@ -290,8 +297,8 @@ class ImageAnalyzer:
                     allow_redirects=True
                 ) as response:
                     # Check content type first, regardless of status code
-                    content_type = response.headers.get('content-type', '')
-                    if not content_type.startswith('image/'):
+                    content_type = response.headers.get(CONTENT_TYPE_HEADER, '')
+                    if not content_type.startswith(IMAGE_CONTENT_TYPE_PREFIX):
                         raise ImageValidationError(
                             ERROR_URL_NOT_IMAGE.format(url=url)
                         )
@@ -313,7 +320,7 @@ class ImageAnalyzer:
 
     async def _read_file_async(self, path: Path) -> bytes:
         """Read file contents asynchronously."""
-        async with aiofiles.open(str(path), mode='rb') as file:
+        async with aiofiles.open(str(path), mode=BINARY_READ_MODE) as file:
             return await file.read()
 
     async def _get_file_size_async(self, path: Path) -> int:
@@ -343,8 +350,8 @@ class ImageAnalyzer:
                             ERROR_HTTP_FETCH_FAILED.format(status=response.status)
                         )
                     
-                    content_type = response.headers.get("content-type", "")
-                    if not content_type.startswith('image/'):
+                    content_type = response.headers.get(CONTENT_TYPE_HEADER, "")
+                    if not content_type.startswith(IMAGE_CONTENT_TYPE_PREFIX):
                         raise ImageValidationError(ERROR_URL_NOT_IMAGE.format(url=url))
                     
                     validate_mime_type(content_type, self.model_config.supported_mime_types)
@@ -370,10 +377,10 @@ class ImageAnalyzer:
                 )
             raise ImageValidationError(ERROR_URL_ACCESS_FAILED.format(url=url, error=str(e)))
 
-        base64_content = base64.b64encode(image_data).decode("utf-8")
+        base64_content = base64.b64encode(image_data).decode(DEFAULT_ENCODING)
         return InstructorImage(
             source=url,
-            source_type="url",
+            source_type=DATA_URL_PREFIX,
             media_type=content_type,
             data=base64_content
         )
@@ -399,13 +406,13 @@ class ImageAnalyzer:
             raise ImageValidationError(ERROR_IMAGE_PROCESSING.format(error=str(e)))
 
         # Read file content
-        async with aiofiles.open(str(path), "rb") as file:
+        async with aiofiles.open(str(path), BINARY_READ_MODE) as file:
             image_data = await file.read()
 
-        base64_content = base64.b64encode(image_data).decode("utf-8")
+        base64_content = base64.b64encode(image_data).decode(DEFAULT_ENCODING)
         return InstructorImage(
             source=str(path),
-            source_type="local_file",
+            source_type=LOCAL_FILE_SOURCE_TYPE,
             media_type=mime_type,
             data=base64_content
         )
@@ -444,8 +451,7 @@ class ImageAnalyzer:
     ) -> ImageProcessingResult:
         """Prepare a single image with error handling."""
         try:
-            is_url = isinstance(image, str) and image.startswith(('http://', 'https://'))
-            
+            is_url = isinstance(image, str) and image.startswith((HTTP_PREFIX, HTTPS_PREFIX))
             if is_url:
                 # Validate URL first if needed
                 should_validate = self.download_timeout > 0.1

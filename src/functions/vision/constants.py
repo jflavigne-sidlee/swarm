@@ -1,4 +1,4 @@
-from typing import Final
+from typing import Final, List
 from dataclasses import dataclass
 
 @dataclass(frozen=True)
@@ -89,3 +89,25 @@ ERROR_URL_ACCESS_FAILED: Final = "Failed to access URL {url}: {error}"
 ERROR_HTTP_FETCH_FAILED: Final = "Failed to fetch image: HTTP {status}"
 ERROR_INVALID_IMAGE_FILE: Final = "Invalid or corrupted image file"
 ERROR_IMAGE_PROCESSING: Final = "Failed to process image: {error}"
+ERROR_TEMPLATE_SCENE_TYPE = "Scene type must be a specific description, not a template. Received: {value}"
+
+SCENE_TYPE_TEMPLATE_PATTERNS: Final[List[str]] = [
+    "type of scene",
+    "(indoor/outdoor)",
+    "[insert",
+    "scene type here",
+    "describe scene type"
+]
+
+
+CONTENT_TYPE_HEADER: Final[str] = 'content-type'
+IMAGE_CONTENT_TYPE_PREFIX: Final[str] = 'image/'
+BINARY_READ_MODE: Final[str] = "rb"
+DEFAULT_ENCODING: Final[str] = "utf-8"
+DATA_URL_PREFIX: Final[str] = "url"
+UNKNOWN_MIME_TYPE: Final[str] = "unknown"
+ENV_PREFIX: Final[str] = "IMAGE_ANALYZER_"
+PROTECTED_NAMESPACE: Final[str] = "settings_"
+LOCAL_FILE_SOURCE_TYPE: Final[str] = "local_file"
+HTTP_PREFIX: Final = 'http://'
+HTTPS_PREFIX: Final = 'https://'
