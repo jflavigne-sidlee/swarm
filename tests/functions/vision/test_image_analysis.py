@@ -192,7 +192,7 @@ async def test_url_validation_timeouts(analyzer: ImageAnalyzer) -> None:
             "https://very-slow-domain.com/large-image.jpg",
             download_timeout=0.001  # Very short timeout
         )
-    assert "Timeout while downloading image" in str(exc_info.value)
+    assert "Timeout while accessing URL" in str(exc_info.value)
 
 
 @pytest.mark.asyncio

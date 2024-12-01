@@ -22,29 +22,41 @@ from ...models.config import get_model, ModelProvider
 from ...models.base import ModelConfig
 from ...exceptions.vision import ImageValidationError, APIError, ImageAnalysisError
 from .constants import (
-    DEFAULT_MODEL_NAME,
-    DEFAULT_MAX_RETRIES,
-    DEFAULT_RETRY_DELAY,
+    DEFAULT_DOWNLOAD_TIMEOUT,
     DEFAULT_LOG_LEVEL,
     DEFAULT_MAX_IMAGE_SIZE,
+    DEFAULT_MAX_RETRIES,
     DEFAULT_MAX_TOKENS,
-    SUPPORTED_IMAGE_FORMATS,
-    LOG_UNEXPECTED_ERROR,
-    LOG_RETRY_ATTEMPT,
-    LOG_MODEL_VALIDATION,
-    LOG_ANALYSIS_STARTED,
-    LOG_ANALYSIS_COMPLETED,
-    ERROR_RETRY_FAILED,
-    ERROR_MODEL_CONFIG,
-    ERROR_MODEL_CAPABILITY,
-    ERROR_TOKEN_LIMIT,
-    ERROR_IMAGE_SOURCE,
-    ERROR_IMAGE_FORMAT,
-    ERROR_IMAGE_SIZE,
-    ERROR_MIME_TYPE,
-    ERROR_API,
+    DEFAULT_MODEL_NAME,
+    DEFAULT_RETRY_DELAY,
     DEFAULT_URL_TIMEOUT,
-    DEFAULT_DOWNLOAD_TIMEOUT,
+    ERROR_API,
+    ERROR_HTTP_FETCH_FAILED,
+    ERROR_IMAGE_FORMAT,
+    ERROR_IMAGE_PROCESSING,
+    ERROR_IMAGE_SIZE,
+    ERROR_IMAGE_SOURCE,
+    ERROR_INVALID_IMAGE_FILE,
+    ERROR_INVALID_URL,
+    ERROR_MIME_TYPE,
+    ERROR_MODEL_CAPABILITY,
+    ERROR_MODEL_CONFIG,
+    ERROR_RETRY_FAILED,
+    ERROR_TOKEN_LIMIT,
+    ERROR_URL_ACCESS_FAILED,
+    ERROR_URL_NOT_ACCESSIBLE,
+    ERROR_URL_NOT_IMAGE,
+    ERROR_URL_TIMEOUT,
+    IMAGE_TYPE_KEY,
+    IMAGE_TYPE_URL,
+    IMAGE_URL_KEY,
+    ImageAnalysisDescriptions,
+    LOG_ANALYSIS_COMPLETED,
+    LOG_ANALYSIS_STARTED,
+    LOG_MODEL_VALIDATION,
+    LOG_RETRY_ATTEMPT,
+    LOG_UNEXPECTED_ERROR,
+    SUPPORTED_IMAGE_FORMATS,
 )
 
 @dataclass
@@ -55,10 +67,7 @@ class ImageProcessingResult:
     error: Optional[str] = None
     source: Optional[Union[str, Path]] = None
 
-MAX_IMAGE_SIZE = 20 * 1024 * 1024  # 20MB
-SUPPORTED_IMAGE_FORMATS = {".jpg", ".jpeg", ".png", ".gif"}
-DEFAULT_MAX_TOKENS = 2000
-MIN_MAX_TOKENS = 100
+
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -108,21 +117,19 @@ async def validate_file(path: Path, max_size: int, supported_formats: List[str])
 class SingleImageAnalysis(OpenAISchema):
     """Analysis results for a single image."""
 
-    description: str = Field(
-        ..., description="Detailed description of the image content"
-    )
+    description: str = Field(..., description=ImageAnalysisDescriptions.DESCRIPTION)
     objects: List[str] = Field(
-        default_factory=list, description="Main objects identified in the image"
+        default_factory=list, description=ImageAnalysisDescriptions.OBJECTS
     )
     scene_type: Optional[str] = Field(
-        None, description="The type of scene (e.g., 'indoor', 'outdoor', 'urban', 'nature', etc.)"
+        None, description=ImageAnalysisDescriptions.SCENE_TYPE
     )
     colors: List[str] = Field(
-        default_factory=list, description="Dominant colors in the image"
+        default_factory=list, description=ImageAnalysisDescriptions.COLORS
     )
-    quality: Optional[str] = Field(None, description="Assessment of image quality")
+    quality: Optional[str] = Field(None, description=ImageAnalysisDescriptions.QUALITY)
     metadata: dict = Field(
-        default_factory=dict, description="Additional analysis metadata"
+        default_factory=dict, description=ImageAnalysisDescriptions.METADATA
     )
 
     @field_validator("scene_type")
@@ -146,18 +153,18 @@ class SingleImageAnalysis(OpenAISchema):
 class ImageSetAnalysis(OpenAISchema):
     """Analysis results for a set of images."""
 
-    summary: str = Field(..., description="Overall summary comparing all images")
+    summary: str = Field(..., description=ImageAnalysisDescriptions.SUMMARY)
     common_objects: List[str] = Field(
-        default_factory=list, description="Objects found across multiple images"
+        default_factory=list, description=ImageAnalysisDescriptions.COMMON_OBJECTS
     )
     unique_features: List[str] = Field(
-        default_factory=list, description="Distinctive features of each image"
+        default_factory=list, description=ImageAnalysisDescriptions.UNIQUE_FEATURES
     )
     comparative_analysis: str = Field(
-        ..., description="Detailed comparison between images"
+        ..., description=ImageAnalysisDescriptions.COMPARATIVE_ANALYSIS
     )
     metadata: dict = Field(
-        default_factory=dict, description="Additional analysis metadata"
+        default_factory=dict, description=ImageAnalysisDescriptions.SET_METADATA
     )
 
 
@@ -165,13 +172,13 @@ def _prepare_image_content(image: InstructorImage) -> Dict[str, Any]:
     """Convert instructor Image to OpenAI API format."""
     if image.source_type == "url":
         return {
-            "type": "image_url",
-            "image_url": {"url": str(image.source)}
+            IMAGE_TYPE_KEY: IMAGE_TYPE_URL,
+            IMAGE_TYPE_URL: {IMAGE_URL_KEY: str(image.source)}
         }
     else:
         return {
-            "type": "image_url",
-            "image_url": {"url": f"data:{image.media_type};base64,{image.base64}"}
+            IMAGE_TYPE_KEY: IMAGE_TYPE_URL,
+            IMAGE_TYPE_URL: {IMAGE_URL_KEY: f"data:{image.media_type};base64,{image.base64}"}
         }
 
 
@@ -286,23 +293,23 @@ class ImageAnalyzer:
                     content_type = response.headers.get('content-type', '')
                     if not content_type.startswith('image/'):
                         raise ImageValidationError(
-                            f"URL does not point to an image resource: {url}"
+                            ERROR_URL_NOT_IMAGE.format(url=url)
                         )
                     
                     # Then check status code
                     if response.status != 200:
                         raise ImageValidationError(
-                            f"URL not accessible (status {response.status}): {url}"
+                            ERROR_URL_NOT_ACCESSIBLE.format(status=response.status, url=url)
                         )
                     
         except (asyncio.TimeoutError, aiohttp.ServerTimeoutError, aiohttp.ClientConnectorError):
             raise ImageValidationError(
-                f"Timeout while accessing URL: {url} (timeout: {timeout}s)"
+                ERROR_URL_TIMEOUT.format(url=url, timeout=timeout)
             )
         except aiohttp.ClientError as e:
             if isinstance(e, aiohttp.InvalidURL):
-                raise ImageValidationError(f"Invalid URL format: {url}")
-            raise ImageValidationError(f"Failed to access URL {url}: {str(e)}")
+                raise ImageValidationError(ERROR_INVALID_URL.format(url=url))
+            raise ImageValidationError(ERROR_URL_ACCESS_FAILED.format(url=url, error=str(e)))
 
     async def _read_file_async(self, path: Path) -> bytes:
         """Read file contents asynchronously."""
@@ -325,22 +332,20 @@ class ImageAnalyzer:
         mime_type = mimetypes.guess_type(str(path))[0]
         validate_mime_type(mime_type, self.model_config.supported_mime_types)
 
-    async def prepare_image_from_url(
-        self,
-        url: str,
-        timeout: float
-    ) -> InstructorImage:
+    async def prepare_image_from_url(self, url: str, timeout: float) -> InstructorImage:
         """Prepare image content from a URL."""
         timeout_obj = aiohttp.ClientTimeout(total=timeout)
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, timeout=timeout_obj) as response:
                     if response.status != 200:
-                        raise ImageValidationError(f"Failed to fetch image: HTTP {response.status}")
+                        raise ImageValidationError(
+                            ERROR_HTTP_FETCH_FAILED.format(status=response.status)
+                        )
                     
                     content_type = response.headers.get("content-type", "")
                     if not content_type.startswith('image/'):
-                        raise ImageValidationError("URL does not point to an image resource")
+                        raise ImageValidationError(ERROR_URL_NOT_IMAGE.format(url=url))
                     
                     validate_mime_type(content_type, self.model_config.supported_mime_types)
                     
@@ -351,19 +356,19 @@ class ImageAnalyzer:
                         )
                     except asyncio.TimeoutError:
                         raise ImageValidationError(
-                            f"Timeout while downloading image: {url} (timeout: {timeout}s)"
+                            ERROR_URL_TIMEOUT.format(url=url, timeout=timeout)
                         )
 
         except asyncio.TimeoutError:
             raise ImageValidationError(
-                f"Timeout while downloading image: {url} (timeout: {timeout}s)"
+                ERROR_URL_TIMEOUT.format(url=url, timeout=timeout)
             )
         except aiohttp.ClientError as e:
             if isinstance(e, aiohttp.ServerTimeoutError):
                 raise ImageValidationError(
-                    f"Timeout while downloading image: {url} (timeout: {timeout}s)"
+                    ERROR_URL_TIMEOUT.format(url=url, timeout=timeout)
                 )
-            raise ImageValidationError(f"Failed to download image: {str(e)}")
+            raise ImageValidationError(ERROR_URL_ACCESS_FAILED.format(url=url, error=str(e)))
 
         base64_content = base64.b64encode(image_data).decode("utf-8")
         return InstructorImage(
@@ -389,9 +394,9 @@ class ImageAnalyzer:
         try:
             with Image.open(path) as img:
                 if not img.format:
-                    raise ImageValidationError("Invalid or corrupted image file")
+                    raise ImageValidationError(ERROR_INVALID_IMAGE_FILE)
         except (IOError, OSError) as e:
-            raise ImageValidationError(f"Failed to process image: {str(e)}")
+            raise ImageValidationError(ERROR_IMAGE_PROCESSING.format(error=str(e)))
 
         # Read file content
         async with aiofiles.open(str(path), "rb") as file:

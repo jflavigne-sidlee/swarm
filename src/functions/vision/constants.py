@@ -1,4 +1,21 @@
 from typing import Final
+from dataclasses import dataclass
+
+@dataclass(frozen=True)
+class ImageAnalysisDescriptions:
+    """Constants for image analysis field descriptions."""
+    DESCRIPTION: str = "Detailed description of the image content"
+    OBJECTS: str = "Main objects identified in the image"
+    SCENE_TYPE: str = "The type of scene (e.g., 'indoor', 'outdoor', 'urban', 'nature', etc.)"
+    COLORS: str = "Dominant colors in the image"
+    QUALITY: str = "Assessment of image quality"
+    METADATA: str = "Additional analysis metadata"
+    SUMMARY: str = "Overall summary comparing all images"
+    COMMON_OBJECTS: str = "Objects found across multiple images"
+    UNIQUE_FEATURES: str = "Distinctive features of each image"
+    COMPARATIVE_ANALYSIS: str = "Detailed comparison between images"
+    SET_METADATA: str = "Additional metadata for image set analysis"
+
 
 # Operation status logs
 LOG_OPERATION_FAILED: Final = "Operation failed: {error}"
@@ -29,7 +46,6 @@ DEFAULT_RETRY_DELAY = 1
 DEFAULT_LOG_LEVEL = "WARNING"
 DEFAULT_MAX_IMAGE_SIZE = 20 * 1024 * 1024  # 20MB
 DEFAULT_MAX_TOKENS = 2000
-MIN_MAX_TOKENS = 100
 
 # Timeout settings
 DEFAULT_URL_TIMEOUT = 30  # seconds
@@ -59,3 +75,17 @@ ERROR_API = "API error during analysis: {error}"
 
 # Supported formats
 SUPPORTED_IMAGE_FORMATS = {".jpg", ".jpeg", ".png", ".gif"} 
+
+IMAGE_TYPE_URL: Final = "image_url"
+IMAGE_URL_KEY: Final = "url"
+IMAGE_TYPE_KEY: Final = "type"
+
+# Add these new constants
+ERROR_URL_NOT_IMAGE: Final = "URL does not point to an image resource: {url}"
+ERROR_URL_NOT_ACCESSIBLE: Final = "URL not accessible (status {status}): {url}"
+ERROR_URL_TIMEOUT: Final = "Timeout while accessing URL: {url} (timeout: {timeout}s)"
+ERROR_INVALID_URL: Final = "Invalid URL format: {url}"
+ERROR_URL_ACCESS_FAILED: Final = "Failed to access URL {url}: {error}"
+ERROR_HTTP_FETCH_FAILED: Final = "Failed to fetch image: HTTP {status}"
+ERROR_INVALID_IMAGE_FILE: Final = "Invalid or corrupted image file"
+ERROR_IMAGE_PROCESSING: Final = "Failed to process image: {error}"
