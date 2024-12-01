@@ -16,80 +16,57 @@ class ImageAnalysisDescriptions:
     COMPARATIVE_ANALYSIS: str = "Detailed comparison between images"
     SET_METADATA: str = "Additional metadata for image set analysis"
 
-
-# Operation status logs
-LOG_OPERATION_FAILED: Final = "Operation failed: {error}"
-LOG_UNEXPECTED_ERROR: Final = "Unexpected error: {error}"
-LOG_RETRY_ATTEMPT: Final = "Failed after {attempts} attempts. Last error: {error}"
-LOG_IMAGE_VALIDATION: Final = "Validating image source: {source}"
-LOG_MODEL_VALIDATION: Final = "Validating model configuration: {model}"
-LOG_ANALYSIS_STARTED: Final = "Starting image analysis with model: {model}"
-LOG_ANALYSIS_COMPLETED: Final = "Image analysis completed successfully"
-
-# Error messages
-ERROR_OPERATION_FAILED: Final = "Failed to complete operation: {error}"
-ERROR_UNEXPECTED: Final = "Unexpected error during operation: {error}"
-ERROR_RETRY_FAILED: Final = "Failed to analyze image after {attempts} attempts: {error}"
-ERROR_MODEL_CONFIG: Final = "Invalid model configuration: {error}"
-ERROR_MODEL_CAPABILITY: Final = "Model {name} does not support vision capabilities"
-ERROR_TOKEN_LIMIT: Final = "max_tokens ({tokens}) exceeds model limit ({limit})"
-ERROR_IMAGE_SOURCE: Final = "Image source not found: {source}"
-ERROR_IMAGE_FORMAT: Final = "Unsupported image format: {format}"
-ERROR_IMAGE_SIZE: Final = "Image size exceeds the limit of {limit}MB"
-ERROR_MIME_TYPE: Final = "Unsupported MIME type {mime_type}. Supported types: {supported}"
-ERROR_API: Final = "Error analyzing image: {error}"
-
 # Default configuration values
-DEFAULT_MODEL_NAME = "gpt-4o"
-DEFAULT_MAX_RETRIES = 3
-DEFAULT_RETRY_DELAY = 1
+DEFAULT_DOWNLOAD_TIMEOUT = 60  # seconds
+DEFAULT_ENCODING: Final[str] = "utf-8"
+DEFAULT_LOG_FORMAT: Final = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 DEFAULT_LOG_LEVEL = "WARNING"
 DEFAULT_MAX_IMAGE_SIZE = 20 * 1024 * 1024  # 20MB
+DEFAULT_MAX_RETRIES = 3
 DEFAULT_MAX_TOKENS = 2000
-
-# Timeout settings
+DEFAULT_MODEL_NAME = "gpt-4o"
+DEFAULT_RETRY_ATTEMPTS: Final = 3
+DEFAULT_RETRY_DELAY = 1
+DEFAULT_RETRY_WAIT_SECONDS: Final = 1
+DEFAULT_TEMPERATURE: Final = 0.7  # If not provided by model capabilities
 DEFAULT_URL_TIMEOUT = 30  # seconds
-DEFAULT_DOWNLOAD_TIMEOUT = 60  # seconds
 
-# Supported formats
+# Timeouts
+MIN_VALIDATION_TIMEOUT: Final = 0.1  # Minimum timeout threshold for URL validation
 SUPPORTED_IMAGE_FORMATS = {".jpg", ".jpeg", ".png", ".gif"}
 
-# Log messages
-LOG_UNEXPECTED_ERROR = "Unexpected error during analysis: {error}"
-LOG_RETRY_ATTEMPT = "Retry attempt {attempts} failed: {error}"
-LOG_IMAGE_VALIDATION = "Validating image: {image}"
-LOG_MODEL_VALIDATION = "Validating model configuration for {model}"
-LOG_ANALYSIS_STARTED = "Starting analysis with model: {model}"
-LOG_ANALYSIS_COMPLETED = "Analysis completed successfully"
-
 # Error messages
-ERROR_RETRY_FAILED = "Analysis failed after {attempts} attempts: {error}"
-ERROR_MODEL_CONFIG = "Invalid model configuration: {error}"
-ERROR_MODEL_CAPABILITY = "Model {name} does not support vision capabilities"
-ERROR_TOKEN_LIMIT = "Requested tokens ({tokens}) exceeds model limit ({limit})"
-ERROR_IMAGE_SOURCE = "Image file not found: {source}"
-ERROR_IMAGE_FORMAT = "Unsupported image format: {format}"
-ERROR_IMAGE_SIZE = "Image file too large (max size: {limit}MB)"
-ERROR_MIME_TYPE = "Unsupported MIME type: {mime_type}. Supported types: {supported}"
-ERROR_API = "API error during analysis: {error}"
-
-# Supported formats
-SUPPORTED_IMAGE_FORMATS = {".jpg", ".jpeg", ".png", ".gif"} 
-
-IMAGE_TYPE_URL: Final = "image_url"
-IMAGE_URL_KEY: Final = "url"
-IMAGE_TYPE_KEY: Final = "type"
-
-# Add these new constants
-ERROR_URL_NOT_IMAGE: Final = "URL does not point to an image resource: {url}"
-ERROR_URL_NOT_ACCESSIBLE: Final = "URL not accessible (status {status}): {url}"
-ERROR_URL_TIMEOUT: Final = "Timeout while accessing URL: {url} (timeout: {timeout}s)"
-ERROR_INVALID_URL: Final = "Invalid URL format: {url}"
-ERROR_URL_ACCESS_FAILED: Final = "Failed to access URL {url}: {error}"
+ERROR_API: Final = "API error during analysis: {error}"
 ERROR_HTTP_FETCH_FAILED: Final = "Failed to fetch image: HTTP {status}"
-ERROR_INVALID_IMAGE_FILE: Final = "Invalid or corrupted image file"
+ERROR_IMAGE_FORMAT: Final = "Unsupported image format: {format}"
 ERROR_IMAGE_PROCESSING: Final = "Failed to process image: {error}"
-ERROR_TEMPLATE_SCENE_TYPE = "Scene type must be a specific description, not a template. Received: {value}"
+ERROR_IMAGE_PROCESSING_FAILED: Final = "Failed to process image: {error}"
+ERROR_IMAGE_SIZE: Final = "Image file too large (max size: {limit}MB)"
+ERROR_IMAGE_SOURCE: Final = "Image file not found: {source}"
+ERROR_INVALID_IMAGE_FILE: Final = "Invalid or corrupted image file"
+ERROR_INVALID_URL: Final = "Invalid URL format: {url}"
+ERROR_MIME_TYPE: Final = "Unsupported MIME type: {mime_type}. Supported types: {supported}"
+ERROR_MODEL_CAPABILITY: Final = "Model {name} does not support vision capabilities"
+ERROR_MODEL_CONFIG: Final = "Invalid model configuration: {error}"
+ERROR_OPERATION_FAILED: Final = "Failed to complete operation: {error}"
+ERROR_RETRY_FAILED: Final = "Analysis failed after {attempts} attempts: {error}"
+ERROR_TEMPLATE_SCENE_TYPE: Final = "Scene type must be a specific description, not a template. Received: {value}"
+ERROR_TOKEN_LIMIT: Final = "Requested tokens ({tokens}) exceeds model limit ({limit})"
+ERROR_UNEXPECTED: Final = "Unexpected error during operation: {error}"
+ERROR_URL_ACCESS_FAILED: Final = "Failed to access URL {url}: {error}"
+ERROR_URL_NOT_ACCESSIBLE: Final = "URL not accessible (status {status}): {url}"
+ERROR_URL_NOT_IMAGE: Final = "URL does not point to an image resource: {url}"
+ERROR_URL_TIMEOUT: Final = "Timeout while accessing URL: {url} (timeout: {timeout}s)"
+ERROR_URL_TIMEOUT_ACCESS: Final = "Timeout while accessing URL: {url}"
+
+# Log messages
+LOG_ANALYSIS_COMPLETED: Final = "Image analysis completed successfully"
+LOG_ANALYSIS_STARTED: Final = "Starting image analysis with model: {model}"
+LOG_IMAGE_VALIDATION: Final = "Validating image source: {source}"
+LOG_MODEL_VALIDATION: Final = "Validating model configuration: {model}"
+LOG_OPERATION_FAILED: Final = "Operation failed: {error}"
+LOG_RETRY_ATTEMPT: Final = "Failed after {attempts} attempts. Last error: {error}"
+LOG_UNEXPECTED_ERROR: Final = "Unexpected error: {error}"
 
 SCENE_TYPE_TEMPLATE_PATTERNS: Final[List[str]] = [
     "type of scene",
@@ -99,18 +76,50 @@ SCENE_TYPE_TEMPLATE_PATTERNS: Final[List[str]] = [
     "describe scene type"
 ]
 
-
-CONTENT_TYPE_HEADER: Final[str] = 'content-type'
-IMAGE_CONTENT_TYPE_PREFIX: Final[str] = 'image/'
-BINARY_READ_MODE: Final[str] = "rb"
-DEFAULT_ENCODING: Final[str] = "utf-8"
-DATA_URL_PREFIX: Final[str] = "url"
-UNKNOWN_MIME_TYPE: Final[str] = "unknown"
-ENV_PREFIX: Final[str] = "IMAGE_ANALYZER_"
-PROTECTED_NAMESPACE: Final[str] = "settings_"
-LOCAL_FILE_SOURCE_TYPE: Final[str] = "local_file"
+# HTTP/URL related constants
 HTTP_PREFIX: Final = 'http://'
 HTTPS_PREFIX: Final = 'https://'
+HTTP_STATUS_OK: Final = 200
+CONTENT_TYPE_HEADER: Final[str] = 'content-type'
 
-ERROR_IMAGE_PROCESSING_FAILED: Final = "Failed to process image: {error}"
-ERROR_URL_TIMEOUT_ACCESS: Final = "Timeout while accessing URL: {url}"
+# Image processing constants
+BINARY_READ_MODE: Final[str] = "rb"
+IMAGE_CONTENT_TYPE_PREFIX: Final[str] = 'image/'
+IMAGE_TYPE_KEY: Final = "type"
+IMAGE_TYPE_URL: Final = "image_url"
+IMAGE_URL_KEY: Final = "url"
+UNKNOWN_MIME_TYPE: Final[str] = "unknown"
+
+# System configuration constants
+DATA_URL_PREFIX: Final[str] = "url"
+ENV_PREFIX: Final[str] = "IMAGE_ANALYZER_"
+LOCAL_FILE_SOURCE_TYPE: Final[str] = "local_file"
+PROTECTED_NAMESPACE: Final[str] = "settings_"
+
+# Chat completion constants
+CONTENT_KEY: Final[str] = "content"
+ROLE_KEY: Final[str] = "role"
+USER_ROLE: Final[str] = "user"
+
+DEFAULT_SINGLE_IMAGE_PROMPT: Final[str] = (
+    "Analyze this image in detail and provide a structured response including:\n"
+    "- Detailed description\n"
+    "- Main objects identified\n"
+    "- Scene type (indoor/outdoor)\n"
+    "- Dominant colors\n"
+    "- Image quality assessment"
+)
+
+DEFAULT_IMAGE_SET_PROMPT: Final = (
+    "Analyze these images as a set and provide a structured response including:\n"
+    "- Overall summary comparing all images\n"
+    "- Common objects found across multiple images\n"
+    "- Distinctive features of each image\n"
+    "- Detailed comparison between images"
+)
+
+
+
+
+
+

@@ -1,4 +1,4 @@
-from typing import List, Optional, Union, Dict, Any, Final, Tuple, Type
+from typing import List, Optional, Union, Dict, Any, Type
 from pathlib import Path
 import base64
 from pydantic import Field, HttpUrl, field_validator, ConfigDict
@@ -22,17 +22,24 @@ from ...models.config import get_model, ModelProvider
 from ...models.base import ModelConfig
 from ...exceptions.vision import ImageValidationError, APIError, ImageAnalysisError
 from .constants import (
+    ImageAnalysisDescriptions,
     BINARY_READ_MODE,
     CONTENT_TYPE_HEADER,
     DATA_URL_PREFIX,
+    CONTENT_KEY,
     DEFAULT_DOWNLOAD_TIMEOUT,
     DEFAULT_ENCODING,
+    DEFAULT_IMAGE_SET_PROMPT,
+    DEFAULT_LOG_FORMAT,
     DEFAULT_LOG_LEVEL,
     DEFAULT_MAX_IMAGE_SIZE,
     DEFAULT_MAX_RETRIES,
     DEFAULT_MAX_TOKENS,
     DEFAULT_MODEL_NAME,
+    DEFAULT_RETRY_ATTEMPTS,
     DEFAULT_RETRY_DELAY,
+    DEFAULT_RETRY_WAIT_SECONDS,
+    DEFAULT_SINGLE_IMAGE_PROMPT,
     DEFAULT_URL_TIMEOUT,
     ERROR_API,
     ERROR_HTTP_FETCH_FAILED,
@@ -53,25 +60,28 @@ from .constants import (
     ERROR_URL_NOT_ACCESSIBLE,
     ERROR_URL_NOT_IMAGE,
     ERROR_URL_TIMEOUT,
+    ERROR_URL_TIMEOUT_ACCESS,
     ENV_PREFIX,
     HTTP_PREFIX, 
     HTTPS_PREFIX,
+    HTTP_STATUS_OK,
     IMAGE_CONTENT_TYPE_PREFIX,
     IMAGE_TYPE_KEY,
     IMAGE_TYPE_URL,
     IMAGE_URL_KEY,
-    ImageAnalysisDescriptions,
     LOCAL_FILE_SOURCE_TYPE,
     LOG_ANALYSIS_COMPLETED,
     LOG_ANALYSIS_STARTED,
     LOG_MODEL_VALIDATION,
     LOG_RETRY_ATTEMPT,
     LOG_UNEXPECTED_ERROR,
+    MIN_VALIDATION_TIMEOUT,
     PROTECTED_NAMESPACE,
+    ROLE_KEY,
     SCENE_TYPE_TEMPLATE_PATTERNS,
     SUPPORTED_IMAGE_FORMATS,
-    UNKNOWN_MIME_TYPE,
-    ERROR_URL_TIMEOUT_ACCESS,
+    UNKNOWN_MIME_TYPE, 
+    USER_ROLE,
 )
 
 
@@ -249,7 +259,7 @@ class ImageAnalyzer:
         logger = logging.getLogger(__name__)
         logger.setLevel(logging.WARNING)
         handler = logging.StreamHandler()
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        formatter = logging.Formatter(DEFAULT_LOG_FORMAT)
         handler.setFormatter(formatter)
         logger.addHandler(handler)
         return logger
@@ -265,8 +275,8 @@ class ImageAnalyzer:
     def _get_retry_config(self) -> Retrying:
         """Configure retry behavior."""
         return Retrying(
-            stop=stop_after_attempt(3),
-            wait=wait_fixed(1),
+            stop=stop_after_attempt(DEFAULT_RETRY_ATTEMPTS),
+            wait=wait_fixed(DEFAULT_RETRY_WAIT_SECONDS),
             retry=lambda retry_state: isinstance(
                 retry_state.outcome.exception(), (ValueError, ValidationError)
             )
@@ -306,7 +316,7 @@ class ImageAnalyzer:
                         )
                     
                     # Then check status code
-                    if response.status != 200:
+                    if response.status != HTTP_STATUS_OK:
                         raise ImageValidationError(
                             ERROR_URL_NOT_ACCESSIBLE.format(status=response.status, url=url)
                         )
@@ -456,7 +466,7 @@ class ImageAnalyzer:
             is_url = isinstance(image, str) and image.startswith((HTTP_PREFIX, HTTPS_PREFIX))
             if is_url:
                 # Validate URL first if needed
-                should_validate = self.download_timeout > 0.1
+                should_validate = self.download_timeout > MIN_VALIDATION_TIMEOUT
                 if should_validate:
                     try:
                         await asyncio.wait_for(
@@ -521,8 +531,8 @@ class ImageAnalyzer:
             completion = self.client.chat.completions.create(
                 model=self.model_config.deployment_name or self.model_config.name,
                 messages=[{
-                    "role": "user",
-                    "content": [prompt, *images]
+                    ROLE_KEY: USER_ROLE,
+                    CONTENT_KEY: [prompt, *images]
                 }],
                 max_tokens=max_tokens,
                 temperature=self.model_config.capabilities.default_temperature,
@@ -549,39 +559,26 @@ class ImageAnalyzer:
         download_timeout: Optional[float] = None
     ) -> SingleImageAnalysis:
         """Analyze a single image."""
-        # Store original timeouts
         original_url_timeout = self.url_timeout
         original_download_timeout = self.download_timeout
         
         try:
-            # Update timeouts if provided
             if url_timeout is not None:
                 self.url_timeout = url_timeout
             if download_timeout is not None:
                 self.download_timeout = download_timeout
             
-            # Process the image with updated timeouts
             image_content = await self.prepare_image(image)
             max_tokens = self._validate_max_tokens(max_tokens)
             
-            default_prompt = (
-                "Analyze this image in detail and provide a structured response including:\n"
-                "- Detailed description\n"
-                "- Main objects identified\n"
-                "- Scene type (indoor/outdoor)\n"
-                "- Dominant colors\n"
-                "- Image quality assessment"
-            )
-            
             return await self.perform_analysis(
                 images=[image_content],
-                prompt=prompt or default_prompt,
+                prompt=prompt or DEFAULT_SINGLE_IMAGE_PROMPT,
                 max_tokens=max_tokens,
                 response_model=SingleImageAnalysis
             )
                 
         finally:
-            # Restore original timeouts
             self.url_timeout = original_url_timeout
             self.download_timeout = original_download_timeout
 
@@ -592,21 +589,12 @@ class ImageAnalyzer:
         max_tokens: Optional[int] = None
     ) -> ImageSetAnalysis:
         """Analyze a set of images concurrently."""
-        # Prepare all images concurrently
         image_contents = await self.prepare_images(images)
         max_tokens = self._validate_max_tokens(max_tokens)
         
-        default_prompt = (
-            "Analyze these images as a set and provide a structured response including:\n"
-            "- Overall summary comparing all images\n"
-            "- Common objects found across multiple images\n"
-            "- Distinctive features of each image\n"
-            "- Detailed comparison between images"
-        )
-
         return await self.perform_analysis(
             images=image_contents,
-            prompt=prompt or default_prompt,
+            prompt=prompt or DEFAULT_IMAGE_SET_PROMPT,
             max_tokens=max_tokens,
             response_model=ImageSetAnalysis
         )
