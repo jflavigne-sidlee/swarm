@@ -111,3 +111,6 @@ PROTECTED_NAMESPACE: Final[str] = "settings_"
 LOCAL_FILE_SOURCE_TYPE: Final[str] = "local_file"
 HTTP_PREFIX: Final = 'http://'
 HTTPS_PREFIX: Final = 'https://'
+
+ERROR_IMAGE_PROCESSING_FAILED: Final = "Failed to process image: {error}"
+ERROR_URL_TIMEOUT_ACCESS: Final = "Timeout while accessing URL: {url}"

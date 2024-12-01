@@ -38,6 +38,7 @@ from .constants import (
     ERROR_HTTP_FETCH_FAILED,
     ERROR_IMAGE_FORMAT,
     ERROR_IMAGE_PROCESSING,
+    ERROR_IMAGE_PROCESSING_FAILED,
     ERROR_IMAGE_SIZE,
     ERROR_IMAGE_SOURCE,
     ERROR_INVALID_IMAGE_FILE,
@@ -70,6 +71,7 @@ from .constants import (
     SCENE_TYPE_TEMPLATE_PATTERNS,
     SUPPORTED_IMAGE_FORMATS,
     UNKNOWN_MIME_TYPE,
+    ERROR_URL_TIMEOUT_ACCESS,
 )
 
 
@@ -463,7 +465,7 @@ class ImageAnalyzer:
                         )
                     except asyncio.TimeoutError:
                         raise ImageValidationError(
-                            f"Timeout while accessing URL: {image} (timeout: {self.url_timeout}s)"
+                            ERROR_URL_TIMEOUT.format(url=image, timeout=self.url_timeout)
                         )
             
             # Use consolidated preparation logic
@@ -474,7 +476,10 @@ class ImageAnalyzer:
             )
                 
         except Exception as e:
-            return ImageProcessingResult(success=False, error=f"Failed to process image: {str(e)}")
+            return ImageProcessingResult(
+                success=False, 
+                error=ERROR_IMAGE_PROCESSING_FAILED.format(error=str(e))
+            )
 
     async def prepare_image(self, image: Union[str, Path, HttpUrl]) -> InstructorImage:
         """Prepare image for analysis with proper error handling."""
@@ -484,7 +489,7 @@ class ImageAnalyzer:
                 raise ImageValidationError(result.error)
             return result.image
         except asyncio.TimeoutError as e:
-            raise ImageValidationError(f"Timeout while accessing URL: {image}")
+            raise ImageValidationError(ERROR_URL_TIMEOUT_ACCESS.format(url=image))
         except Exception as e:
             raise ImageValidationError(str(e))
 
