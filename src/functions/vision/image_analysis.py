@@ -73,6 +73,7 @@ from .constants import (
     LOG_ANALYSIS_COMPLETED,
     LOG_ANALYSIS_STARTED,
     LOG_MODEL_VALIDATION,
+    LOG_OPERATION_FAILED,
     LOG_RETRY_ATTEMPT,
     LOG_UNEXPECTED_ERROR,
     MIN_VALIDATION_TIMEOUT,
@@ -598,3 +599,36 @@ class ImageAnalyzer:
             max_tokens=max_tokens,
             response_model=ImageSetAnalysis
         )
+
+    async def process_image_batch(self, images: List[str]) -> List[Optional[InstructorImage]]:
+        """
+        Process a batch of images with improved error handling.
+        
+        Args:
+            images: List of image paths or URLs to process
+        
+        Returns:
+            List of successfully processed InstructorImage objects, with None for failed items
+        """
+        async def safe_prepare_image(img: str) -> Optional[InstructorImage]:
+            try:
+                return await self.prepare_image(img)
+            except Exception as e:
+                logger.error(
+                    ERROR_IMAGE_PROCESSING_FAILED.format(error=str(e))
+                )
+                logger.debug(
+                    LOG_OPERATION_FAILED.format(error=str(e)),
+                    exc_info=True
+                )
+                return None
+
+        results = await asyncio.gather(
+            *(safe_prepare_image(img) for img in images),
+            return_exceptions=False
+        )
+        
+        # Filter out None values from failed operations
+        successful_images = [img for img in results if img is not None]
+        
+        return successful_images
