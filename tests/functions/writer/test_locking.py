@@ -13,7 +13,7 @@ from src.functions.writer.exceptions import (
     LockAcquisitionError,
     FileValidationError
 )
-
+from src.functions.writer.constants import LOCK_METADATA_TIMESTAMP
 @pytest.fixture
 def mock_config(tmp_path):
     """Create a config that points to temporary test directory."""
@@ -75,6 +75,24 @@ class TestSectionLock:
         
         lock1.release()
         assert lock2.acquire() is True
+        lock2.release()
+        
+    def test_expired_lock(self, temp_md_file):
+        """Test handling of expired locks."""
+        lock = SectionLock(temp_md_file, "TestSection", timeout=1)
+        
+        # Create an expired lock
+        with lock:
+            # Modify the timestamp to make it appear expired
+            metadata = json.loads(lock.lock_file.read_text())
+            metadata[LOCK_METADATA_TIMESTAMP] = (
+                datetime.now() - timedelta(seconds=2)
+            ).isoformat()
+            lock.lock_file.write_text(json.dumps(metadata))
+            
+        # Try to acquire the expired lock
+        lock2 = SectionLock(temp_md_file, "TestSection", timeout=1)
+        assert lock2.acquire() is True  # Should succeed because previous lock expired
         lock2.release()
 
 class TestLockSection:

@@ -67,11 +67,28 @@ class SectionLock:
         # Don't suppress exceptions
         return False
         
+    def is_expired(self) -> bool:
+        """Check if the lock has expired based on metadata."""
+        if not self.lock_file.exists():
+            return False
+        
+        try:
+            metadata = json.loads(self.lock_file.read_text())
+            lock_time = datetime.fromisoformat(metadata[LOCK_METADATA_TIMESTAMP])
+            return (datetime.now() - lock_time).total_seconds() > self.timeout
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            logger.error(f"Error checking lock expiry: {e}")
+            return False
+
     def acquire(self) -> bool:
         """Attempt to acquire the lock."""
         if self.lock_file.exists():
-            logger.debug(LOG_LOCK_EXISTS.format(section=self.section_title))
-            return False
+            if self.is_expired():
+                logger.debug(f"Removing expired lock for section '{self.section_title}'")
+                self._cleanup()
+            else:
+                logger.debug(LOG_LOCK_EXISTS.format(section=self.section_title))
+                return False
             
         try:
             self._lock.acquire(timeout=0)
