@@ -88,6 +88,7 @@ The module empowers teams and systems to manage Markdown documents efficiently, 
         - Ensure the file is ready for incremental updates.
     - **Notes:**
         - Metadata keys should support standard values like title, author, and date.
+        - This feature is implemented in src/functions/writer/file_operations.py
 
 2. append_section(file_name: str, section_title: str, content: str) -> None
     - **Purpose:** Add a new section to the Markdown document under a given title.
@@ -96,7 +97,8 @@ The module empowers teams and systems to manage Markdown documents efficiently, 
         - Use Markdown headers (#, ##, etc.) to delineate sections.
         - Add a unique marker (e.g., <!-- Section: section_title -->) below the header for easy identification.
     - **Notes:**
-    - Ensure no duplicate section titles unless explicitly allowed.
+        - Ensure no duplicate section titles unless explicitly allowed.
+        - this feature is implemented in src/functions/writer/file_operations.py
 
 3. edit_section(file_name: str, section_title: str, new_content: str) -> None
     - **Purpose:** Locate a specific section by title and replace its content with new content.
@@ -104,14 +106,16 @@ The module empowers teams and systems to manage Markdown documents efficiently, 
         - Use the unique marker (<!-- Section: section_title -->) to locate the section.
         - Replace all content between the section’s start marker and the next header or end of file.
     - **Notes:**
-    - Ensure proper Markdown formatting during edits.
-
+        - Ensure proper Markdown formatting during edits.
+        - this feature is implemented in src/functions/writer/file_operations.py
+    
 4. get_section(file_name: str, section_title: str) -> str
     - **Purpose:** Retrieve the content of a specific section for preview or analysis.
     - **Behavior:**
         - Search for the section marker and return all content until the next section marker or end of file.
     - **Notes:**
         - Return an error if the section is not found.
+        - this feature is implemented in src/functions/writer/file_operations.py
 
 5. finalize_document(file_name: str, output_format: str = "md") -> str
     - **Purpose:** Finalize the document and optionally convert it to another format (e.g., PDF, HTML).
@@ -127,7 +131,7 @@ The module empowers teams and systems to manage Markdown documents efficiently, 
 6. lock_section(file_name: str, section_title: str) -> bool
     - **Purpose:** Temporarily prevent other agents from editing a specific section.
     - **Behavior:**
-        - Create a lock marker in the document’s metadata or a temporary file.
+        - Create a lock marker in the document's metadata or a temporary file.
         - Return True if the lock is successful, False if the section is already locked.
     - **Notes:**
         - Ensure locks are removed when edits are complete or after a timeout.
@@ -154,6 +158,8 @@ The module empowers teams and systems to manage Markdown documents efficiently, 
     - **Behavior:**
         - Search for the section marker (<!-- Section: section_title -->).
         - Return True if found, False otherwise.
+    - **Notes:**
+        - this feature is implemented in src/functions/writer/file_operations.py
 
 10. stream_content(file_name: str, content: str, chunk_size: int = 1024) -> None
     - **Purpose:** Append content to the document incrementally for long sections or large documents.
@@ -178,6 +184,7 @@ The module empowers teams and systems to manage Markdown documents efficiently, 
         - Return metadata as a dictionary.
     - **Notes:**
         - Validate that metadata follows a consistent format.
+        - this feature is implemented in src/functions/writer/metadata_operations.py
 
 13.	update_metadata(file_name: str, new_metadata: dict) -> None
     - **Purpose:** Update or add metadata fields in the document.
@@ -186,7 +193,7 @@ The module empowers teams and systems to manage Markdown documents efficiently, 
         - Preserve formatting.
     - **Notes:**
         - Avoid overwriting essential fields unless specified.
-
+        - this feature is implemented in src/functions/writer/metadata_operations.py
 ## Core Modules (Built-in)
 
     1. **os and pathlib**
