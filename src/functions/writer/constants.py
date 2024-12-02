@@ -83,3 +83,8 @@ LOCK_METADATA_SECTION = "section"
 LOCK_METADATA_TIMESTAMP = "timestamp"
 LOCK_METADATA_FILE = "file"
 LOCK_METADATA_AGENT = "agent_id"
+
+# Lock cleanup constants
+LOCK_FILE_PATTERN = "*.lock"
+LOCK_CLEANUP_BATCH_SIZE = 100  # Maximum number of locks to process in one batch
+LOCK_CLEANUP_DEFAULT_AGE = 3600  # Default max age in seconds (1 hour)

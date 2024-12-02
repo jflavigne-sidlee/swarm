@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 from filelock import Timeout
 
-from src.functions.writer.locking import lock_section, SectionLock
+from src.functions.writer.locking import lock_section, SectionLock, LockCleanupManager
 from src.functions.writer.config import WriterConfig
 from src.functions.writer.exceptions import (
     WriterError,
@@ -177,5 +177,54 @@ class TestErrorHandling:
                 with lock:
                     pass  # Should not reach here
 
+class TestLockCleanup:
+    """Test lock cleanup functionality."""
+    
+    def test_cleanup_stale_locks(self, temp_md_file, mock_config):
+        """Test cleanup of stale lock files."""
+        # Create some stale locks
+        stale_time = datetime.now() - timedelta(hours=2)
+        fresh_time = datetime.now()
+        
+        lock_dir = temp_md_file.parent
+        
+        # Create stale lock
+        stale_lock = lock_dir / ".stale_section.lock"
+        stale_metadata = {
+            "section": "stale_section",
+            "timestamp": stale_time.isoformat(),
+            "file": str(temp_md_file)
+        }
+        stale_lock.write_text(json.dumps(stale_metadata))
+        
+        # Create fresh lock
+        fresh_lock = lock_dir / ".fresh_section.lock"
+        fresh_metadata = {
+            "section": "fresh_section",
+            "timestamp": fresh_time.isoformat(),
+            "file": str(temp_md_file)
+        }
+        fresh_lock.write_text(json.dumps(fresh_metadata))
+        
+        # Run cleanup
+        cleanup_manager = LockCleanupManager(mock_config)
+        cleaned_count = cleanup_manager.cleanup_stale_locks()
+        
+        # Verify results
+        assert cleaned_count == 1
+        assert not stale_lock.exists()
+        assert fresh_lock.exists()
+        
+    def test_cleanup_invalid_locks(self, temp_md_file, mock_config):
+        """Test cleanup of invalid lock files."""
+        lock_dir = temp_md_file.parent
+        invalid_lock = lock_dir / ".invalid_section.lock"
+        invalid_lock.write_text("invalid json")
+        
+        cleanup_manager = LockCleanupManager(mock_config)
+        cleaned_count = cleanup_manager.cleanup_stale_locks()
+        
+        assert cleaned_count == 1
+        assert not invalid_lock.exists()
 
     # pytest tests/functions/writer/test_locking.py -v -s

@@ -10,7 +10,10 @@ from .constants import (
     LOCK_METADATA_SECTION,
     LOCK_METADATA_TIMESTAMP,
     LOCK_METADATA_FILE,
-    LOCK_METADATA_AGENT
+    LOCK_METADATA_AGENT,
+    LOCK_FILE_PATTERN,
+    LOCK_CLEANUP_BATCH_SIZE,
+    LOCK_CLEANUP_DEFAULT_AGE
 )
 from .errors import (
     ERROR_SECTION_NOT_FOUND,
@@ -36,6 +39,7 @@ from .file_operations import (
     validate_file,
     validate_filename,
     section_exists,
+    validate_path_permissions
 )
 
 logger = logging.getLogger(__name__)
@@ -149,6 +153,66 @@ class SectionLock:
     def is_locked(self) -> bool:
         """Check if lock is currently held."""
         return self._locked
+
+class LockCleanupManager:
+    """Manages cleanup of stale lock files."""
+    
+    def __init__(self, config: WriterConfig):
+        self.config = config
+        self.max_age = getattr(config, 'lock_cleanup_age', LOCK_CLEANUP_DEFAULT_AGE)
+        
+    def cleanup_stale_locks(self, directory: Optional[Path] = None) -> int:
+        """Clean up stale lock files in the specified directory.
+        
+        Args:
+            directory: Directory to clean up. Defaults to config.drafts_dir
+            
+        Returns:
+            Number of locks cleaned up
+        """
+        directory = directory or self.config.drafts_dir
+        cleaned_count = 0
+        
+        try:
+            validate_path_permissions(directory, require_write=True)
+            
+            for lock_file in directory.glob(LOCK_FILE_PATTERN):
+                try:
+                    if self._is_stale_lock(lock_file):
+                        self._remove_lock(lock_file)
+                        cleaned_count += 1
+                        
+                    if cleaned_count >= LOCK_CLEANUP_BATCH_SIZE:
+                        break
+                        
+                except (json.JSONDecodeError, KeyError) as e:
+                    logger.warning(f"Invalid lock file {lock_file}: {e}")
+                    self._remove_lock(lock_file)
+                    cleaned_count += 1
+                    
+        except Exception as e:
+            logger.error(f"Lock cleanup failed: {e}")
+            
+        return cleaned_count
+        
+    def _is_stale_lock(self, lock_file: Path) -> bool:
+        """Check if a lock file is stale."""
+        try:
+            metadata = json.loads(lock_file.read_text())
+            lock_time = datetime.fromisoformat(metadata[LOCK_METADATA_TIMESTAMP])
+            age = (datetime.now() - lock_time).total_seconds()
+            return age > self.max_age
+        except Exception as e:
+            logger.error(f"Error checking lock {lock_file}: {e}")
+            return True
+            
+    def _remove_lock(self, lock_file: Path) -> None:
+        """Safely remove a lock file."""
+        try:
+            lock_file.unlink()
+            logger.info(f"Removed stale lock: {lock_file}")
+        except Exception as e:
+            logger.error(f"Failed to remove lock {lock_file}: {e}")
 
 def lock_section(
     file_name: str,
