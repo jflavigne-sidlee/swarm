@@ -56,11 +56,13 @@ class SectionLock:
     def acquire(self) -> bool:
         """Attempt to acquire the lock."""
         try:
-            self._lock.acquire(timeout=0.1)  # Short timeout for quick failure
+            # Try to acquire with a very short timeout
+            self._lock.acquire(timeout=0.1)
             self._locked = True
             self._write_metadata()
             return True
         except Timeout:
+            # Lock already held by another instance
             return False
         except Exception as e:
             logger.error(f"Error acquiring lock: {e}")
@@ -122,9 +124,9 @@ def lock_section(
         bool: True if lock was acquired, False if section is already locked
         
     Raises:
-        WriterError: If file validation fails
-        SectionNotFoundError: If section doesn't exist
         FileValidationError: If file doesn't exist or isn't writable
+        SectionNotFoundError: If section doesn't exist
+        WriterError: For other unexpected errors
     """
     if config is None:
         config = WriterConfig()
@@ -135,7 +137,12 @@ def lock_section(
         
         # Then construct and validate the full path
         file_path = Path(config.drafts_dir) / file_name
-        validate_file(file_path, require_write=True)
+        
+        try:
+            validate_file(file_path, require_write=True)
+        except WriterError as e:
+            # Convert WriterError from validate_file to FileValidationError
+            raise FileValidationError(str(e))
         
         # Check if section exists using the file path
         if not section_exists(file_path.name, section_title, config):
@@ -145,7 +152,8 @@ def lock_section(
         lock = SectionLock(file_path, section_title, config.lock_timeout)
         return lock.acquire()
         
-    except (FileValidationError, SectionNotFoundError) as e:
+    except (FileValidationError, SectionNotFoundError):
+        # Pass through expected exceptions
         raise
     except Exception as e:
         logger.error(f"Unexpected error in lock_section: {e}")
