@@ -82,3 +82,4 @@ MARKDOWN_EXTENSION_GFM = "gfm"  # Define the GFM extension constant
 LOCK_METADATA_SECTION = "section"
 LOCK_METADATA_TIMESTAMP = "timestamp"
 LOCK_METADATA_FILE = "file"
+LOCK_METADATA_AGENT = "agent_id"

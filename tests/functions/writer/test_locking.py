@@ -13,7 +13,7 @@ from src.functions.writer.exceptions import (
     LockAcquisitionError,
     FileValidationError
 )
-from src.functions.writer.constants import LOCK_METADATA_TIMESTAMP
+from src.functions.writer.constants import LOCK_METADATA_TIMESTAMP, LOCK_METADATA_AGENT
 @pytest.fixture
 def mock_config(tmp_path):
     """Create a config that points to temporary test directory."""
@@ -95,6 +95,17 @@ class TestSectionLock:
         assert lock2.acquire() is True  # Should succeed because previous lock expired
         lock2.release()
 
+    def test_lock_with_agent_id(self, temp_md_file):
+        """Test locking with agent identification."""
+        agent_id = "test_agent_123"
+        lock = SectionLock(temp_md_file, "TestSection", timeout=1, agent_id=agent_id)
+        
+        with lock:
+            assert lock.is_locked
+            # Verify metadata includes agent_id
+            metadata = json.loads(lock.lock_file.read_text())
+            assert metadata[LOCK_METADATA_AGENT] == agent_id
+
 class TestLockSection:
     """Test lock_section function behavior."""
     
@@ -136,6 +147,17 @@ class TestLockSection:
         """Test lock acquisition timeout."""
         with patch('filelock.FileLock.acquire', side_effect=Timeout):
             assert lock_section("test.md", "TestSection", mock_config) is False
+
+    def test_lock_section_with_agent(self, temp_md_file, mock_config):
+        """Test lock_section function with agent identification."""
+        agent_id = "test_agent_456"
+        assert lock_section("test.md", "TestSection", mock_config, agent_id=agent_id) is True
+        
+        # Verify lock file exists and contains agent_id
+        lock_file = temp_md_file.parent / ".TestSection.lock"
+        assert lock_file.exists()
+        metadata = json.loads(lock_file.read_text())
+        assert metadata[LOCK_METADATA_AGENT] == agent_id
 
 class TestErrorHandling:
     """Test error handling scenarios."""

@@ -9,7 +9,8 @@ from .config import WriterConfig
 from .constants import (
     LOCK_METADATA_SECTION,
     LOCK_METADATA_TIMESTAMP,
-    LOCK_METADATA_FILE
+    LOCK_METADATA_FILE,
+    LOCK_METADATA_AGENT
 )
 from .errors import (
     ERROR_SECTION_NOT_FOUND,
@@ -46,11 +47,13 @@ class SectionLock:
         self,
         file_path: Path,
         section_title: str,
-        timeout: int = 5
+        timeout: int = 5,
+        agent_id: Optional[str] = None
     ):
         self.file_path = Path(file_path)
         self.section_title = section_title
         self.timeout = timeout
+        self.agent_id = agent_id
         self.lock_file = self.file_path.parent / f".{section_title}.lock"
         self._lock = FileLock(str(self.lock_file))
         self._locked = False
@@ -124,6 +127,9 @@ class SectionLock:
             LOCK_METADATA_TIMESTAMP: datetime.now().isoformat(),
             LOCK_METADATA_FILE: str(self.file_path)
         }
+        if self.agent_id is not None:
+            metadata[LOCK_METADATA_AGENT] = self.agent_id
+            
         try:
             self.lock_file.write_text(json.dumps(metadata))
         except Exception as e:
@@ -147,9 +153,20 @@ class SectionLock:
 def lock_section(
     file_name: str,
     section_title: str,
-    config: Optional[WriterConfig] = None
+    config: Optional[WriterConfig] = None,
+    agent_id: Optional[str] = None
 ) -> bool:
-    """Lock a section for exclusive access."""
+    """Lock a section for exclusive access.
+    
+    Args:
+        file_name: Name of the file containing the section
+        section_title: Title of the section to lock
+        config: Optional configuration object
+        agent_id: Optional identifier for the agent/user acquiring the lock
+        
+    Returns:
+        bool: True if lock was acquired, False otherwise
+    """
     if config is None:
         config = WriterConfig()
         
@@ -165,7 +182,7 @@ def lock_section(
         if not section_exists(file_path.name, section_title, config):
             raise SectionNotFoundError(ERROR_SECTION_NOT_FOUND.format(section_title=section_title))
             
-        lock = SectionLock(file_path, section_title, config.lock_timeout)
+        lock = SectionLock(file_path, section_title, config.lock_timeout, agent_id)
         acquired = lock.acquire()
         
         if not acquired:
