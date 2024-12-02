@@ -13,6 +13,7 @@ from .constants import (
     PANDOC_TO_ARG,
     PANDOC_TO_FORMAT,
     URL_PREFIXES,
+    MARKDOWN_EXTENSION_GFM,
 )
 from .patterns import (
     PATTERN_FILE_LINK,
@@ -21,6 +22,8 @@ from .patterns import (
     PATTERN_HEADER_TEXT,
     HEADER_LEVEL_RANGE,
     SECTION_HEADER_PREFIX,
+    PATTERN_TASK_LIST_MISSING_SPACE_AFTER,
+    PATTERN_TASK_LIST_VALID,
 )
 from .errors import (
     ERROR_BROKEN_FILE,
@@ -45,6 +48,8 @@ from .errors import (
     ERROR_MDFORMAT_NOT_INSTALLED,
     ERROR_MDFORMAT_GFM_NOT_INSTALLED,
     ERROR_MARKDOWN_FORMATTING,
+    ERROR_PANDOC_NOT_FOUND,
+    ERROR_PANDOC_VALIDATION_FAILED,
 )
 from .logs import (
     LOG_EMPTY_FILE_DETECTED,
@@ -76,7 +81,7 @@ def check_mdformat_availability(gfm: bool = False) -> Tuple[bool, Optional[str]]
         import mdformat
         if gfm:
             try:
-                mdformat.text("test", extensions=["gfm"])
+                mdformat.text("test", extensions=[MARKDOWN_EXTENSION_GFM])
             except ValueError:
                 return False, ERROR_MDFORMAT_GFM_NOT_INSTALLED
         return True, None
@@ -116,7 +121,7 @@ def validate_markdown_formatting(content: str) -> List[str]:
         if gfm_available:
             try:
                 import mdformat
-                mdformat.text(content, extensions=["gfm"])
+                mdformat.text(content, extensions=[MARKDOWN_EXTENSION_GFM])
             except ValueError as e:
                 errors.append(ERROR_MARKDOWN_FORMATTING.format(error=str(e)))
         else:
@@ -223,7 +228,7 @@ def validate_task_list(line: str, line_num: int) -> List[str]:
                 suggestion=SUGGESTION_TASK_LIST_FORMAT
             )
         )
-    elif re.match(r'^- \[[ xX]\](?!\s)', stripped):
+    elif re.match(PATTERN_TASK_LIST_MISSING_SPACE_AFTER, stripped):
         errors.append(
             ERROR_LINE_MESSAGE.format(
                 line=line_num,
@@ -232,7 +237,7 @@ def validate_task_list(line: str, line_num: int) -> List[str]:
                 suggestion=SUGGESTION_TASK_LIST_FORMAT
             )
         )
-    elif not re.match(r'^- \[[ xX]\] .+$', stripped):
+    elif not re.match(PATTERN_TASK_LIST_VALID, stripped):
         errors.append(
             ERROR_LINE_MESSAGE.format(
                 line=line_num,
@@ -386,9 +391,9 @@ def validate_pandoc_compatibility(content: str, file_path: Path) -> List[str]:
             errors.append(ERROR_PANDOC_LATEX_MATH)
         else:
             errors.append(ERROR_PANDOC_COMPATIBILITY.format(error=e.stderr))
-        logger.warning(f"Pandoc validation failed: {e.stderr}")
+        logger.warning(ERROR_PANDOC_VALIDATION_FAILED.format(error=e.stderr))
     except FileNotFoundError:
-        logger.warning("Pandoc is not installed or not accessible")
+        logger.warning(ERROR_PANDOC_NOT_FOUND)
         errors.append(ERROR_PANDOC_NOT_INSTALLED)
     except Exception as e:
         errors.append(ERROR_PANDOC_EXECUTION.format(error=str(e)))

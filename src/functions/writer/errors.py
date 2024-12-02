@@ -156,3 +156,6 @@ ERROR_INVALID_METADATA_CHOICE: Final = "Invalid value for metadata field '{field
 
 ERROR_MDFORMAT_NOT_INSTALLED: Final = "mdformat not installed"
 ERROR_MDFORMAT_GFM_NOT_INSTALLED: Final = "mdformat-gfm extension not installed"
+
+ERROR_PANDOC_NOT_FOUND: Final = "Pandoc is not installed or not accessible"
+ERROR_PANDOC_VALIDATION_FAILED: Final = "Pandoc validation failed: {error}"

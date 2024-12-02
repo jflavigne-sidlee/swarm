@@ -83,3 +83,7 @@ SECTION_CONTENT_FORMAT: Final = (
 )
 
 # pytest tests/functions/writer/test_metadata_operations.py -v -s
+
+# Task list patterns
+PATTERN_TASK_LIST_MISSING_SPACE_AFTER = r'^- \[[ xX]\](?!\s)'
+PATTERN_TASK_LIST_VALID = r'^- \[[ xX]\] .+$'

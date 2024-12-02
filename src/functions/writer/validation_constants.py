@@ -86,3 +86,6 @@ RESERVED_WINDOWS_FILENAMES: Final[Set[str]] = {
     "LPT3",
     "LPT4",  # Printer ports
 }
+
+# Markdown format extensions
+MARKDOWN_EXTENSION_GFM: Final = "gfm"

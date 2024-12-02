@@ -74,3 +74,5 @@ URL_PREFIXES: Final = (HTTP_PREFIX, HTTPS_PREFIX)
 # Pandoc-related constants and error messages
 PANDOC_COMMAND: Final = "pandoc"
 
+MARKDOWN_EXTENSION_GFM = "gfm"  # Define the GFM extension constant
+
