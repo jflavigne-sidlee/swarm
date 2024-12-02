@@ -465,3 +465,6 @@ def test_validate_task_list_edge_cases():
         assert (
             len(errors) == expected_error_count
         ), f"Should handle edge case correctly: {line}"
+
+
+# pytest tests/functions/writer/test_validation.py -v

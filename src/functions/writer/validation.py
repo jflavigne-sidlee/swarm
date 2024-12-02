@@ -42,9 +42,13 @@ from .errors import (
     ERROR_TASK_LIST_MISSING_SPACE,
     ERROR_TASK_LIST_MISSING_SPACE_AFTER,
     ERROR_VALIDATION_FAILED,
+    ERROR_MDFORMAT_NOT_INSTALLED,
+    ERROR_MDFORMAT_GFM_NOT_INSTALLED,
+    ERROR_MARKDOWN_FORMATTING,
 )
 from .logs import (
-    LOG_EMPTY_FILE_DETECTED,   
+    LOG_EMPTY_FILE_DETECTED,
+    LOG_FILE_OPERATION_ERROR,   
 )
 from .suggestions import (
     ERROR_SUGGESTIONS,
@@ -74,10 +78,10 @@ def check_mdformat_availability(gfm: bool = False) -> Tuple[bool, Optional[str]]
             try:
                 mdformat.text("test", extensions=["gfm"])
             except ValueError:
-                return False, "mdformat-gfm extension not installed"
+                return False, ERROR_MDFORMAT_GFM_NOT_INSTALLED
         return True, None
     except ImportError:
-        return False, "mdformat not installed"
+        return False, ERROR_MDFORMAT_NOT_INSTALLED
 
 
 def validate_markdown_formatting(content: str) -> List[str]:
@@ -100,9 +104,9 @@ def validate_markdown_formatting(content: str) -> List[str]:
             import mdformat
             mdformat.text(content)
         except ValueError as e:
-            errors.append(f"Markdown formatting error: {str(e)}")
+            errors.append(ERROR_MARKDOWN_FORMATTING.format(error=str(e)))
     else:
-        logger.warning(f"Skipping format validation: {mdformat_error}")
+        logger.warning(ERROR_MDFORMAT_NOT_INSTALLED)
 
     # GFM feature validation
     if "~~" in content or "- [ ]" in content:  # GFM features detected
@@ -114,9 +118,9 @@ def validate_markdown_formatting(content: str) -> List[str]:
                 import mdformat
                 mdformat.text(content, extensions=["gfm"])
             except ValueError as e:
-                errors.append(f"GFM validation error: {str(e)}")
+                errors.append(ERROR_MARKDOWN_FORMATTING.format(error=str(e)))
         else:
-            logger.warning(f"Skipping GFM validation: {gfm_error}")
+            logger.warning(LOG_FILE_OPERATION_ERROR.format(error=gfm_error))
             
     return errors
 

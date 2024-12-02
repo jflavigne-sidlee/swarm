@@ -153,3 +153,6 @@ ERROR_METADATA_BELOW_MIN: Final = "Value for {field} must be >= {min_value}"
 ERROR_METADATA_ABOVE_MAX: Final = "Value for {field} must be <= {max_value}"
 ERROR_METADATA_VALIDATION_FAILED: Final = "Validation failed for {field}: {error}"
 ERROR_INVALID_METADATA_CHOICE: Final = "Invalid value for metadata field '{field}'. Must be one of: {choices}"
+
+ERROR_MDFORMAT_NOT_INSTALLED: Final = "mdformat not installed"
+ERROR_MDFORMAT_GFM_NOT_INSTALLED: Final = "mdformat-gfm extension not installed"
