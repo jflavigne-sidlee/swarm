@@ -33,7 +33,8 @@ class SectionLock:
         self.section_title = section_title
         self.timeout = timeout
         self.lock_file = self.file_path.parent / f".{section_title}.lock"
-        self._lock = FileLock(str(self.lock_file), timeout=timeout)
+        # Create a new FileLock without timeout
+        self._lock = FileLock(str(self.lock_file))
         self._locked = False
         
     def __enter__(self) -> 'SectionLock':
@@ -55,17 +56,24 @@ class SectionLock:
         
     def acquire(self) -> bool:
         """Attempt to acquire the lock."""
+        if self.lock_file.exists():
+            logger.debug(f"Lock file exists for section: {self.section_title}")
+            return False
+            
         try:
-            # Try to acquire with a very short timeout
-            self._lock.acquire(timeout=0.1)
+            # Try to acquire with zero timeout
+            self._lock.acquire(timeout=0)
             self._locked = True
             self._write_metadata()
+            logger.debug(f"Lock acquired for section: {self.section_title}")
             return True
         except Timeout:
-            # Lock already held by another instance
+            logger.debug(f"Lock acquisition failed (timeout) for section: {self.section_title}")
             return False
         except Exception as e:
             logger.error(f"Error acquiring lock: {e}")
+            if self._locked:
+                self.release()
             return False
             
     def release(self) -> None:
@@ -74,21 +82,21 @@ class SectionLock:
             try:
                 self._lock.release()
                 self._cleanup()
+                logger.debug(f"Lock released for section: {self.section_title}")
+            except Exception as e:
+                logger.error(f"Error releasing lock: {e}")
             finally:
                 self._locked = False
                 
     def _write_metadata(self) -> None:
         """Write lock metadata to the lock file."""
-        now = datetime.now()
-        metadata: Dict[str, str] = {
+        metadata = {
             "section": self.section_title,
-            "timestamp": now.isoformat(),
-            "expires": (now + timedelta(seconds=self.timeout)).isoformat(),
+            "timestamp": datetime.now().isoformat(),
             "file": str(self.file_path)
         }
-        
         try:
-            self.lock_file.write_text(json.dumps(metadata, indent=2))
+            self.lock_file.write_text(json.dumps(metadata))
         except Exception as e:
             logger.error(f"Failed to write lock metadata: {e}")
             self.release()
@@ -137,24 +145,27 @@ def lock_section(
         
         # Then construct and validate the full path
         file_path = Path(config.drafts_dir) / file_name
-        
         try:
             validate_file(file_path, require_write=True)
         except WriterError as e:
-            # Convert WriterError from validate_file to FileValidationError
             raise FileValidationError(str(e))
         
         # Check if section exists using the file path
         if not section_exists(file_path.name, section_title, config):
             raise SectionNotFoundError(f"Section '{section_title}' not found in {file_name}")
             
-        # Create and acquire lock
+        # Create lock and attempt to acquire it
         lock = SectionLock(file_path, section_title, config.lock_timeout)
-        return lock.acquire()
+        acquired = lock.acquire()
+        
+        # Important: Don't release the lock if acquired successfully
+        if not acquired:
+            lock.release()
+            
+        return acquired
         
     except (FileValidationError, SectionNotFoundError):
-        # Pass through expected exceptions
         raise
     except Exception as e:
         logger.error(f"Unexpected error in lock_section: {e}")
-        raise WriterError(str(e))
+        raise FileValidationError(str(e))
