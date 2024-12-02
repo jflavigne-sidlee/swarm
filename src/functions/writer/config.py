@@ -362,13 +362,13 @@ class WriterConfig:
     lock_timeout: int = field(
         default=DEFAULT_LOCK_TIMEOUT,
         metadata={
+            MetadataKeys.HELP: "Timeout in seconds for section locks",
             MetadataKeys.VALIDATION: {
                 ValidationKeys.TYPE: int,
                 ValidationKeys.MIN: 1,
                 ValidationKeys.REQUIRED: False,
-                ValidationKeys.ALLOW_ZERO: False
-            }
-            MetadataKeys.HELP: "Lock timeout in seconds",
+                ValidationKeys.ALLOW_ZERO: False,
+            },
         }
     )
 
