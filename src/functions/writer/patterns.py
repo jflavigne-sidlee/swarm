@@ -87,3 +87,5 @@ SECTION_CONTENT_FORMAT: Final = (
 # Task list patterns
 PATTERN_TASK_LIST_MISSING_SPACE_AFTER = r'^- \[[ xX]\](?!\s)'
 PATTERN_TASK_LIST_VALID = r'^- \[[ xX]\] .+$'
+
+PATTERN_MARKDOWNLINT_ERROR: Final = r".*:(\d+):\s*(MD\d+)\s*(.+)"

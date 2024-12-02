@@ -89,3 +89,30 @@ RESERVED_WINDOWS_FILENAMES: Final[Set[str]] = {
 
 # Markdown format extensions
 MARKDOWN_EXTENSION_GFM: Final = "gfm"
+
+# Pandoc error messages
+LATEX_MATH_ERROR: Final = "Error parsing latex math"
+PANDOC_STDERR_ATTR: Final = 'stderr'
+
+# Task list markers and patterns
+TASK_LIST_MARKER_DASH = '-'
+TASK_LIST_MARKER_SPACE = ' '
+TASK_LIST_BRACKET_START = '['
+TASK_LIST_DOUBLE_SPACE = '  '
+
+# Code block markers
+CODE_BLOCK_MARKER = '```'
+
+# Header validation
+FIRST_HEADER_LEVEL = 1  # First header must be level 1
+
+# Pandoc command arguments
+PANDOC_VERSION_ARG = '--version'
+
+# Common string patterns
+COLON_SEPARATOR = ':'
+EMPTY_STRING = ''
+
+# LaTeX indicators
+LATEX_STRIKETHROUGH = '~~'
+GFM_TASK_LIST_MARKER = '- [ ]'

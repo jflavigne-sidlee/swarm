@@ -24,6 +24,7 @@ from .patterns import (
     SECTION_HEADER_PREFIX,
     PATTERN_TASK_LIST_MISSING_SPACE_AFTER,
     PATTERN_TASK_LIST_VALID,
+    PATTERN_MARKDOWNLINT_ERROR,
 )
 from .errors import (
     ERROR_BROKEN_FILE,
@@ -61,6 +62,21 @@ from .suggestions import (
     SUGGESTION_TASK_LIST_FORMAT,
 )
 from .file_io import read_file
+from .validation_constants import (
+    LATEX_MATH_ERROR,
+    PANDOC_STDERR_ATTR,
+    TASK_LIST_MARKER_DASH,
+    TASK_LIST_MARKER_SPACE,
+    TASK_LIST_BRACKET_START,
+    TASK_LIST_DOUBLE_SPACE,
+    CODE_BLOCK_MARKER,
+    FIRST_HEADER_LEVEL,
+    PANDOC_VERSION_ARG,
+    COLON_SEPARATOR,
+    EMPTY_STRING,
+    LATEX_STRIKETHROUGH,
+    GFM_TASK_LIST_MARKER,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +130,7 @@ def validate_markdown_formatting(content: str) -> List[str]:
         logger.warning(ERROR_MDFORMAT_NOT_INSTALLED)
 
     # GFM feature validation
-    if "~~" in content or "- [ ]" in content:  # GFM features detected
+    if LATEX_STRIKETHROUGH in content or GFM_TASK_LIST_MARKER in content:  # GFM features detected
         if gfm_available is None:
             gfm_available, gfm_error = check_mdformat_availability(gfm=True)
         
@@ -206,11 +222,11 @@ def validate_task_list(line: str, line_num: int) -> List[str]:
     stripped = line.strip()
 
     # Skip early if not a task list line
-    if not stripped.startswith('-'):
+    if not stripped.startswith(TASK_LIST_MARKER_DASH):
         return errors
 
     # Check for specific error cases in order of precedence
-    if stripped.startswith('-['):
+    if stripped.startswith(f'{TASK_LIST_MARKER_DASH}{TASK_LIST_BRACKET_START}'):
         errors.append(
             ERROR_LINE_MESSAGE.format(
                 line=line_num,
@@ -219,7 +235,7 @@ def validate_task_list(line: str, line_num: int) -> List[str]:
                 suggestion=SUGGESTION_TASK_LIST_FORMAT
             )
         )
-    elif stripped.startswith('-  '):
+    elif stripped.startswith(f'{TASK_LIST_MARKER_DASH}{TASK_LIST_DOUBLE_SPACE}'):
         errors.append(
             ERROR_LINE_MESSAGE.format(
                 line=line_num,
@@ -307,7 +323,7 @@ def validate_markdown_content(content: str) -> List[str]:
             continue
 
         # Track code blocks to avoid validating their content
-        if stripped.startswith("```"):
+        if stripped.startswith(CODE_BLOCK_MARKER):
             in_code_block = not in_code_block
             continue
 
@@ -347,12 +363,11 @@ def check_pandoc_installation() -> bool:
         bool: True if Pandoc is installed and accessible, False otherwise
     """
     try:
-        # Try to execute pandoc --version to check installation
         result = subprocess.run(
-            [PANDOC_COMMAND, "--version"],
+            [PANDOC_COMMAND, PANDOC_VERSION_ARG],
             capture_output=True,
             text=True,
-            check=False,  # Don't raise exception on non-zero exit
+            check=False,
         )
         return result.returncode == 0
     except FileNotFoundError:
@@ -387,7 +402,7 @@ def validate_pandoc_compatibility(content: str, file_path: Path) -> List[str]:
             check=True
         )
     except subprocess.CalledProcessError as e:
-        if "Error parsing latex math" in getattr(e, 'stderr', ''):
+        if LATEX_MATH_ERROR in getattr(e, PANDOC_STDERR_ATTR, ''):
             errors.append(ERROR_PANDOC_LATEX_MATH)
         else:
             errors.append(ERROR_PANDOC_COMPATIBILITY.format(error=e.stderr))
@@ -408,8 +423,8 @@ def parse_remark_errors(error_output: str) -> List[str]:
         if not line.strip():  # Skip empty lines
             continue
 
-        if ":" in line:
-            parts = line.split(":", 2)
+        if COLON_SEPARATOR in line:
+            parts = line.split(COLON_SEPARATOR, 2)
             if len(parts) >= 3:
                 line_num = parts[1].strip()
                 message = parts[2].strip()
@@ -434,8 +449,8 @@ def parse_markdownlint_errors(error_output: str) -> List[str]:
         if not line.strip():  # Skip empty lines
             continue
 
-        if ":" in line:
-            match = re.match(r".*:(\d+):\s*(MD\d+)\s*(.+)", line)
+        if COLON_SEPARATOR in line:
+            match = re.match(PATTERN_MARKDOWNLINT_ERROR, line)
             if match:
                 line_num = match.group(1)
                 rule = match.group(2)
