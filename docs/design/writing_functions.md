@@ -176,6 +176,7 @@ The module empowers teams and systems to manage Markdown documents efficiently, 
         - Return True if valid, False otherwise, with an error log.
     - **Notes:**
         - Use external Markdown validators if necessary.
+        - this feature is implemented in src/functions/writer/validation.py
 
 12. get_metadata(file_name: str) -> dict
     - **Purpose:** Retrieve metadata from the document.
@@ -194,6 +195,7 @@ The module empowers teams and systems to manage Markdown documents efficiently, 
     - **Notes:**
         - Avoid overwriting essential fields unless specified.
         - this feature is implemented in src/functions/writer/metadata_operations.py
+        
 ## Core Modules (Built-in)
 
     1. **os and pathlib**
