@@ -1,51 +1,52 @@
-from typing import Dict, Any, Set, Optional
+from typing import Dict, Any, Optional
 from pathlib import Path
 import yaml
 import logging
 import re
 from .exceptions import WriterError
 from .constants import (
-    DEFAULT_ENCODING,
     MD_EXTENSION,
 )
 from .errors import (
-    ERROR_INVALID_FILE_FORMAT,
-    ERROR_FILE_NOT_FOUND,
     ERROR_EMPTY_FILE,
+    ERROR_FILE_NOT_FOUND,
+    ERROR_INVALID_FILE_FORMAT,
+    ERROR_INVALID_METADATA_CHOICE,
     ERROR_INVALID_METADATA_FORMAT,
+    ERROR_INVALID_METADATA_PATTERN,
+    ERROR_INVALID_METADATA_TYPE,
+    ERROR_METADATA_ABOVE_MAX,
+    ERROR_METADATA_BELOW_MIN,
+    ERROR_METADATA_VALIDATION_FAILED,
     ERROR_MISSING_REQUIRED_METADATA,
     ERROR_PERMISSION_DENIED_PATH,
     ERROR_PERMISSION_DENIED_WRITE,
-    ERROR_METADATA_BELOW_MIN,
-    ERROR_METADATA_ABOVE_MAX,
-    ERROR_METADATA_VALIDATION_FAILED,
-    ERROR_INVALID_METADATA_TYPE,
-    ERROR_INVALID_METADATA_PATTERN,
-    ERROR_INVALID_METADATA_CHOICE,
 )
 from .logs import (
+    LOG_DEFAULT_METADATA_VALIDATION_FAILED,
     LOG_EMPTY_FILE_DETECTED,
+    LOG_ENCODING_ERROR,
     LOG_FILE_NOT_FOUND,
-    LOG_INVALID_FILE_FORMAT,
     LOG_FILE_READ_ERROR,
-    LOG_NO_METADATA_BLOCK,
+    LOG_INVALID_FILE_FORMAT,
+    LOG_INVALID_METADATA_CHOICE,
+    LOG_INVALID_METADATA_PATTERN,
+    LOG_INVALID_METADATA_TYPE,
     LOG_INVALID_YAML_METADATA,
+    LOG_METADATA_ABOVE_MAX,
+    LOG_METADATA_BELOW_MIN,
+    LOG_METADATA_VALIDATION_FAILED,
     LOG_MISSING_METADATA_FIELDS,
+    LOG_NO_METADATA_BLOCK,
     LOG_NO_READ_PERMISSION,
     LOG_NO_WRITE_PERMISSION,
-    LOG_ENCODING_ERROR,
-    LOG_INVALID_METADATA_TYPE,
-    LOG_INVALID_METADATA_PATTERN,
-    LOG_METADATA_BELOW_MIN,
-    LOG_METADATA_ABOVE_MAX,
-    LOG_METADATA_VALIDATION_FAILED,
-    LOG_INVALID_METADATA_CHOICE,
 )
 from .file_operations import validate_path_permissions
 from .file_io import read_file, atomic_write
 from .config import WriterConfig
 from .validation_constants import ValidationKeys
 from .metadata_utils import format_metadata_block
+from .patterns import FRONTMATTER_MARKER
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +122,7 @@ class MetadataOperations:
             logger.warning(LOG_EMPTY_FILE_DETECTED)
             raise WriterError(ERROR_EMPTY_FILE)
         
-        metadata_match = content.split('---', 2)
+        metadata_match = content.split(FRONTMATTER_MARKER, 2)
         if len(metadata_match) < 3:
             logger.warning(LOG_NO_METADATA_BLOCK.format(path=file_name))
             if self.config.initialize_missing_metadata:
@@ -135,7 +136,7 @@ class MetadataOperations:
                     self.validate_metadata(metadata)
                     return metadata
                 except WriterError:
-                    logger.warning("Default metadata failed validation, returning empty dict")
+                    logger.warning(LOG_DEFAULT_METADATA_VALIDATION_FAILED)
                     return {}
             return {}
             
@@ -169,7 +170,7 @@ class MetadataOperations:
         content = read_file(file_path, self.config.default_encoding)
         
         # Split content
-        parts = content.split('---', 2)
+        parts = content.split(FRONTMATTER_MARKER, 2)
         if len(parts) < 3:
             # No existing metadata, create new
             new_content = format_metadata_block(new_metadata, content)

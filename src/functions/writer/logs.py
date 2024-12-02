@@ -181,3 +181,5 @@ LOG_METADATA_VALIDATION_FAILED = "Validation failed for field '{field}': {error}
 
 LOG_INVALID_METADATA_CHOICE = "Invalid choice for metadata field '{field}'. Allowed values are: {choices}"
 
+LOG_DEFAULT_METADATA_VALIDATION_FAILED: Final = "Default metadata failed validation, returning empty dict"
+
