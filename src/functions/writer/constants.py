@@ -35,7 +35,9 @@ MIN_VERSIONS: Final = 1
 DEFAULT_VERSIONS: Final = 5
 
 # Locking
-DEFAULT_LOCK_TIMEOUT: Final = 300  # 5 minutes
+DEFAULT_LOCK_TIMEOUT: Final = 300  # 5 minutes in seconds
+LOCK_FILE_SUFFIX = ".lock"
+LOCK_METADATA_FORMAT = "lock_{section_title}"
 MIN_LOCK_RETRIES: Final = 1
 DEFAULT_LOCK_RETRIES: Final = 3
 MIN_RETRY_DELAY: Final = 0

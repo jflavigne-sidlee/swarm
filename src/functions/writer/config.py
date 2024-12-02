@@ -365,10 +365,11 @@ class WriterConfig:
             MetadataKeys.VALIDATION: {
                 ValidationKeys.TYPE: int,
                 ValidationKeys.MIN: 1,
-                ValidationKeys.ALLOW_ZERO: False,
-            },
+                ValidationKeys.REQUIRED: False,
+                ValidationKeys.ALLOW_ZERO: False
+            }
             MetadataKeys.HELP: "Lock timeout in seconds",
-        },
+        }
     )
 
     max_file_size: int = field(

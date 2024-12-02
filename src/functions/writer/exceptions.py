@@ -42,4 +42,8 @@ class ConfigurationError(WriterError):
 
 class PathValidationError(ConfigurationError):
     """Raised when a path is invalid or not accessible."""
+    pass
+
+class LockAcquisitionError(WriterError):
+    """Raised when a section lock cannot be acquired."""
     pass 
