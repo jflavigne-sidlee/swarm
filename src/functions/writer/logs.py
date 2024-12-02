@@ -183,3 +183,8 @@ LOG_INVALID_METADATA_CHOICE = "Invalid choice for metadata field '{field}'. Allo
 
 LOG_DEFAULT_METADATA_VALIDATION_FAILED: Final = "Default metadata failed validation, returning empty dict"
 
+# Lock debug messages
+LOG_LOCK_EXISTS = "Lock already exists for section '{section}'"
+LOG_LOCK_ACQUIRED = "Lock acquired for section '{section}'"
+LOG_LOCK_FAILED = "Failed to acquire lock for section '{section}'"
+LOG_LOCK_RELEASED = "Lock released for section '{section}'"

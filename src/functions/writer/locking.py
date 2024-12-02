@@ -7,21 +7,23 @@ from typing import Optional
 
 from .config import WriterConfig
 from .constants import (
-    ERROR_LOCK_ACQUISITION,
-    ERROR_LOCK_METADATA,
-    ERROR_LOCK_CLEANUP,
-    ERROR_LOCK_RELEASE,
-    ERROR_UNEXPECTED_LOCK,
-    DEBUG_LOCK_EXISTS,
-    DEBUG_LOCK_ACQUIRED,
-    DEBUG_LOCK_FAILED,
-    DEBUG_LOCK_RELEASED,
     LOCK_METADATA_SECTION,
     LOCK_METADATA_TIMESTAMP,
     LOCK_METADATA_FILE
 )
 from .errors import (
     ERROR_SECTION_NOT_FOUND,
+    ERROR_LOCK_ACQUISITION,
+    ERROR_LOCK_METADATA,
+    ERROR_LOCK_CLEANUP,
+    ERROR_LOCK_RELEASE,
+    ERROR_UNEXPECTED_LOCK,
+)
+from .logs import (
+    LOG_LOCK_EXISTS,
+    LOG_LOCK_ACQUIRED,
+    LOG_LOCK_FAILED,
+    LOG_LOCK_RELEASED,
 )
 from .exceptions import (
     WriterError,
@@ -68,17 +70,17 @@ class SectionLock:
     def acquire(self) -> bool:
         """Attempt to acquire the lock."""
         if self.lock_file.exists():
-            logger.debug(DEBUG_LOCK_EXISTS.format(section=self.section_title))
+            logger.debug(LOG_LOCK_EXISTS.format(section=self.section_title))
             return False
             
         try:
             self._lock.acquire(timeout=0)
             self._locked = True
             self._write_metadata()
-            logger.debug(DEBUG_LOCK_ACQUIRED.format(section=self.section_title))
+            logger.debug(LOG_LOCK_ACQUIRED.format(section=self.section_title))
             return True
         except Timeout:
-            logger.debug(DEBUG_LOCK_FAILED.format(section=self.section_title))
+            logger.debug(LOG_LOCK_FAILED.format(section=self.section_title))
             return False
         except Exception as e:
             logger.error(ERROR_LOCK_ACQUISITION.format(section=self.section_title))
@@ -92,7 +94,7 @@ class SectionLock:
             try:
                 self._lock.release()
                 self._cleanup()
-                logger.debug(DEBUG_LOCK_RELEASED.format(section=self.section_title))
+                logger.debug(LOG_LOCK_RELEASED.format(section=self.section_title))
             except Exception as e:
                 logger.error(ERROR_LOCK_RELEASE.format(error=e))
             finally:

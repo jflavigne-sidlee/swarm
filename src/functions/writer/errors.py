@@ -159,3 +159,10 @@ ERROR_MDFORMAT_GFM_NOT_INSTALLED: Final = "mdformat-gfm extension not installed"
 
 ERROR_PANDOC_NOT_FOUND: Final = "Pandoc is not installed or not accessible"
 ERROR_PANDOC_VALIDATION_FAILED: Final = "Pandoc validation failed: {error}"
+
+# Lock error messages
+ERROR_LOCK_ACQUISITION = "Failed to acquire lock for section '{section}'"
+ERROR_LOCK_METADATA = "Failed to write lock metadata: {error}"
+ERROR_LOCK_CLEANUP = "Failed to clean up lock file: {error}"
+ERROR_LOCK_RELEASE = "Failed to release lock: {error}"
+ERROR_UNEXPECTED_LOCK = "Unexpected error during lock operation: {error}"
