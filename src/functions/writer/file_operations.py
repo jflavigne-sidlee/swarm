@@ -830,7 +830,7 @@ def extract_section_markers(content: str) -> dict[str, str]:
 
 def validate_file(file_path: Path, require_write: bool = False) -> None:
     """Validate that the file exists, has the correct format, and meets permission requirements.
-    
+
     Args:
         file_path: Path object pointing to the file to validate
         require_write: If True, also check for write permissions
@@ -838,12 +838,12 @@ def validate_file(file_path: Path, require_write: bool = False) -> None:
     Raises:
         WriterError: If file doesn't exist, has wrong format, or lacks permissions
         FileNotFoundError: If the file doesn't exist
-        PermissionError: If required permissions are not available
+        FilePermissionError: If required permissions are not available
     """
     try:
         # Check if file exists and has correct permissions
         validate_path_permissions(file_path, require_write=require_write)
-        
+
         # Verify file extension
         if file_path.suffix.lower() != MD_EXTENSION:
             logger.error(LOG_INVALID_FILE_FORMAT.format(path=file_path))
@@ -854,7 +854,7 @@ def validate_file(file_path: Path, require_write: bool = False) -> None:
         raise WriterError(ERROR_DOCUMENT_NOT_EXIST.format(file_path=file_path))
     except PermissionError:
         logger.error(LOG_PERMISSION_ERROR.format(path=file_path))
-        raise WriterError(ERROR_PERMISSION_DENIED_FILE.format(path=file_path))
+        raise FilePermissionError(str(file_path))
 
 
 def create_frontmatter(metadata: Dict[str, str]) -> str:
@@ -1018,10 +1018,51 @@ def get_section(file_name: str, section_title: str, config: Optional[WriterConfi
             logger.error(LOG_SECTION_MARKER_NOT_FOUND.format(section_title=section_title))
             raise SectionNotFoundError(section_title)
             
-        # Extract just the content
+        # Extract just the content - remove .strip() to preserve whitespace
         section_content = section_match.group(SECTION_CONTENT_KEY)
-        return section_content.strip() if section_content else ""
+        return section_content
         
     except (OSError, IOError) as e:
         logger.error(LOG_FILE_OPERATION_ERROR.format(error=str(e)))
         raise FileValidationError(str(file_path), str(e))
+
+
+def section_exists(file_name: str, section_title: str, config: Optional[WriterConfig] = None) -> bool:
+    """Check if a section exists in the document.
+    
+    Args:
+        file_name: Name of the Markdown file to check
+        section_title: Title of the section to look for
+        config: Optional configuration object
+        
+    Returns:
+        bool: True if section exists, False otherwise
+        
+    Raises:
+        WriterError: If file validation fails or section title is invalid
+    """
+    config = get_config(config)
+    
+    # Validate section title first
+    if not section_title:
+        logger.error(LOG_INVALID_SECTION_TITLE.format(title=section_title))
+        raise WriterError(ERROR_INVALID_SECTION_TITLE)
+    
+    try:
+        # Validate filename and get full path
+        file_path = validate_filename(file_name, config)
+        
+        # Validate file exists and is readable
+        validate_file(file_path, require_write=False)
+        
+        # Read file content
+        content = read_file(file_path, config.default_encoding)
+        
+        # Use existing utility to check for section marker
+        section_start, _ = get_section_marker_position(content, section_title)
+        
+        return section_start != -1
+        
+    except (OSError, IOError) as e:
+        logger.error(LOG_FILE_OPERATION_ERROR.format(error=str(e)))
+        raise WriterError(str(e))

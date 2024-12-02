@@ -12,15 +12,21 @@ from src.functions.writer.file_operations import (
     edit_section,
     find_section,
     find_marker_positions,
-    get_section_marker_position
+    get_section_marker_position,
+    get_section,
+    section_exists,
 )
 from src.functions.writer.config import WriterConfig
-from src.functions.writer.exceptions import WriterError
+from src.functions.writer.exceptions import WriterError, SectionNotFoundError, FileValidationError, FilePermissionError
 from src.functions.writer.validation_constants import (
     MAX_PATH_LENGTH,
 )
 from src.functions.writer.patterns import (
     PATTERN_SECTION_MARKER,
+)
+from src.functions.writer.errors import (
+    ERROR_DOCUMENT_NOT_EXIST,
+    ERROR_INVALID_SECTION_TITLE,
 )
 
 @pytest.fixture
@@ -1195,6 +1201,157 @@ class TestMarkerUtilities:
         assert end != -1
         # Should find the first occurrence
         assert content.index("<!-- Section: Duplicate -->") == start
+
+
+class TestGetSection:
+    def test_basic_section_retrieval(self, sample_document, test_config):
+        """Test retrieving a section's content."""
+        # Create initial content
+        content = (
+            "---\n"
+            "title: Test Document\n"
+            "author: Test Author\n"
+            "date: 2024-03-21\n"
+            "---\n\n"
+            "# Introduction\n"
+            "<!-- Section: Introduction -->\n"
+            "Some introduction text.\n\n"
+            "## Methods\n"
+            "<!-- Section: Methods -->\n"
+            "Details about methods.\n\n"
+        )
+        
+        # Write the content to the test document
+        with open(sample_document, "w", encoding=test_config.default_encoding) as f:
+            f.write(content)
+            
+        # Get section content
+        result = get_section(sample_document.name, "Methods", test_config)
+        assert result == "Details about methods.\n\n"
+        
+    def test_section_not_found(self, sample_document, test_config):
+        """Test error when section doesn't exist."""
+        content = (
+            "# Introduction\n"
+            "<!-- Section: Introduction -->\n"
+            "Some content.\n"
+        )
+        
+        with open(sample_document, "w", encoding=test_config.default_encoding) as f:
+            f.write(content)
+            
+        with pytest.raises(SectionNotFoundError):
+            get_section(sample_document.name, "NonExistent", test_config)
+            
+    def test_empty_section(self, sample_document, test_config):
+        """Test retrieving empty section content."""
+        content = (
+            "# Empty Section\n"
+            "<!-- Section: Empty Section -->\n"
+            "\n\n"
+            "# Next Section\n"
+        )
+        
+        with open(sample_document, "w", encoding=test_config.default_encoding) as f:
+            f.write(content)
+            
+        result = get_section(sample_document.name, "Empty Section", test_config)
+        assert result == "\n\n"
+        
+    def test_whitespace_preservation(self, sample_document, test_config):
+        """Test exact whitespace preservation."""
+        content = (
+            "# Whitespace Test\n"
+            "<!-- Section: Whitespace Test -->\n"
+            "Line with spaces    at end    \n"
+            "   Indented line\n"
+            "\n"
+            "  Mixed   spacing   here  \n"
+        )
+        
+        with open(sample_document, "w", encoding=test_config.default_encoding) as f:
+            f.write(content)
+            
+        result = get_section(sample_document.name, "Whitespace Test", test_config)
+        expected = (
+            "Line with spaces    at end    \n"
+            "   Indented line\n"
+            "\n"
+            "  Mixed   spacing   here  \n"
+        )
+        assert result == expected
+        
+    def test_file_not_found(self, test_config):
+        """Test error when file doesn't exist."""
+        filename = "nonexistent.md"
+        expected_path = test_config.drafts_dir / filename
+        with pytest.raises(WriterError) as exc_info:
+            get_section(filename, "Any Section", test_config)
+        assert ERROR_DOCUMENT_NOT_EXIST.format(file_path=expected_path) in str(exc_info.value)
+            
+    def test_invalid_file_permissions(self, sample_document, test_config):
+        """Test error with unreadable file."""
+        content = "# Test\n<!-- Section: Test -->\nContent"
+        with open(sample_document, "w", encoding=test_config.default_encoding) as f:
+            f.write(content)
+            
+        # Make file unreadable
+        sample_document.chmod(0o000)
+        try:
+            with pytest.raises(FilePermissionError):
+                get_section(sample_document.name, "Test", test_config)
+        finally:
+            # Restore permissions for cleanup
+            sample_document.chmod(0o666)
+
+
+class TestSectionExists:
+    """Tests for section_exists function."""
+    
+    @pytest.fixture
+    def sample_document(self, test_config, valid_metadata):
+        """Create a sample document with sections for testing."""
+        file_path = create_document("test_doc.md", valid_metadata, test_config)
+        append_section("test_doc.md", "Existing Section", "Test content", test_config)
+        append_section("test_doc.md", "Another Section", "More content", test_config)
+        return file_path
+
+    def test_section_exists_true(self, sample_document, test_config):
+        """Test when section exists."""
+        assert section_exists("test_doc.md", "Existing Section", test_config) is True
+
+    def test_section_exists_false(self, sample_document, test_config):
+        """Test when section doesn't exist."""
+        assert section_exists("test_doc.md", "Nonexistent Section", test_config) is False
+
+    def test_section_exists_case_sensitive(self, sample_document, test_config):
+        """Test that section matching is case-sensitive."""
+        assert section_exists("test_doc.md", "existing section", test_config) is False
+        assert section_exists("test_doc.md", "Existing Section", test_config) is True
+
+    def test_section_exists_file_not_found(self, test_config):
+        """Test error when file doesn't exist."""
+        with pytest.raises(WriterError, match=ERROR_DOCUMENT_NOT_EXIST.format(file_path=test_config.drafts_dir / "nonexistent.md")):
+            section_exists("nonexistent.md", "Any Section", test_config)
+
+    def test_section_exists_permission_error(self, sample_document, test_config):
+        """Test error when file permissions prevent reading."""
+        sample_document.chmod(0o000)
+        try:
+            with pytest.raises(WriterError, match="Permission denied"):
+                section_exists("test_doc.md", "Existing Section", test_config)
+        finally:
+            sample_document.chmod(0o666)  # Restore permissions for cleanup
+
+    def test_section_exists_with_special_chars(self, sample_document, test_config):
+        """Test with section titles containing special characters."""
+        append_section("test_doc.md", "Special (Test)!", "Content", test_config)
+        assert section_exists("test_doc.md", "Special (Test)!", test_config) is True
+
+    def test_section_exists_empty_title(self, sample_document, test_config):
+        """Test with empty section title."""
+        with pytest.raises(WriterError, match=ERROR_INVALID_SECTION_TITLE):
+            section_exists("test_doc.md", "", test_config)
 
 
 # pytest tests/functions/writer/test_file_operations.py
