@@ -302,6 +302,35 @@ def validate_header(
     return errors, level, header_text
 
 
+def _handle_header_validation(
+    stripped: str,
+    line_num: int,
+    current_level: int,
+    last_header: Optional[str],
+    first_header_found: bool
+) -> Tuple[List[str], int, Optional[str], bool]:
+    """Handle header validation logic and state tracking."""
+    errors = []
+    header_errors, level, header_text = validate_header(
+        stripped, line_num, current_level, last_header
+    )
+    errors.extend(header_errors)
+    
+    if not header_errors:
+        if not first_header_found:
+            first_header_found = True
+            if level != 1:
+                errors.append(
+                    ERROR_HEADER_INVALID_START.format(
+                        line=line_num, level=level
+                    )
+                )
+        current_level = level
+        last_header = header_text
+        
+    return errors, current_level, last_header, first_header_found
+
+
 def validate_markdown_content(content: str) -> List[str]:
     """Validate markdown content for proper formatting."""
     errors = []
@@ -328,61 +357,37 @@ def validate_markdown_content(content: str) -> List[str]:
 
         # Header validation
         if stripped.startswith(SECTION_HEADER_PREFIX):
-            header_errors, level, header_text = validate_header(
-                stripped, line_num, current_level, last_header
+            header_results = _handle_header_validation(
+                stripped, line_num, current_level, last_header, first_header_found
             )
-            errors.extend(header_errors)
-            if not header_errors:  # Only update tracking if header was valid
-                if not first_header_found:
-                    first_header_found = True
-                    if level != 1:
-                        errors.append(
-                            ERROR_HEADER_INVALID_START.format(
-                                line=line_num, level=level
-                            )
-                        )
-                current_level = level
-                last_header = header_text
+            new_errors, current_level, last_header, first_header_found = header_results
+            errors.extend(new_errors)
 
-        # Task list validation
-        elif stripped.startswith("-"):
+        elif stripped.startswith(TASK_LIST_MARKER_DASH):
             errors.extend(validate_task_list(stripped, line_num))
 
     return errors
 
 
-def check_pandoc_installation() -> bool:
-    """Check if Pandoc is installed and accessible.
-
-    Returns:
-        bool: True if Pandoc is installed and accessible, False otherwise
-    """
+def _check_pandoc_basic_installation() -> Tuple[bool, Optional[str]]:
+    """Verify basic Pandoc installation and return status."""
     try:
-        result = subprocess.run(
-            [PANDOC_COMMAND, PANDOC_VERSION_ARG],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        return result.returncode == 0
-    except FileNotFoundError:
-        return False
-
-
-def validate_pandoc_compatibility(content: str, file_path: Path) -> List[str]:
-    """Run pandoc compatibility check using content string."""
-    errors = []
-
-    try:
-        # Check if pandoc is installed
         subprocess.run(
-            [PANDOC_COMMAND, "--version"],
+            [PANDOC_COMMAND, PANDOC_VERSION_ARG],
             capture_output=True,
             check=True,
             text=True
         )
+        return True, None
+    except FileNotFoundError:
+        return False, ERROR_PANDOC_NOT_INSTALLED
+    except Exception as e:
+        return False, ERROR_PANDOC_EXECUTION.format(error=str(e))
 
-        # Run the actual pandoc conversion
+
+def _run_pandoc_conversion(content: str) -> Tuple[bool, Optional[str]]:
+    """Run Pandoc conversion and return status."""
+    try:
         subprocess.run(
             [
                 PANDOC_COMMAND,
@@ -396,18 +401,30 @@ def validate_pandoc_compatibility(content: str, file_path: Path) -> List[str]:
             text=True,
             check=True
         )
+        return True, None
     except subprocess.CalledProcessError as e:
         if LATEX_MATH_ERROR in getattr(e, PANDOC_STDERR_ATTR, EMPTY_STRING):
-            errors.append(ERROR_PANDOC_LATEX_MATH)
-        else:
-            errors.append(ERROR_PANDOC_COMPATIBILITY.format(error=e.stderr))
-        logger.warning(ERROR_PANDOC_VALIDATION_FAILED.format(error=e.stderr))
-    except FileNotFoundError:
+            return False, ERROR_PANDOC_LATEX_MATH
+        return False, ERROR_PANDOC_COMPATIBILITY.format(error=e.stderr)
+
+
+def validate_pandoc_compatibility(content: str, file_path: Path) -> List[str]:
+    """Run pandoc compatibility check using content string."""
+    errors = []
+
+    # Check basic installation
+    is_installed, error = _check_pandoc_basic_installation()
+    if not is_installed:
         logger.warning(ERROR_PANDOC_NOT_FOUND)
-        errors.append(ERROR_PANDOC_NOT_INSTALLED)
-    except Exception as e:
-        errors.append(ERROR_PANDOC_EXECUTION.format(error=str(e)))
-            
+        errors.append(error)
+        return errors
+
+    # Run conversion
+    success, error = _run_pandoc_conversion(content)
+    if not success:
+        logger.warning(ERROR_PANDOC_VALIDATION_FAILED.format(error=error))
+        errors.append(error)
+
     return errors
 
 
@@ -542,6 +559,6 @@ def extract_header_info(line: str) -> Tuple[int, str]:
         
     level = len(level_match.group())
     text_match = re.match(PATTERN_HEADER_TEXT, line)
-    text = text_match.group(1) if text_match else ""
+    text = text_match.group(1) if text_match else EMPTY_STRING
     
     return level, text
