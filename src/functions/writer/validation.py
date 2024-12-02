@@ -6,6 +6,7 @@ import re
 from .exceptions import WriterError
 from .constants import (
     DEFAULT_ENCODING,
+    MARKDOWN_EXTENSION_GFM,
     MD_EXTENSION,
     PANDOC_COMMAND,
     PANDOC_FROM_ARG,
@@ -13,18 +14,18 @@ from .constants import (
     PANDOC_TO_ARG,
     PANDOC_TO_FORMAT,
     URL_PREFIXES,
-    MARKDOWN_EXTENSION_GFM,
 )
 from .patterns import (
+    HEADER_LEVEL_RANGE,
     PATTERN_FILE_LINK,
-    PATTERN_IMAGE_LINK,
     PATTERN_HEADER_LEVEL,
     PATTERN_HEADER_TEXT,
-    HEADER_LEVEL_RANGE,
-    SECTION_HEADER_PREFIX,
+    PATTERN_IMAGE_LINK,
+    PATTERN_MARKDOWNLINT_ERROR,
+    PATTERN_TASK_LIST_MARKER,
     PATTERN_TASK_LIST_MISSING_SPACE_AFTER,
     PATTERN_TASK_LIST_VALID,
-    PATTERN_MARKDOWNLINT_ERROR,
+    SECTION_HEADER_PREFIX,
 )
 from .errors import (
     ERROR_BROKEN_FILE,
@@ -36,21 +37,21 @@ from .errors import (
     ERROR_HEADER_LEVEL_SKIP,
     ERROR_INVALID_FILE_FORMAT,
     ERROR_LINE_MESSAGE,
+    ERROR_MARKDOWN_FORMATTING,
+    ERROR_MDFORMAT_GFM_NOT_INSTALLED,
+    ERROR_MDFORMAT_NOT_INSTALLED,
     ERROR_PANDOC_COMPATIBILITY,
     ERROR_PANDOC_EXECUTION,
     ERROR_PANDOC_LATEX_MATH,
+    ERROR_PANDOC_NOT_FOUND,
     ERROR_PANDOC_NOT_INSTALLED,
+    ERROR_PANDOC_VALIDATION_FAILED,
     ERROR_SUGGESTION_FORMAT,
     ERROR_TASK_LIST_EXTRA_SPACE,
     ERROR_TASK_LIST_INVALID_MARKER,
     ERROR_TASK_LIST_MISSING_SPACE,
     ERROR_TASK_LIST_MISSING_SPACE_AFTER,
     ERROR_VALIDATION_FAILED,
-    ERROR_MDFORMAT_NOT_INSTALLED,
-    ERROR_MDFORMAT_GFM_NOT_INSTALLED,
-    ERROR_MARKDOWN_FORMATTING,
-    ERROR_PANDOC_NOT_FOUND,
-    ERROR_PANDOC_VALIDATION_FAILED,
 )
 from .logs import (
     LOG_EMPTY_FILE_DETECTED,
@@ -63,19 +64,17 @@ from .suggestions import (
 )
 from .file_io import read_file
 from .validation_constants import (
-    LATEX_MATH_ERROR,
-    PANDOC_STDERR_ATTR,
-    TASK_LIST_MARKER_DASH,
-    TASK_LIST_MARKER_SPACE,
-    TASK_LIST_BRACKET_START,
-    TASK_LIST_DOUBLE_SPACE,
     CODE_BLOCK_MARKER,
-    FIRST_HEADER_LEVEL,
-    PANDOC_VERSION_ARG,
     COLON_SEPARATOR,
     EMPTY_STRING,
-    LATEX_STRIKETHROUGH,
     GFM_TASK_LIST_MARKER,
+    LATEX_MATH_ERROR,
+    LATEX_STRIKETHROUGH,
+    PANDOC_STDERR_ATTR,
+    PANDOC_VERSION_ARG,
+    TASK_LIST_BRACKET_START,
+    TASK_LIST_DOUBLE_SPACE,
+    TASK_LIST_MARKER_DASH,
 )
 
 logger = logging.getLogger(__name__)
@@ -119,29 +118,25 @@ def validate_markdown_formatting(content: str) -> List[str]:
     mdformat_available, mdformat_error = check_mdformat_availability()
     gfm_available = None
     
-    # Standard markdown validation
     if mdformat_available:
         try:
             import mdformat
+            
             mdformat.text(content)
+            
+            if LATEX_STRIKETHROUGH in content or GFM_TASK_LIST_MARKER in content:
+                if gfm_available is None:
+                    gfm_available, gfm_error = check_mdformat_availability(gfm=True)
+                
+                if gfm_available:
+                    mdformat.text(content, extensions=[MARKDOWN_EXTENSION_GFM])
+                else:
+                    logger.warning(LOG_FILE_OPERATION_ERROR.format(error=gfm_error))
+                    
         except ValueError as e:
             errors.append(ERROR_MARKDOWN_FORMATTING.format(error=str(e)))
     else:
         logger.warning(ERROR_MDFORMAT_NOT_INSTALLED)
-
-    # GFM feature validation
-    if LATEX_STRIKETHROUGH in content or GFM_TASK_LIST_MARKER in content:  # GFM features detected
-        if gfm_available is None:
-            gfm_available, gfm_error = check_mdformat_availability(gfm=True)
-        
-        if gfm_available:
-            try:
-                import mdformat
-                mdformat.text(content, extensions=[MARKDOWN_EXTENSION_GFM])
-            except ValueError as e:
-                errors.append(ERROR_MARKDOWN_FORMATTING.format(error=str(e)))
-        else:
-            logger.warning(LOG_FILE_OPERATION_ERROR.format(error=gfm_error))
             
     return errors
 
@@ -402,7 +397,7 @@ def validate_pandoc_compatibility(content: str, file_path: Path) -> List[str]:
             check=True
         )
     except subprocess.CalledProcessError as e:
-        if LATEX_MATH_ERROR in getattr(e, PANDOC_STDERR_ATTR, ''):
+        if LATEX_MATH_ERROR in getattr(e, PANDOC_STDERR_ATTR, EMPTY_STRING):
             errors.append(ERROR_PANDOC_LATEX_MATH)
         else:
             errors.append(ERROR_PANDOC_COMPATIBILITY.format(error=e.stderr))
@@ -517,7 +512,7 @@ def validate_content(content: str, file_path: Path) -> List[str]:
 
 def is_valid_task_list_marker(text: str) -> bool:
     """Check if the text contains a valid task list marker."""
-    return bool(re.match(r"^- \[([ xX])\] ", text))
+    return bool(re.match(PATTERN_TASK_LIST_MARKER, text))
 
 
 def get_header_level(text: str) -> int:
