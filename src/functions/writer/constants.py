@@ -78,3 +78,21 @@ PANDOC_COMMAND: Final = "pandoc"
 
 MARKDOWN_EXTENSION_GFM = "gfm"  # Define the GFM extension constant
 
+# Lock metadata keys
+LOCK_METADATA_SECTION = "section"
+LOCK_METADATA_TIMESTAMP = "timestamp"
+LOCK_METADATA_FILE = "file"
+
+# Lock error messages
+ERROR_LOCK_ACQUISITION = "Failed to acquire lock for section '{section}'"
+ERROR_LOCK_METADATA = "Failed to write lock metadata: {error}"
+ERROR_LOCK_CLEANUP = "Failed to clean up lock file: {error}"
+ERROR_LOCK_RELEASE = "Failed to release lock: {error}"
+ERROR_UNEXPECTED_LOCK = "Unexpected error during lock operation: {error}"
+
+# Lock debug messages
+DEBUG_LOCK_EXISTS = "Lock already exists for section '{section}'"
+DEBUG_LOCK_ACQUIRED = "Lock acquired for section '{section}'"
+DEBUG_LOCK_FAILED = "Failed to acquire lock for section '{section}'"
+DEBUG_LOCK_RELEASED = "Lock released for section '{section}'"
+
