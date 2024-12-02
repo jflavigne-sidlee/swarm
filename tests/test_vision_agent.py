@@ -40,7 +40,7 @@ async def test_vision_analysis(ai_client, vision_agent):
     # Test image paths
     image_paths = [
         Path("tests/test_images/test_image.png"),
-        "https://example.com/test.jpg"
+        "https://upload.wikimedia.org/wikipedia/commons/3/31/Canyon_River_Tree_%28165872763%29.jpeg"
     ]
     print(f"✓ Testing with images: {', '.join(str(p) for p in image_paths)}")
     

@@ -4,6 +4,7 @@ from .image_analysis import (
     SingleImageAnalysis,
     ImageSetAnalysis,
     encode_image_to_base64,
+    analyze_images,
 )
 from dataclasses import dataclass
 from typing import List, Optional
@@ -26,4 +27,5 @@ __all__ = [
     "SingleImageAnalysis",
     "ImageSetAnalysis",
     "encode_image_to_base64",
+    "analyze_images",
 ] 

@@ -84,6 +84,7 @@ from .constants import (
     UNKNOWN_MIME_TYPE, 
     USER_ROLE,
 )
+from src.aoai.client import AOAIClient
 
 
 
@@ -653,3 +654,46 @@ class ImageAnalyzer:
         successful_images = [img for img in results if img is not None]
         
         return successful_images
+
+async def analyze_images(ai_client, image_path: str) -> dict:
+    """
+    Analyze an image using the AI client.
+    
+    Args:
+        ai_client: The AI client instance to use for analysis
+        image_path: Path to the image file to analyze
+        
+    Returns:
+        dict: Analysis results from the AI service
+        
+    Raises:
+        ImageValidationError: If the image format is not supported
+    """
+    analyzer = ImageAnalyzer(ai_client)
+    return await analyzer.analyze_single_image(image_path)
+
+async def interpretImageSet(
+    client: AOAIClient,
+    images: List[str],
+    prompt: str,
+    model_name: str
+) -> ImageSetAnalysis:
+    """
+    Interpret a set of images using the provided analyzer.
+    
+    Args:
+        client: The AI client instance to use for analysis
+        images: List of image paths or URLs to analyze
+        prompt: Custom prompt for image analysis
+        model_name: Name of the model to use for analysis
+        
+    Returns:
+        ImageSetAnalysis containing analysis results for the image set
+    """
+    # Create analyzer with the specified client and model
+    analyzer = ImageAnalyzer(client, model_name=model_name)
+    
+    # Analyze the image set with the custom prompt
+    result = await analyzer.analyze_image_set(images, prompt=prompt)
+    
+    return result
