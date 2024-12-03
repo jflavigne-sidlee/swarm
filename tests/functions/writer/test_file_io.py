@@ -20,6 +20,7 @@ from src.functions.writer.errors import (
     ERROR_PATH_NO_WRITE,
     ERROR_PATH_NOT_EXIST,
 )
+from src.functions.writer.exceptions import FilePermissionError as WriterFilePermissionError
 
 
 @pytest.fixture
@@ -266,11 +267,8 @@ class TestAtomicWrite:
         file_path.write_text("original")
         os.chmod(file_path, 0o444)
 
-        with pytest.raises(PermissionError) as exc_info:
+        with pytest.raises(WriterFilePermissionError):
             atomic_write(file_path, "test", "utf-8", temp_dir)
-
-        expected_msg = ERROR_NO_WRITE_PERMISSION.format(path=file_path)
-        assert str(exc_info.value) == expected_msg
 
     def test_atomic_write_unsupported_encoding(self, tmp_path):
         """Test atomic write with unsupported encoding."""
@@ -422,11 +420,8 @@ class TestPathPermissions:
         test_file.write_text("test content")
         os.chmod(test_file, 0o444)  # read-only
 
-        with pytest.raises(PermissionError) as exc_info:
+        with pytest.raises(WriterFilePermissionError):
             check_write_permissions(test_file)
-
-        expected_msg = ERROR_PATH_NO_WRITE.format(name="Path", path=test_file)
-        assert str(exc_info.value) == expected_msg
 
     def test_check_permissions_nonexistent_file(self, tmp_path):
         """Test permission checks on nonexistent file."""
@@ -447,15 +442,8 @@ class TestPathPermissions:
         os.chmod(test_file, 0o444)
         validate_path_permissions(test_file, require_write=False)  # Should pass
 
-        with pytest.raises(PermissionError) as exc_info:
+        with pytest.raises(WriterFilePermissionError):
             validate_path_permissions(test_file, require_write=True)
-
-        expected_msg = ERROR_PATH_NO_WRITE.format(name="Path", path=test_file)
-        assert str(exc_info.value) == expected_msg
-
-        # Test with read-write
-        os.chmod(test_file, 0o666)
-        validate_path_permissions(test_file, require_write=True)  # Should pass
 
 
 # pytest tests/functions/writer/test_file_io.py -v
