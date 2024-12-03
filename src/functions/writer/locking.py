@@ -4,6 +4,7 @@ import json
 import logging
 from filelock import FileLock, Timeout
 from typing import Optional
+import random
 
 from .config import WriterConfig
 from .constants import (
@@ -13,7 +14,8 @@ from .constants import (
     LOCK_METADATA_AGENT,
     LOCK_FILE_PATTERN,
     LOCK_CLEANUP_BATCH_SIZE,
-    LOCK_CLEANUP_DEFAULT_AGE
+    LOCK_CLEANUP_DEFAULT_AGE,
+    LOCK_CLEANUP_PROBABILITY
 )
 from .errors import (
     ERROR_SECTION_NOT_FOUND,
@@ -235,6 +237,13 @@ def lock_section(
         config = WriterConfig()
         
     try:
+        # Probabilistic cleanup to avoid overhead on every call
+        if random.random() < LOCK_CLEANUP_PROBABILITY:
+            try:
+                LockCleanupManager(config).cleanup_stale_locks()
+            except Exception as e:
+                logger.warning(f"Automatic lock cleanup failed: {e}")
+        
         validate_filename(Path(file_name).name, config)
         
         file_path = Path(config.drafts_dir) / file_name

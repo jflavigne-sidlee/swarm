@@ -159,6 +159,34 @@ class TestLockSection:
         metadata = json.loads(lock_file.read_text())
         assert metadata[LOCK_METADATA_AGENT] == agent_id
 
+    def test_automatic_cleanup(self, temp_md_file, mock_config):
+        """Test automatic cleanup during lock acquisition."""
+        lock_dir = temp_md_file.parent
+        
+        # Create a stale lock
+        stale_lock = lock_dir / ".stale_section.lock"
+        stale_metadata = {
+            "section": "stale_section",
+            "timestamp": (datetime.now() - timedelta(hours=2)).isoformat(),
+            "file": str(temp_md_file)
+        }
+        stale_lock.write_text(json.dumps(stale_metadata))
+        
+        # Force cleanup by patching random
+        with patch('random.random', return_value=0.0):  # Always trigger cleanup
+            lock_section("test.md", "TestSection", mock_config)
+            
+        # Verify stale lock was cleaned up
+        assert not stale_lock.exists()
+        
+    def test_cleanup_failure_handling(self, temp_md_file, mock_config):
+        """Test handling of cleanup failures during lock acquisition."""
+        with patch('src.functions.writer.locking.LockCleanupManager.cleanup_stale_locks', 
+                  side_effect=Exception("Cleanup failed")):
+            with patch('random.random', return_value=0.0):  # Force cleanup attempt
+                # Should still succeed despite cleanup failure
+                assert lock_section("test.md", "TestSection", mock_config) is True
+
 class TestErrorHandling:
     """Test error handling scenarios."""
     
