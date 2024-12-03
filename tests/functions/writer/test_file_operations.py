@@ -18,7 +18,14 @@ from src.functions.writer.file_operations import (
     stream_content,
 )
 from src.functions.writer.config import WriterConfig
-from src.functions.writer.exceptions import WriterError, SectionNotFoundError, FileValidationError, FilePermissionError, InvalidChunkSizeError
+from src.functions.writer.exceptions import (
+    WriterError, 
+    SectionNotFoundError, 
+    FileValidationError, 
+    FilePermissionError, 
+    InvalidChunkSizeError, 
+    WritePermissionError
+)
 from src.functions.writer.validation_constants import (
     MAX_PATH_LENGTH,
 )
@@ -1443,11 +1450,15 @@ class TestStreamContent:
     @pytest.mark.asyncio
     async def test_stream_content_permission_error(self, sample_document, test_config):
         """Test handling of permission errors."""
+        # Create initial content
+        initial_content = "Initial content"
+        sample_document.write_text(initial_content, encoding=test_config.default_encoding)
+        
         # Make file read-only
         sample_document.chmod(0o444)
         try:
-            with pytest.raises(WriterError, match="Permission denied"):
-                await stream_content(sample_document.name, "content")
+            with pytest.raises(WritePermissionError, match="No write permission for file"):
+                await stream_content(str(sample_document), "content")
         finally:
             # Restore permissions for cleanup
             sample_document.chmod(0o666)
@@ -1459,7 +1470,7 @@ class TestStreamContent:
         large_content = "Large content chunk.\n" * 50000
         
         # Stream content in small chunks
-        await stream_content(sample_document.name, large_content, chunk_size=1024)
+        await stream_content(str(sample_document), large_content, chunk_size=1024)
         
         # Verify content
         result = sample_document.read_text(encoding=test_config.default_encoding)
