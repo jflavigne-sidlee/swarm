@@ -18,8 +18,24 @@ from .validation_constants import (
     FORBIDDEN_FILENAME_CHARS,
     RESERVED_WINDOWS_FILENAMES,
 )
-from .logs import LOG_INVALID_METADATA_TYPES, LOG_MISSING_METADATA_FIELDS
-from .errors import ERROR_INVALID_METADATA_TYPE, ERROR_MISSING_METADATA
+from .logs import (
+    LOG_INVALID_METADATA_TYPES,
+    LOG_MISSING_METADATA_FIELDS,
+    LOG_VALIDATE_FILENAME,
+    LOG_PATH_TOO_LONG,
+    LOG_ADDED_EXTENSION,
+    LOG_FILE_NOT_FOUND,
+    LOG_PERMISSION_ERROR,
+    LOG_INVALID_FILE_FORMAT,
+)
+from .errors import (
+    ERROR_INVALID_METADATA_TYPE,
+    ERROR_MISSING_METADATA,
+    ERROR_INVALID_FILENAME,
+    ERROR_PATH_TOO_LONG,
+    ERROR_DOCUMENT_NOT_EXIST,
+    ERROR_INVALID_MARKDOWN_FILE,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +89,27 @@ def validate_file_inputs(
     elif not require_write:
         logger.error(f"File not found: {file_path}")
         raise FileNotFoundError(f"File does not exist: {file_path}")
+    
+def validate_filename(file_name: str, config: WriterConfig) -> Path:
+    """Validate filename and return full path."""
+    if not file_name or not is_valid_filename(file_name):
+        logger.warning(LOG_VALIDATE_FILENAME.format(filename=file_name))
+        raise WriterError(ERROR_INVALID_FILENAME)
 
+    # Ensure .md extension
+    if not file_name.endswith(MD_EXTENSION):
+        file_name += MD_EXTENSION
+        logger.debug(LOG_ADDED_EXTENSION.format(filename=file_name))
+
+    # Check path length
+    full_path = config.drafts_dir / file_name
+    if len(str(full_path)) > MAX_PATH_LENGTH:
+        logger.warning(LOG_PATH_TOO_LONG.format(path=full_path))
+        raise WriterError(
+            ERROR_PATH_TOO_LONG.format(max_length=MAX_PATH_LENGTH, path=full_path)
+        )
+
+    return full_path
 
 def is_valid_filename(filename: str) -> bool:
     """Check if filename is valid.
@@ -106,7 +142,6 @@ def is_valid_filename(filename: str) -> bool:
         return False
 
     return True
-
 
 def ensure_valid_markdown_file(
     file_path: Path,
@@ -164,3 +199,32 @@ def validate_metadata(metadata: Dict[str, Any], config: WriterConfig) -> None:
         raise WriterError(
             ERROR_MISSING_METADATA.format(fields=", ".join(missing_fields))
         )
+
+def validate_file(file_path: Path, require_write: bool = False) -> None:
+    """Validate that the file exists, has the correct format, and meets permission requirements.
+
+    Args:
+        file_path: Path object pointing to the file to validate
+        require_write: If True, also check for write permissions
+
+    Raises:
+        WriterError: If file doesn't exist, has wrong format, or lacks permissions
+        FileNotFoundError: If the file doesn't exist
+        FilePermissionError: If required permissions are not available
+    """
+    try:
+        # Check if file exists and has correct permissions
+        validate_path_permissions(file_path, require_write=require_write)
+
+        # Verify file extension
+        if file_path.suffix.lower() != MD_EXTENSION:
+            logger.error(LOG_INVALID_FILE_FORMAT.format(path=file_path))
+            raise WriterError(ERROR_INVALID_MARKDOWN_FILE.format(path=file_path))
+
+    except FileNotFoundError:
+        logger.error(LOG_FILE_NOT_FOUND.format(path=file_path))
+        raise WriterError(ERROR_DOCUMENT_NOT_EXIST.format(file_path=file_path))
+    except PermissionError:
+        logger.error(LOG_PERMISSION_ERROR.format(path=file_path))
+        raise FilePermissionError(str(file_path))
+

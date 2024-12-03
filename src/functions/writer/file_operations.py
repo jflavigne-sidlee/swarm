@@ -138,34 +138,12 @@ from .file_io import read_file, write_file, atomic_write, validate_path_permissi
 from .validation import validate_markdown_content
 from .file_validation import (
     validate_file_inputs,
-    ensure_valid_markdown_file,
     validate_metadata,
-    is_valid_filename
+    validate_filename,
+    validate_file
 )
 # Set up module logger
 logger = logging.getLogger(__name__)
-
-
-def validate_filename(file_name: str, config: WriterConfig) -> Path:
-    """Validate filename and return full path."""
-    if not file_name or not is_valid_filename(file_name):
-        logger.warning(LOG_VALIDATE_FILENAME.format(filename=file_name))
-        raise WriterError(ERROR_INVALID_FILENAME)
-
-    # Ensure .md extension
-    if not file_name.endswith(MD_EXTENSION):
-        file_name += MD_EXTENSION
-        logger.debug(LOG_ADDED_EXTENSION.format(filename=file_name))
-
-    # Check path length
-    full_path = config.drafts_dir / file_name
-    if len(str(full_path)) > MAX_PATH_LENGTH:
-        logger.warning(LOG_PATH_TOO_LONG.format(path=full_path))
-        raise WriterError(
-            ERROR_PATH_TOO_LONG.format(max_length=MAX_PATH_LENGTH, path=full_path)
-        )
-
-    return full_path
 
 
 def write_document(file_path: Path, metadata: Dict[str, str], encoding: str) -> None:
@@ -769,35 +747,6 @@ def extract_section_markers(content: str) -> dict[str, str]:
         markers[marker_title] = nearest_header or NO_ASSOCIATED_HEADER
 
     return markers
-
-
-def validate_file(file_path: Path, require_write: bool = False) -> None:
-    """Validate that the file exists, has the correct format, and meets permission requirements.
-
-    Args:
-        file_path: Path object pointing to the file to validate
-        require_write: If True, also check for write permissions
-
-    Raises:
-        WriterError: If file doesn't exist, has wrong format, or lacks permissions
-        FileNotFoundError: If the file doesn't exist
-        FilePermissionError: If required permissions are not available
-    """
-    try:
-        # Check if file exists and has correct permissions
-        validate_path_permissions(file_path, require_write=require_write)
-
-        # Verify file extension
-        if file_path.suffix.lower() != MD_EXTENSION:
-            logger.error(LOG_INVALID_FILE_FORMAT.format(path=file_path))
-            raise WriterError(ERROR_INVALID_MARKDOWN_FILE.format(path=file_path))
-
-    except FileNotFoundError:
-        logger.error(LOG_FILE_NOT_FOUND.format(path=file_path))
-        raise WriterError(ERROR_DOCUMENT_NOT_EXIST.format(file_path=file_path))
-    except PermissionError:
-        logger.error(LOG_PERMISSION_ERROR.format(path=file_path))
-        raise FilePermissionError(str(file_path))
 
 
 def create_frontmatter(metadata: Dict[str, str]) -> str:
