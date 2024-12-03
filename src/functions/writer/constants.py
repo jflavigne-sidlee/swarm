@@ -85,7 +85,14 @@ LOCK_METADATA_FILE = "file"
 LOCK_METADATA_AGENT = "agent_id"
 
 # Lock cleanup settings
-LOCK_FILE_PATTERN = "*.lock"
 LOCK_CLEANUP_BATCH_SIZE = 100  # Maximum number of locks to process in one batch
 LOCK_CLEANUP_DEFAULT_AGE = 3600  # Default max age in seconds (1 hour)
 LOCK_CLEANUP_PROBABILITY = 0.1  # 10% chance of cleanup on lock attempt
+
+# Lock file patterns and naming
+LOCK_FILE_PATTERN = "*.lock"  # Already exists
+LOCK_FILE_PREFIX = "."
+LOCK_FILE_SUFFIX = ".lock"
+
+# Lock timeouts
+DEFAULT_LOCK_TIMEOUT = 5  # Default timeout in seconds
