@@ -1082,27 +1082,53 @@ def section_exists(file_name: str, section_title: str, config: Optional[WriterCo
 async def stream_content(
     file_name: str,
     content: str,
-    chunk_size: int = 1024,
-    ensure_newline: bool = True
+    chunk_size: Optional[int] = None,
+    ensure_newline: bool = True,
+    config: Optional[WriterConfig] = None
 ) -> None:
     """Append content to a Markdown file in chunks to handle large content efficiently.
     
     Args:
         file_name: Path to the Markdown file
         content: Content to append to the file
-        chunk_size: Size of each chunk in bytes (default: 1024)
+        chunk_size: Optional size of each chunk in bytes. If None, calculated dynamically
         ensure_newline: Add newline before content if needed (default: True)
+        config: Optional configuration object for custom settings
         
     Raises:
         FileNotFoundError: If the specified file doesn't exist
-        InvalidChunkSizeError: If chunk_size is not a positive integer
+        InvalidChunkSizeError: If chunk_size is invalid
         WritePermissionError: If the file cannot be written to
         MarkdownIntegrityError: If content would break Markdown formatting
     """
-    # Validate inputs
+    config = get_config(config)
+    
+    # Calculate optimal chunk size if not provided
+    if chunk_size is None:
+        content_size = len(content.encode('utf-8'))
+        logger.debug(f"Calculating chunk size for content of {content_size} bytes")
+        
+        # Use larger chunks for bigger content
+        if content_size > 1024 * 1024:  # > 1MB
+            chunk_size = 64 * 1024  # 64KB chunks
+            logger.debug("Using 64KB chunks for large content")
+        elif content_size > 100 * 1024:  # > 100KB
+            chunk_size = 16 * 1024  # 16KB chunks
+            logger.debug("Using 16KB chunks for medium content")
+        else:
+            chunk_size = 4 * 1024  # 4KB chunks
+            logger.debug("Using 4KB chunks for small content")
+    
+    # Validate chunk size
     if not isinstance(chunk_size, int) or chunk_size <= 0:
         logger.error(f"Invalid chunk size: {chunk_size}")
         raise InvalidChunkSizeError(f"Chunk size must be a positive integer, got {chunk_size}")
+    
+    # Validate maximum chunk size if configured
+    max_chunk_size = getattr(config, 'max_chunk_size', 1024 * 1024)  # 1MB default max
+    if chunk_size > max_chunk_size:
+        logger.warning(f"Chunk size {chunk_size} exceeds maximum {max_chunk_size}, using maximum")
+        chunk_size = max_chunk_size
         
     file_path = Path(file_name)
     if not file_path.exists():
@@ -1122,6 +1148,13 @@ async def stream_content(
         logger.info("Empty content provided, no changes made")
         return
 
+    # Validate markdown content integrity
+    from .validation import validate_markdown_content
+    validation_errors = validate_markdown_content(content)
+    if validation_errors:
+        logger.error("Content validation failed")
+        raise MarkdownIntegrityError("\n".join(validation_errors))
+
     try:
         # Check if we need to add a newline
         if ensure_newline:
@@ -1139,13 +1172,15 @@ async def stream_content(
                 
             # Process content in chunks
             content_bytes = content.encode('utf-8')
+            total_chunks = (len(content_bytes) + chunk_size - 1) // chunk_size
+            
             for i in range(0, len(content_bytes), chunk_size):
                 chunk = content_bytes[i:i + chunk_size].decode('utf-8', errors='strict')
                 await f.write(chunk)
                 await f.flush()
-                logger.debug(f"Wrote chunk {i//chunk_size + 1}")
+                logger.debug(f"Wrote chunk {i//chunk_size + 1} of {total_chunks}")
                 
-        logger.info(f"Successfully streamed content to {file_name}")
+        logger.info(f"Successfully streamed content to {file_name} using {chunk_size} byte chunks")
         
     except UnicodeError as e:
         logger.error(f"Unicode encoding error: {str(e)}")

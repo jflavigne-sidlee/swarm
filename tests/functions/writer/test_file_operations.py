@@ -36,6 +36,12 @@ from src.functions.writer.errors import (
     ERROR_DOCUMENT_NOT_EXIST,
     ERROR_INVALID_SECTION_TITLE,
 )
+from src.functions.writer.validation import (
+    validate_markdown_content,
+)
+from src.functions.writer.exceptions import (
+    MarkdownIntegrityError,
+)
 
 @pytest.fixture
 def test_config(tmp_path):
@@ -1394,7 +1400,7 @@ class TestStreamContent:
         initial_content = (
             "---\n"
             "title: Test Document\n"
-            "---\n"
+            "---"  # No trailing newline
         )
         sample_document.write_text(initial_content, encoding=test_config.default_encoding)
         
@@ -1494,6 +1500,141 @@ class TestStreamContent:
         
         result = sample_document.read_text(encoding=test_config.default_encoding)
         assert result == unicode_content
+
+    @pytest.mark.asyncio
+    async def test_stream_content_invalid_markdown(self, sample_document, test_config):
+        """Test that invalid markdown content is rejected."""
+        # Create initial file
+        sample_document.parent.mkdir(parents=True, exist_ok=True)
+        sample_document.touch()
+
+        # Content with invalid markdown (header level skip)
+        invalid_content = "# Header 1\n### Invalid Header Skip\nContent"
+        
+        with pytest.raises(MarkdownIntegrityError) as exc_info:
+            await stream_content(str(sample_document), invalid_content)
+        assert "Header level" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_stream_content_valid_markdown(self, sample_document, test_config):
+        """Test that valid markdown content is accepted."""
+        # Create initial file
+        sample_document.parent.mkdir(parents=True, exist_ok=True)
+        sample_document.touch()
+
+        # Content with valid markdown structure
+        valid_content = "# Header 1\n## Header 2\nContent\n### Header 3"
+        
+        await stream_content(str(sample_document), valid_content)
+        
+        result = sample_document.read_text(encoding=test_config.default_encoding)
+        assert result == valid_content
+
+    @pytest.mark.asyncio
+    async def test_stream_content_invalid_task_list(self, sample_document, test_config):
+        """Test that invalid task list formatting is rejected."""
+        # Create initial file
+        sample_document.parent.mkdir(parents=True, exist_ok=True)
+        sample_document.touch()
+
+        # Content with invalid task list format
+        invalid_content = "# Header\n-[] Invalid task\n-[x]No space after"
+        
+        with pytest.raises(MarkdownIntegrityError) as exc_info:
+            await stream_content(str(sample_document), invalid_content)
+        assert "task list" in str(exc_info.value).lower()
+
+    @pytest.mark.asyncio
+    async def test_stream_content_dynamic_chunk_size(self, sample_document, test_config):
+        """Test dynamic chunk size adjustment based on content size."""
+        # Create initial file
+        sample_document.parent.mkdir(parents=True, exist_ok=True)
+        sample_document.touch()
+        
+        # Test with different content sizes
+        test_cases = [
+            ("Small content\n", 4 * 1024),  # Should use 4KB chunks
+            ("Medium " * 15000 + "\n", 16 * 1024),  # ~120KB, should use 16KB chunks
+            ("Large " * 200000 + "\n", 64 * 1024),  # ~1.6MB, should use 64KB chunks
+        ]
+        
+        for content, expected_chunk_size in test_cases:
+            # Clear file before each test
+            sample_document.write_text("")
+            
+            # Debug: Print content size
+            content_size = len(content.encode('utf-8'))
+            print(f"\nTesting with content size: {content_size} bytes")
+            print(f"Size thresholds - Medium: {100 * 1024} bytes, Large: {1024 * 1024} bytes")
+            
+            with patch('src.functions.writer.file_operations.logger.info') as mock_info, \
+                 patch('src.functions.writer.file_operations.logger.debug') as mock_debug:
+                
+                await stream_content(str(sample_document), content, chunk_size=None)
+                
+                # Verify chunk size from info logs
+                success_logs = [
+                    call for call in mock_info.call_args_list 
+                    if "Successfully streamed content" in str(call)
+                ]
+                
+                assert len(success_logs) > 0, "No success message was logged"
+                success_message = success_logs[0].args[0]
+                chunk_size_used = int(success_message.split("using ")[1].split(" byte")[0])
+                
+                assert chunk_size_used == expected_chunk_size, \
+                    f"Expected chunk size {expected_chunk_size}, got {chunk_size_used} for content size {content_size}"
+            
+            # Verify content was written correctly
+            result = sample_document.read_text(encoding=test_config.default_encoding)
+            assert result == content
+
+    @pytest.mark.asyncio
+    async def test_stream_content_custom_chunk_size(self, sample_document, test_config):
+        """Test using custom chunk size."""
+        # Create initial file
+        sample_document.parent.mkdir(parents=True, exist_ok=True)
+        sample_document.touch()
+        
+        content = "Test content\n" * 1000
+        custom_chunk_size = 8192  # 8KB chunks
+        
+        with patch('src.functions.writer.file_operations.logger.debug') as mock_debug:
+            await stream_content(str(sample_document), content, chunk_size=custom_chunk_size)
+            
+            # Verify custom chunk size was used
+            debug_calls = [
+                call for call in mock_debug.call_args_list 
+                if "Wrote chunk" in call.args[0]
+            ]
+            total_chunks = len(debug_calls)
+            expected_chunks = (len(content.encode('utf-8')) + custom_chunk_size - 1) // custom_chunk_size
+            assert total_chunks == expected_chunks
+
+    @pytest.mark.asyncio
+    async def test_stream_content_max_chunk_size(self, sample_document, test_config):
+        """Test chunk size is limited by configuration maximum."""
+        # Create initial file
+        sample_document.parent.mkdir(parents=True, exist_ok=True)
+        sample_document.touch()
+        
+        # Set a small maximum chunk size in config
+        test_config.max_chunk_size = 4096  # 4KB max
+        
+        content = "Test content\n" * 1000
+        requested_chunk_size = 8192  # Try to use 8KB chunks
+        
+        with patch('src.functions.writer.file_operations.logger.warning') as mock_warning:
+            await stream_content(
+                str(sample_document), 
+                content, 
+                chunk_size=requested_chunk_size,
+                config=test_config
+            )
+            
+            # Verify warning was logged about chunk size reduction
+            mock_warning.assert_called_once()
+            assert "exceeds maximum" in mock_warning.call_args[0][0]
 
 
 # pytest tests/functions/writer/test_file_operations.py
