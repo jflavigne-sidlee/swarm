@@ -1086,21 +1086,7 @@ async def stream_content(
     ensure_newline: bool = True,
     config: Optional[WriterConfig] = None
 ) -> None:
-    """Append content to a Markdown file in chunks to handle large content efficiently.
-    
-    Args:
-        file_name: Path to the Markdown file
-        content: Content to append to the file
-        chunk_size: Optional size of each chunk in bytes. If None, calculated dynamically
-        ensure_newline: Add newline before content if needed (default: True)
-        config: Optional configuration object for custom settings
-        
-    Raises:
-        FileNotFoundError: If the specified file doesn't exist
-        InvalidChunkSizeError: If chunk_size is invalid
-        WritePermissionError: If the file cannot be written to
-        MarkdownIntegrityError: If content would break Markdown formatting
-    """
+    """Append content to a Markdown file in chunks to handle large content efficiently."""
     config = get_config(config)
     
     # Calculate optimal chunk size if not provided
@@ -1124,12 +1110,18 @@ async def stream_content(
         logger.error(f"Invalid chunk size: {chunk_size}")
         raise InvalidChunkSizeError(f"Chunk size must be a positive integer, got {chunk_size}")
     
+    # Enforce minimum chunk size
+    min_chunk_size = getattr(config, 'min_chunk_size', 1024)  # 1KB default minimum
+    if chunk_size < min_chunk_size:
+        logger.warning(f"Chunk size {chunk_size} is below minimum {min_chunk_size}, using minimum")
+        chunk_size = min_chunk_size
+
     # Validate maximum chunk size if configured
     max_chunk_size = getattr(config, 'max_chunk_size', 1024 * 1024)  # 1MB default max
     if chunk_size > max_chunk_size:
         logger.warning(f"Chunk size {chunk_size} exceeds maximum {max_chunk_size}, using maximum")
         chunk_size = max_chunk_size
-        
+
     file_path = Path(file_name)
     if not file_path.exists():
         logger.error(f"File not found: {file_name}")
