@@ -1084,11 +1084,33 @@ async def stream_content(
     content: str,
     chunk_size: Optional[int] = None,
     ensure_newline: bool = True,
-    config: Optional[WriterConfig] = None
+    config: Optional[WriterConfig] = None,
+    encoding_errors: str = 'strict'
 ) -> None:
-    """Append content to a Markdown file in chunks to handle large content efficiently."""
+    """Append content to a Markdown file in chunks to handle large content efficiently.
+    
+    Args:
+        file_name: Name of the file to write to
+        content: Content to write
+        chunk_size: Optional size of chunks to write. If None, calculated based on content size
+        ensure_newline: Whether to ensure content starts on a new line
+        config: Optional configuration object
+        encoding_errors: How to handle encoding errors ('strict', 'replace', or 'ignore')
+        
+    Raises:
+        InvalidChunkSizeError: If chunk size is invalid
+        FileNotFoundError: If file doesn't exist
+        WritePermissionError: If write permission is denied
+        MarkdownIntegrityError: If content validation fails
+    """
     config = get_config(config)
     
+    # Validate encoding_errors parameter
+    valid_error_handlers = {'strict', 'replace', 'ignore'}
+    if encoding_errors not in valid_error_handlers:
+        logger.error(f"Invalid encoding_errors value: {encoding_errors}")
+        raise ValueError(f"encoding_errors must be one of {valid_error_handlers}")
+
     # Calculate optimal chunk size if not provided
     if chunk_size is None:
         content_size = len(content.encode('utf-8'))
@@ -1167,12 +1189,29 @@ async def stream_content(
             total_chunks = (len(content_bytes) + chunk_size - 1) // chunk_size
             
             for i in range(0, len(content_bytes), chunk_size):
-                chunk = content_bytes[i:i + chunk_size].decode('utf-8', errors='strict')
-                await f.write(chunk)
-                await f.flush()
-                logger.debug(f"Wrote chunk {i//chunk_size + 1} of {total_chunks}")
+                try:
+                    # Try to decode with specified error handling
+                    chunk = content_bytes[i:i + chunk_size].decode('utf-8', errors=encoding_errors)
+                    await f.write(chunk)
+                    await f.flush()
+                    logger.debug(f"Wrote chunk {i//chunk_size + 1} of {total_chunks}")
+                except UnicodeError as e:
+                    if encoding_errors == 'strict':
+                        logger.error(f"Unicode encoding error in chunk {i//chunk_size + 1}: {str(e)}")
+                        raise MarkdownIntegrityError(
+                            f"Content contains invalid Unicode characters in chunk {i//chunk_size + 1}"
+                        ) from e
+                    else:
+                        # Log warning for replaced/ignored characters
+                        logger.warning(
+                            f"Unicode encoding issues in chunk {i//chunk_size + 1}, "
+                            f"characters were {encoding_errors}d"
+                        )
                 
-        logger.info(f"Successfully streamed content to {file_name} using {chunk_size} byte chunks")
+        logger.info(
+            f"Successfully streamed content to {file_name} using {chunk_size} byte chunks "
+            f"(encoding_errors='{encoding_errors}')"
+        )
         
     except UnicodeError as e:
         logger.error(f"Unicode encoding error: {str(e)}")
