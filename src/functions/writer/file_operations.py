@@ -139,7 +139,8 @@ from .validation import validate_markdown_content
 from .file_validation import (
     validate_file_inputs,
     ensure_valid_markdown_file,
-    validate_metadata
+    validate_metadata,
+    is_valid_filename
 )
 # Set up module logger
 logger = logging.getLogger(__name__)
@@ -253,47 +254,6 @@ def create_document(
         # Log and re-raise unexpected errors with original type
         logger.error(LOG_UNEXPECTED_ERROR.format(error=str(e), error_type=type(e).__name__))
         raise
-
-
-def is_valid_filename(filename: str) -> bool:
-    """Check if the filename is valid based on OS restrictions.
-
-    Args:
-        filename: The filename to validate
-
-    Returns:
-        bool: True if filename is valid, False otherwise
-
-    Note:
-        Validates against:
-        - Empty or too long filenames (>255 chars)
-        - Forbidden characters (<>:"/\\|?*\0)
-        - Reserved Windows filenames (CON, PRN, etc.)
-        - Special directory names (., ..)
-        - Trailing spaces or dots
-    """
-    # Check for empty or too long filenames
-    if not filename or len(filename) > MAX_FILENAME_LENGTH:
-        return False
-
-    # Prevent special directory names
-    if filename in {".", "..", "./", "../"}:
-        return False
-
-    # Check for common forbidden characters in filenames
-    if any(char in filename for char in FORBIDDEN_FILENAME_CHARS):
-        return False
-
-    # Check for reserved Windows filenames
-    base_name = os.path.splitext(os.path.basename(filename))[0].upper()
-    if base_name in RESERVED_WINDOWS_FILENAMES:
-        return False
-
-    # Check for trailing spaces or dots
-    if filename.endswith((" ", ".")):
-        return False
-
-    return True
 
 
 def cleanup_partial_file(file_path: Path) -> None:
