@@ -155,7 +155,14 @@ class SectionLock:
             return False
 
     def acquire(self) -> bool:
-        """Attempt to acquire the lock."""
+        """Attempt to acquire the lock.
+        
+        Returns:
+            bool: True if lock was acquired successfully, False otherwise
+            
+        Note:
+            If acquisition fails, no cleanup is needed as the lock was never held
+        """
         if self.lock_file.exists():
             if self.is_expired():
                 logger.debug(LOG_STALE_LOCK_REMOVED.format(
@@ -178,7 +185,7 @@ class SectionLock:
         except Exception as e:
             logger.error(ERROR_LOCK_ACQUISITION.format(section=self.section_title))
             if self._locked:
-                self.release()
+                self.release()  # Only release if we actually acquired the lock
             return False
             
     def release(self) -> None:
@@ -351,12 +358,7 @@ def lock_section(
             
         # Attempt to acquire lock
         lock = SectionLock(file_path, section_title, config.lock_timeout, agent_id)
-        acquired = lock.acquire()
-        
-        if not acquired:
-            lock.release()
-            
-        return acquired
+        return lock.acquire()
         
     except (FileValidationError, SectionNotFoundError):
         raise
