@@ -1431,7 +1431,7 @@ class TestStreamContent:
         """Test non-existent file handling."""
         nonexistent_file = "nonexistent.md"
         expected_path = test_config.drafts_dir / nonexistent_file
-        with pytest.raises(FileNotFoundError, match=f"File {str(expected_path)} does not exist"):
+        with pytest.raises(FileNotFoundError, match=f"Path does not exist: {str(expected_path)}"):
             await stream_content(str(expected_path), "content")
 
     @pytest.mark.asyncio

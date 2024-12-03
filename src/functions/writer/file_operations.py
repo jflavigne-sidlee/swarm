@@ -135,7 +135,7 @@ from .validation_constants import (
     RESERVED_WINDOWS_FILENAMES,
 )
 from .file_io import read_file, write_file, atomic_write, validate_path_permissions
-
+from .validation import validate_markdown_content
 # Set up module logger
 logger = logging.getLogger(__name__)
 
@@ -1085,36 +1085,21 @@ async def validate_streaming_inputs(
     chunk_size: Optional[int],
     encoding_errors: str
 ) -> None:
-    """Validate inputs for streaming operation.
-    
-    Args:
-        file_path: Path to the target file
-        content: Content to be written
-        chunk_size: Size of chunks for streaming
-        encoding_errors: How to handle encoding errors
-        
-    Raises:
-        ValueError: If encoding_errors is invalid
-        FileNotFoundError: If file doesn't exist
-        WritePermissionError: If write permission is denied
-        InvalidChunkSizeError: If chunk size is invalid
-    """
+    """Validate inputs for streaming operation."""
     # Validate encoding_errors parameter
     valid_error_handlers = {'strict', 'replace', 'ignore'}
     if encoding_errors not in valid_error_handlers:
         logger.error(f"Invalid encoding_errors value: {encoding_errors}")
         raise ValueError(f"encoding_errors must be one of {valid_error_handlers}")
     
-    # Validate file existence and type
-    if not file_path.exists():
+    # Use file_io validation utilities
+    from .file_io import validate_path_permissions
+    try:
+        validate_path_permissions(file_path, require_write=True)
+    except FileNotFoundError:
         logger.error(f"File not found: {file_path}")
-        raise FileNotFoundError(f"File {file_path} does not exist")
-        
-    if not file_path.is_file():
-        logger.error(f"Not a file: {file_path}")
-        raise FileNotFoundError(f"Path {file_path} is not a file")
-        
-    if not os.access(file_path, os.W_OK):
+        raise
+    except PermissionError:
         logger.error(f"No write permission: {file_path}")
         raise WritePermissionError(f"No write permission for file {file_path}")
     
@@ -1124,98 +1109,15 @@ async def validate_streaming_inputs(
         raise InvalidChunkSizeError(f"Chunk size must be a positive integer, got {chunk_size}")
 
 
-def determine_chunk_size(
-    content_size: int,
-    provided_chunk_size: Optional[int],
-    config: WriterConfig
-) -> int:
-    """Determine optimal chunk size for streaming.
-    
-    Args:
-        content_size: Size of content in bytes
-        provided_chunk_size: User-provided chunk size, if any
-        config: Writer configuration
-        
-    Returns:
-        int: Optimal chunk size to use
-    """
-    if provided_chunk_size is not None:
-        logger.debug(f"Using provided chunk size of {provided_chunk_size:,} bytes")
-        chunk_size = provided_chunk_size
-    else:
-        logger.debug(f"Calculating chunk size for content of {content_size:,} bytes")
-        
-        if content_size > 1024 * 1024:  # > 1MB
-            chunk_size = 64 * 1024  # 64KB chunks
-            logger.debug(
-                f"Content size ({content_size:,} bytes) exceeds 1MB threshold: "
-                f"using {chunk_size:,}-byte chunks for optimal large file handling"
-            )
-        elif content_size > 100 * 1024:  # > 100KB
-            chunk_size = 16 * 1024  # 16KB chunks
-            logger.debug(
-                f"Content size ({content_size:,} bytes) exceeds 100KB threshold: "
-                f"using {chunk_size:,}-byte chunks for medium file optimization"
-            )
-        else:
-            chunk_size = 4 * 1024  # 4KB chunks
-            logger.debug(
-                f"Content size ({content_size:,} bytes) below 100KB threshold: "
-                f"using {chunk_size:,}-byte chunks for small file efficiency"
-            )
-    
-    # Enforce minimum chunk size
-    min_chunk_size = getattr(config, 'min_chunk_size', 1024)  # 1KB default minimum
-    if chunk_size < min_chunk_size:
-        logger.warning(
-            f"Requested chunk size ({chunk_size:,} bytes) is below minimum "
-            f"threshold of {min_chunk_size:,} bytes, adjusting to minimum"
-        )
-        chunk_size = min_chunk_size
-
-    # Validate maximum chunk size if configured
-    max_chunk_size = getattr(config, 'max_chunk_size', 1024 * 1024)  # 1MB default max
-    if chunk_size > max_chunk_size:
-        logger.warning(
-            f"Requested chunk size ({chunk_size:,} bytes) exceeds maximum "
-            f"threshold of {max_chunk_size:,} bytes, adjusting to maximum"
-        )
-        chunk_size = max_chunk_size
-    
-    return chunk_size
-
-
 async def ensure_file_newline(file_path: Path, encoding: str) -> bool:
-    """Check if file needs a newline before appending content.
-    
-    Args:
-        file_path: Path to the file
-        encoding: File encoding
-        
-    Returns:
-        bool: True if newline needs to be added
-    """
-    async with aiofiles.open(file_path, mode='r', encoding=encoding) as f:
-        last_char = ''
-        while chunk := await f.read(1024):
-            last_char = chunk[-1]
-        return bool(last_char and last_char != '\n')
-
-
-def validate_markdown_content_integrity(content: str) -> None:
-    """Validate markdown content integrity.
-    
-    Args:
-        content: Content to validate
-        
-    Raises:
-        MarkdownIntegrityError: If content validation fails
-    """
-    from .validation import validate_markdown_content
-    validation_errors = validate_markdown_content(content)
-    if validation_errors:
-        logger.error("Content validation failed")
-        raise MarkdownIntegrityError("\n".join(validation_errors))
+    """Check if file needs a newline before appending content."""
+    from .file_io import read_file
+    try:
+        content = read_file(file_path, encoding)
+        return bool(content and not content.endswith('\n'))
+    except (FileNotFoundError, PermissionError) as e:
+        logger.error(f"Error checking file newline: {str(e)}")
+        raise
 
 
 async def stream_chunks(
@@ -1224,14 +1126,13 @@ async def stream_chunks(
     chunk_size: int,
     encoding_errors: str
 ) -> None:
-    """Stream content to file in chunks.
+    """Stream content to file in chunks."""
+    from .file_io import validate_encoding
     
-    Args:
-        file_path: Path to target file
-        content_bytes: Content to write as bytes
-        chunk_size: Size of chunks to write
-        encoding_errors: How to handle encoding errors
-    """
+    # Validate encoding before streaming
+    if not validate_encoding('utf-8'):
+        raise ValueError("UTF-8 encoding is not supported on this system")
+    
     total_chunks = (len(content_bytes) + chunk_size - 1) // chunk_size
     
     logger.debug(
@@ -1276,8 +1177,17 @@ async def stream_content(
     encoding_errors: str = 'strict'
 ) -> None:
     """Append content to a Markdown file in chunks to handle large content efficiently."""
+    from .file_io import ensure_parent_exists, validate_encoding
+    
     config = get_config(config)
     file_path = Path(file_name)
+    
+    # Ensure parent directory exists
+    ensure_parent_exists(file_path)
+    
+    # Validate encoding
+    if not validate_encoding(config.default_encoding):
+        raise ValueError(f"Unsupported encoding: {config.default_encoding}")
     
     # Validate inputs
     await validate_streaming_inputs(file_path, content, chunk_size, encoding_errors)
@@ -1287,8 +1197,11 @@ async def stream_content(
         logger.info("Empty content provided, no changes made")
         return
     
-    # Validate markdown content
-    validate_markdown_content_integrity(content)
+    # Validate markdown content using existing validation function
+    validation_errors = validate_markdown_content(content)
+    if validation_errors:
+        logger.error("Markdown content validation failed")
+        raise MarkdownIntegrityError("\n".join(validation_errors))
     
     try:
         # Determine chunk size
@@ -1318,3 +1231,70 @@ async def stream_content(
     except Exception as e:
         logger.error(f"Unexpected error while streaming content: {str(e)}")
         raise
+
+
+def determine_chunk_size(
+    content_size: int,
+    provided_chunk_size: Optional[int],
+    config: WriterConfig
+) -> int:
+    """Determine optimal chunk size for streaming.
+    
+    Args:
+        content_size: Total size of content in bytes
+        provided_chunk_size: User-provided chunk size (if any)
+        config: Writer configuration containing min/max chunk size limits
+        
+    Returns:
+        int: Final chunk size to use for streaming
+        
+    Example:
+        >>> config = WriterConfig(min_chunk_size=1024, max_chunk_size=1048576)
+        >>> determine_chunk_size(2000000, None, config)
+        65536  # Uses 64KB chunks for large content
+        >>> determine_chunk_size(50000, 8192, config)
+        8192  # Uses provided chunk size
+    """
+    if provided_chunk_size is not None:
+        logger.debug(f"Using provided chunk size of {provided_chunk_size:,} bytes")
+        chunk_size = provided_chunk_size
+    else:
+        # Calculate optimal chunk size based on content size
+        if content_size > 1024 * 1024:  # > 1MB
+            chunk_size = 64 * 1024  # 64KB chunks
+            logger.debug(
+                f"Content size ({content_size:,} bytes) exceeds 1MB threshold: "
+                f"using {chunk_size:,}-byte chunks for optimal large file handling"
+            )
+        elif content_size > 100 * 1024:  # > 100KB
+            chunk_size = 16 * 1024  # 16KB chunks
+            logger.debug(
+                f"Content size ({content_size:,} bytes) exceeds 100KB threshold: "
+                f"using {chunk_size:,}-byte chunks for medium file optimization"
+            )
+        else:
+            chunk_size = 4 * 1024  # 4KB chunks
+            logger.debug(
+                f"Content size ({content_size:,} bytes) below 100KB threshold: "
+                f"using {chunk_size:,}-byte chunks for small file efficiency"
+            )
+    
+    # Enforce minimum chunk size from config
+    min_chunk_size = getattr(config, 'min_chunk_size', 1024)  # 1KB default minimum
+    if chunk_size < min_chunk_size:
+        logger.warning(
+            f"Requested chunk size ({chunk_size:,} bytes) is below minimum "
+            f"threshold of {min_chunk_size:,} bytes, adjusting to minimum"
+        )
+        chunk_size = min_chunk_size
+
+    # Enforce maximum chunk size from config
+    max_chunk_size = getattr(config, 'max_chunk_size', 1024 * 1024)  # 1MB default max
+    if chunk_size > max_chunk_size:
+        logger.warning(
+            f"Requested chunk size ({chunk_size:,} bytes) exceeds maximum "
+            f"threshold of {max_chunk_size:,} bytes, adjusting to maximum"
+        )
+        chunk_size = max_chunk_size
+    
+    return chunk_size
