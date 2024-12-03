@@ -482,6 +482,56 @@ class WriterConfig:
         },
     )
 
+    # Chunk size settings for streaming
+    min_chunk_size: int = field(
+        default=4 * 1024,  # 4KB default minimum
+        metadata={
+            MetadataKeys.VALIDATION: {
+                ValidationKeys.TYPE: int,
+                ValidationKeys.MIN: 1024,  # At least 1KB
+                ValidationKeys.REQUIRED: False,
+            },
+            MetadataKeys.HELP: "Minimum chunk size for streaming operations (bytes)",
+        },
+    )
+
+    max_chunk_size: int = field(
+        default=1024 * 1024,  # 1MB default maximum
+        metadata={
+            MetadataKeys.VALIDATION: {
+                ValidationKeys.TYPE: int,
+                ValidationKeys.MIN: 1024,
+                ValidationKeys.REQUIRED: False,
+            },
+            MetadataKeys.HELP: "Maximum chunk size for streaming operations (bytes)",
+        },
+    )
+
+    # Thresholds for dynamic chunk sizing
+    medium_file_threshold: int = field(
+        default=100 * 1024,  # 100KB
+        metadata={
+            MetadataKeys.VALIDATION: {
+                ValidationKeys.TYPE: int,
+                ValidationKeys.MIN: 1024,
+                ValidationKeys.REQUIRED: False,
+            },
+            MetadataKeys.HELP: "Threshold for medium file size classification (bytes)",
+        },
+    )
+
+    large_file_threshold: int = field(
+        default=1024 * 1024,  # 1MB
+        metadata={
+            MetadataKeys.VALIDATION: {
+                ValidationKeys.TYPE: int,
+                ValidationKeys.MIN: 1024,
+                ValidationKeys.REQUIRED: False,
+            },
+            MetadataKeys.HELP: "Threshold for large file size classification (bytes)",
+        },
+    )
+
     def __post_init__(self):
         """Initialize after instance creation."""
         # Set up logging

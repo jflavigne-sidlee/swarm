@@ -1241,60 +1241,51 @@ def determine_chunk_size(
     """Determine optimal chunk size for streaming.
     
     Args:
-        content_size: Total size of content in bytes
-        provided_chunk_size: User-provided chunk size (if any)
-        config: Writer configuration containing min/max chunk size limits
+        content_size: Size of content in bytes
+        provided_chunk_size: User-provided chunk size, if any
+        config: Writer configuration
         
     Returns:
-        int: Final chunk size to use for streaming
-        
-    Example:
-        >>> config = WriterConfig(min_chunk_size=1024, max_chunk_size=1048576)
-        >>> determine_chunk_size(2000000, None, config)
-        65536  # Uses 64KB chunks for large content
-        >>> determine_chunk_size(50000, 8192, config)
-        8192  # Uses provided chunk size
+        int: Optimal chunk size to use
     """
     if provided_chunk_size is not None:
-        logger.debug(f"Using provided chunk size of {provided_chunk_size:,} bytes")
         chunk_size = provided_chunk_size
+        logger.debug(f"Using provided chunk size of {chunk_size:,} bytes")
     else:
         # Calculate optimal chunk size based on content size
-        if content_size > 1024 * 1024:  # > 1MB
-            chunk_size = 64 * 1024  # 64KB chunks
+        if content_size > config.large_file_threshold:
+            chunk_size = config.max_chunk_size // 16  # 64KB for 1MB max_chunk_size
             logger.debug(
-                f"Content size ({content_size:,} bytes) exceeds 1MB threshold: "
-                f"using {chunk_size:,}-byte chunks for optimal large file handling"
+                f"Content size ({content_size:,} bytes) exceeds large file threshold "
+                f"({config.large_file_threshold:,} bytes): using {chunk_size:,}-byte chunks"
             )
-        elif content_size > 100 * 1024:  # > 100KB
-            chunk_size = 16 * 1024  # 16KB chunks
+        elif content_size > config.medium_file_threshold:
+            chunk_size = config.max_chunk_size // 64  # 16KB for 1MB max_chunk_size
             logger.debug(
-                f"Content size ({content_size:,} bytes) exceeds 100KB threshold: "
-                f"using {chunk_size:,}-byte chunks for medium file optimization"
+                f"Content size ({content_size:,} bytes) exceeds medium file threshold "
+                f"({config.medium_file_threshold:,} bytes): using {chunk_size:,}-byte chunks"
             )
         else:
-            chunk_size = 4 * 1024  # 4KB chunks
+            chunk_size = config.min_chunk_size  # 4KB default
             logger.debug(
-                f"Content size ({content_size:,} bytes) below 100KB threshold: "
-                f"using {chunk_size:,}-byte chunks for small file efficiency"
+                f"Content size ({content_size:,} bytes) below medium file threshold: "
+                f"using {chunk_size:,}-byte chunks"
             )
-    
-    # Enforce minimum chunk size from config
-    min_chunk_size = getattr(config, 'min_chunk_size', 1024)  # 1KB default minimum
-    if chunk_size < min_chunk_size:
+
+    # Enforce minimum chunk size
+    if chunk_size < config.min_chunk_size:
         logger.warning(
             f"Requested chunk size ({chunk_size:,} bytes) is below minimum "
-            f"threshold of {min_chunk_size:,} bytes, adjusting to minimum"
+            f"of {config.min_chunk_size:,} bytes, adjusting"
         )
-        chunk_size = min_chunk_size
+        chunk_size = config.min_chunk_size
 
-    # Enforce maximum chunk size from config
-    max_chunk_size = getattr(config, 'max_chunk_size', 1024 * 1024)  # 1MB default max
-    if chunk_size > max_chunk_size:
+    # Enforce maximum chunk size
+    if chunk_size > config.max_chunk_size:
         logger.warning(
             f"Requested chunk size ({chunk_size:,} bytes) exceeds maximum "
-            f"threshold of {max_chunk_size:,} bytes, adjusting to maximum"
+            f"of {config.max_chunk_size:,} bytes, adjusting"
         )
-        chunk_size = max_chunk_size
-    
+        chunk_size = config.max_chunk_size
+
     return chunk_size
