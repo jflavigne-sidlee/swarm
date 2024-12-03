@@ -248,7 +248,7 @@ class TestCreateDocument:
         with open(test_config.drafts_dir, "w") as f:
             f.write("blocking file")
 
-        with pytest.raises(WriterError, match="Cannot create directory"):
+        with pytest.raises(WriterError, match="Cannot create directory: A file is blocking directory creation"):
             create_document("test_doc.md", valid_metadata, test_config)
 
     def test_create_document_yaml_error(self, test_config):

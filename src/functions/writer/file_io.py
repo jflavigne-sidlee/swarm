@@ -34,7 +34,8 @@ from .errors import (
     ERROR_PYTHON_VERSION,
     ERROR_UNEXPECTED,
     ERROR_UNSUPPORTED_ENCODING,
-    
+    ERROR_DIR_EXISTS,
+    ERROR_DIRECTORY_PERMISSION,
 )
 from .logs import (
     LOG_ATOMIC_WRITE_START,
@@ -60,7 +61,9 @@ from .logs import (
     LOG_WRITE_SUCCESS,
     LOG_WRITING_FILE,
     PATH_CREATION_MSG,
+    LOG_DIR_CREATION_ERROR,
 )
+from .exceptions import WriterError
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -123,13 +126,19 @@ def ensure_directory_exists(directory: Path) -> None:
     Raises:
         PermissionError: If directory can't be created due to permissions
         OSError: If directory creation fails for other reasons
+        WriterError: If a file blocks directory creation
     """
     try:
+        # Check if a file is blocking the directory creation
+        if directory.exists() and not directory.is_dir():
+            logger.error(ERROR_DIR_CREATION.format(error="A file is blocking directory creation"))
+            raise WriterError("Cannot create directory: A file is blocking directory creation")
+        
         directory.mkdir(parents=True, exist_ok=True)
         logger.debug(PATH_CREATION_MSG.format(path=directory))
-    except PermissionError:
+    except PermissionError as e:
         logger.error(ERROR_PERMISSION_DENIED_DIR.format(path=directory))
-        raise
+        raise PermissionError(ERROR_PERMISSION_DENIED_DIR.format(path=directory)) from e
     except OSError as e:
         logger.error(ERROR_DIR_CREATION.format(error=e))
         raise

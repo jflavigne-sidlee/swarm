@@ -134,7 +134,7 @@ from .validation_constants import (
     SECTION_MARKER_KEY,
     RESERVED_WINDOWS_FILENAMES,
 )
-from .file_io import read_file, write_file, atomic_write, validate_path_permissions
+from .file_io import read_file, write_file, atomic_write, validate_path_permissions, ensure_directory_exists
 from .validation import validate_markdown_content
 from .file_validation import (
     validate_file_inputs,
@@ -166,22 +166,6 @@ def validate_filename(file_name: str, config: WriterConfig) -> Path:
         )
 
     return full_path
-
-
-def ensure_directory_exists(dir_path: Path) -> None:
-    """Create directory if it doesn't exist."""
-    try:
-        logger.debug(LOG_CREATING_DIRECTORY.format(path=dir_path))
-        dir_path.mkdir(parents=True, exist_ok=True)
-    except FileExistsError:
-        logger.error(ERROR_DIR_EXISTS.format(path=dir_path))
-        raise WriterError(ERROR_DIR_EXISTS.format(path=dir_path))
-    except PermissionError:
-        logger.error(ERROR_DIRECTORY_PERMISSION.format(path=dir_path))
-        raise WriterError(ERROR_PERMISSION_DENIED_DIR.format(path=dir_path))
-    except OSError as e:
-        logger.error(LOG_DIR_CREATION_ERROR.format(path=dir_path, error=str(e)))
-        raise WriterError(ERROR_DIR_CREATION.format(error=str(e)))
 
 
 def write_document(file_path: Path, metadata: Dict[str, str], encoding: str) -> None:

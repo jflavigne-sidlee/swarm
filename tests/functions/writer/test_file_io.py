@@ -126,18 +126,22 @@ class TestWriteFile:
         assert deep_path.parent.is_dir()
 
     def test_write_file_parent_directory_not_writable(self, tmp_path):
-        """Test write_file when parent directory can't be created."""
-        # Create a read-only directory
+        """Test write_file with non-writable parent directory."""
         readonly_dir = tmp_path / "readonly"
         readonly_dir.mkdir()
-        os.chmod(readonly_dir, 0o444)
-
         file_path = readonly_dir / "subdir" / "test.txt"
-
-        with pytest.raises(PermissionError) as exc_info:
-            write_file(file_path, "test", "utf-8")
-
-        assert "Permission denied" in str(exc_info.value)
+        
+        # Make directory read-only
+        os.chmod(readonly_dir, 0o555)  # r-xr-xr-x
+        
+        try:
+            with pytest.raises(PermissionError) as exc_info:
+                write_file(file_path, "test content", "utf-8")
+            
+            assert "Permission denied" in str(exc_info.value)
+        finally:
+            # Restore permissions for cleanup
+            os.chmod(readonly_dir, 0o755)
 
     def test_validate_encoding_supported(self):
         """Test validation of supported encodings."""
