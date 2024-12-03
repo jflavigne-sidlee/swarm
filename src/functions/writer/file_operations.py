@@ -136,7 +136,11 @@ from .validation_constants import (
 )
 from .file_io import read_file, write_file, atomic_write, validate_path_permissions
 from .validation import validate_markdown_content
-from .file_validation import validate_file_inputs, ensure_valid_markdown_file
+from .file_validation import (
+    validate_file_inputs,
+    ensure_valid_markdown_file,
+    validate_metadata
+)
 # Set up module logger
 logger = logging.getLogger(__name__)
 
@@ -161,23 +165,6 @@ def validate_filename(file_name: str, config: WriterConfig) -> Path:
         )
 
     return full_path
-
-
-def validate_metadata(metadata: Dict[str, str], config: WriterConfig) -> None:
-    """Validate metadata types and required fields."""
-    if not isinstance(metadata, dict) or not all(
-        isinstance(key, str) and isinstance(value, str)
-        for key, value in metadata.items()
-    ):
-        logger.warning(LOG_INVALID_METADATA_TYPES, metadata)
-        raise WriterError(ERROR_INVALID_METADATA_TYPE)
-
-    missing_fields = [field for field in config.metadata_keys if field not in metadata]
-    if missing_fields:
-        logger.warning(LOG_MISSING_METADATA_FIELDS.format(fields=missing_fields))
-        raise WriterError(
-            ERROR_MISSING_METADATA.format(fields=", ".join(missing_fields))
-        )
 
 
 def ensure_directory_exists(dir_path: Path) -> None:

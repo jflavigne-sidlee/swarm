@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from .config import WriterConfig
 from .constants import MD_EXTENSION
@@ -18,6 +18,8 @@ from .validation_constants import (
     FORBIDDEN_FILENAME_CHARS,
     RESERVED_WINDOWS_FILENAMES,
 )
+from .logs import LOG_INVALID_METADATA_TYPES, LOG_MISSING_METADATA_FIELDS
+from .errors import ERROR_INVALID_METADATA_TYPE, ERROR_MISSING_METADATA
 
 logger = logging.getLogger(__name__)
 
@@ -138,3 +140,27 @@ def ensure_valid_markdown_file(
     except Exception as e:
         logger.error(f"Failed to validate/create markdown file: {str(e)}")
         raise 
+
+def validate_metadata(metadata: Dict[str, Any], config: WriterConfig) -> None:
+    """Validate metadata types and required fields.
+    
+    Args:
+        metadata: Dictionary of metadata to validate
+        config: Writer configuration containing validation rules
+        
+    Raises:
+        WriterError: If metadata validation fails
+    """
+    if not isinstance(metadata, dict) or not all(
+        isinstance(key, str) and isinstance(value, str)
+        for key, value in metadata.items()
+    ):
+        logger.warning(LOG_INVALID_METADATA_TYPES, metadata)
+        raise WriterError(ERROR_INVALID_METADATA_TYPE)
+
+    missing_fields = [field for field in config.metadata_keys if field not in metadata]
+    if missing_fields:
+        logger.warning(LOG_MISSING_METADATA_FIELDS.format(fields=missing_fields))
+        raise WriterError(
+            ERROR_MISSING_METADATA.format(fields=", ".join(missing_fields))
+        )
