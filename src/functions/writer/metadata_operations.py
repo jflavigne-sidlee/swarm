@@ -3,7 +3,11 @@ from pathlib import Path
 import yaml
 import logging
 import re
-from .exceptions import WriterError
+from .exceptions import (
+    WriterError,
+    FileValidationError,
+    FilePermissionError,
+)
 from .constants import (
     MD_EXTENSION,
 )
@@ -47,6 +51,7 @@ from .config import WriterConfig
 from .validation_constants import ValidationKeys
 from .metadata_utils import format_metadata_block
 from .patterns import FRONTMATTER_MARKER
+from .file_validation import validate_file_inputs
 
 logger = logging.getLogger(__name__)
 
@@ -80,21 +85,22 @@ class MetadataOperations:
             WriterError: If validation fails
         """
         try:
-            validate_path_permissions(file_path, require_write=require_write)
-        except FileNotFoundError:
-            logger.error(LOG_FILE_NOT_FOUND.format(path=file_path))
-            raise WriterError(ERROR_FILE_NOT_FOUND.format(path=file_path))
-        except PermissionError as e:
-            if require_write:
-                logger.error(LOG_NO_WRITE_PERMISSION.format(path=file_path))
-                raise WriterError(ERROR_PERMISSION_DENIED_WRITE.format(file_path=file_path))
+            validate_file_inputs(
+                file_path,
+                self.config,
+                require_write=require_write,
+                check_extension=True,
+                extension=MD_EXTENSION
+            )
+        except (FileValidationError, FilePermissionError, FileNotFoundError) as e:
+            logger.error(f"File validation failed: {str(e)}")
+            # Convert the specific error message to a WriterError
+            if isinstance(e, FilePermissionError):
+                raise WriterError("Permission denied")
+            elif isinstance(e, FileNotFoundError):
+                raise WriterError("File does not exist")
             else:
-                logger.error(LOG_NO_READ_PERMISSION.format(path=file_path))
-                raise WriterError(ERROR_PERMISSION_DENIED_PATH.format(path=file_path))
-            
-        if file_path.suffix != MD_EXTENSION:
-            logger.error(LOG_INVALID_FILE_FORMAT.format(path=file_path))
-            raise WriterError(ERROR_INVALID_FILE_FORMAT)
+                raise WriterError(str(e))
     
     def get_metadata(self, file_name: str) -> Dict[str, Any]:
         """

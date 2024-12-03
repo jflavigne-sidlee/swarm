@@ -8,6 +8,11 @@ from src.functions.writer.config import WriterConfig
 from src.functions.writer.constants import DEFAULT_ENCODING
 from datetime import date
 from src.functions.writer.validation_constants import ValidationKeys
+from src.functions.writer.exceptions import (
+    WriterError,
+    FileValidationError,
+    FilePermissionError,
+)
 
 @pytest.fixture
 def temp_md_file(tmp_path):
@@ -42,20 +47,20 @@ class TestMetadataOperations:
     def test_get_metadata_missing_file(self, metadata_ops, tmp_path):
         """Test getting metadata from a non-existent file."""
         non_existent = tmp_path / "missing.md"
-        with pytest.raises(WriterError, match="File not found"):
+        with pytest.raises(WriterError, match="File does not exist"):
             metadata_ops.get_metadata(str(non_existent))
 
     def test_get_metadata_invalid_extension(self, metadata_ops, tmp_path):
         """Test getting metadata from a file with wrong extension."""
         invalid_file = tmp_path / "test.txt"
         invalid_file.touch()
-        with pytest.raises(WriterError, match="Invalid file format"):
+        with pytest.raises(WriterError, match="File must have .md extension"):
             metadata_ops.get_metadata(str(invalid_file))
 
     def test_get_metadata_no_permissions(self, metadata_ops, temp_md_file):
         """Test getting metadata with no read permissions."""
-        with patch('src.functions.writer.metadata_operations.validate_path_permissions', 
-                  side_effect=PermissionError):
+        with patch('src.functions.writer.metadata_operations.validate_file_inputs',
+                  side_effect=FilePermissionError("Permission denied")):
             with pytest.raises(WriterError, match="Permission denied"):
                 metadata_ops.get_metadata(str(temp_md_file))
 
@@ -81,8 +86,8 @@ class TestMetadataOperations:
 
     def test_update_metadata_no_write_permission(self, metadata_ops, temp_md_file):
         """Test updating metadata without write permission."""
-        with patch('src.functions.writer.metadata_operations.validate_path_permissions',
-                  side_effect=PermissionError):
+        with patch('src.functions.writer.metadata_operations.validate_file_inputs',
+                  side_effect=FilePermissionError("Permission denied")):
             with pytest.raises(WriterError, match="Permission denied"):
                 metadata_ops.update_metadata(str(temp_md_file), {'title': 'New'})
 

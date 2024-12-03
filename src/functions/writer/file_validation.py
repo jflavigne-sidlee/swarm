@@ -27,6 +27,7 @@ def validate_file_inputs(
     require_write: bool = True,
     create_parents: bool = False,
     check_extension: bool = True,
+    extension: str = MD_EXTENSION
 ) -> None:
     """Centralized validation for file-related operations.
     
@@ -35,7 +36,8 @@ def validate_file_inputs(
         config: Writer configuration
         require_write: Whether write permission is required
         create_parents: Whether to create parent directories
-        check_extension: Whether to enforce .md extension
+        check_extension: Whether to enforce extension check
+        extension: File extension to check (defaults to .md)
         
     Raises:
         FileValidationError: If filename is invalid
@@ -55,9 +57,9 @@ def validate_file_inputs(
         )
 
     # Validate extension
-    if check_extension and file_path.suffix != MD_EXTENSION:
+    if check_extension and file_path.suffix != extension:
         logger.error(f"Invalid file extension: {file_path.suffix}")
-        raise FileValidationError(f"File must have .md extension")
+        raise FileValidationError(f"File must have {extension} extension")
 
     # Create parent directories if needed
     if create_parents and config.create_directories:
