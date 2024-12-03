@@ -1434,7 +1434,7 @@ class TestStreamContent:
         
         # Stream new content
         new_content = "New content"
-        await stream_content(sample_document.name, new_content, ensure_newline=True)
+        await stream_content(str(sample_document), new_content, ensure_newline=True)
         
         # Verify newline was added
         result = sample_document.read_text(encoding=test_config.default_encoding)
