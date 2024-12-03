@@ -1079,44 +1079,72 @@ def section_exists(file_name: str, section_title: str, config: Optional[WriterCo
         raise WriterError(str(e))
 
 
-async def stream_content(
-    file_name: str,
+async def validate_streaming_inputs(
+    file_path: Path,
     content: str,
-    chunk_size: Optional[int] = None,
-    ensure_newline: bool = True,
-    config: Optional[WriterConfig] = None,
-    encoding_errors: str = 'strict'
+    chunk_size: Optional[int],
+    encoding_errors: str
 ) -> None:
-    """Append content to a Markdown file in chunks to handle large content efficiently.
+    """Validate inputs for streaming operation.
     
     Args:
-        file_name: Name of the file to write to
-        content: Content to write
-        chunk_size: Optional size of chunks to write. If None, calculated based on content size
-        ensure_newline: Whether to ensure content starts on a new line
-        config: Optional configuration object
-        encoding_errors: How to handle encoding errors ('strict', 'replace', or 'ignore')
+        file_path: Path to the target file
+        content: Content to be written
+        chunk_size: Size of chunks for streaming
+        encoding_errors: How to handle encoding errors
         
     Raises:
-        InvalidChunkSizeError: If chunk size is invalid
+        ValueError: If encoding_errors is invalid
         FileNotFoundError: If file doesn't exist
         WritePermissionError: If write permission is denied
-        MarkdownIntegrityError: If content validation fails
+        InvalidChunkSizeError: If chunk size is invalid
     """
-    config = get_config(config)
-    
     # Validate encoding_errors parameter
     valid_error_handlers = {'strict', 'replace', 'ignore'}
     if encoding_errors not in valid_error_handlers:
         logger.error(f"Invalid encoding_errors value: {encoding_errors}")
         raise ValueError(f"encoding_errors must be one of {valid_error_handlers}")
+    
+    # Validate file existence and type
+    if not file_path.exists():
+        logger.error(f"File not found: {file_path}")
+        raise FileNotFoundError(f"File {file_path} does not exist")
+        
+    if not file_path.is_file():
+        logger.error(f"Not a file: {file_path}")
+        raise FileNotFoundError(f"Path {file_path} is not a file")
+        
+    if not os.access(file_path, os.W_OK):
+        logger.error(f"No write permission: {file_path}")
+        raise WritePermissionError(f"No write permission for file {file_path}")
+    
+    # Validate chunk size if provided
+    if chunk_size is not None and (not isinstance(chunk_size, int) or chunk_size <= 0):
+        logger.error(f"Invalid chunk size: {chunk_size}")
+        raise InvalidChunkSizeError(f"Chunk size must be a positive integer, got {chunk_size}")
 
-    # Calculate optimal chunk size if not provided
-    if chunk_size is None:
-        content_size = len(content.encode('utf-8'))
+
+def determine_chunk_size(
+    content_size: int,
+    provided_chunk_size: Optional[int],
+    config: WriterConfig
+) -> int:
+    """Determine optimal chunk size for streaming.
+    
+    Args:
+        content_size: Size of content in bytes
+        provided_chunk_size: User-provided chunk size, if any
+        config: Writer configuration
+        
+    Returns:
+        int: Optimal chunk size to use
+    """
+    if provided_chunk_size is not None:
+        logger.debug(f"Using provided chunk size of {provided_chunk_size:,} bytes")
+        chunk_size = provided_chunk_size
+    else:
         logger.debug(f"Calculating chunk size for content of {content_size:,} bytes")
         
-        # Use larger chunks for bigger content
         if content_size > 1024 * 1024:  # > 1MB
             chunk_size = 64 * 1024  # 64KB chunks
             logger.debug(
@@ -1135,13 +1163,6 @@ async def stream_content(
                 f"Content size ({content_size:,} bytes) below 100KB threshold: "
                 f"using {chunk_size:,}-byte chunks for small file efficiency"
             )
-    else:
-        logger.debug(f"Using provided chunk size of {chunk_size:,} bytes")
-    
-    # Validate chunk size
-    if not isinstance(chunk_size, int) or chunk_size <= 0:
-        logger.error(f"Invalid chunk size: {chunk_size}")
-        raise InvalidChunkSizeError(f"Chunk size must be a positive integer, got {chunk_size}")
     
     # Enforce minimum chunk size
     min_chunk_size = getattr(config, 'min_chunk_size', 1024)  # 1KB default minimum
@@ -1160,89 +1181,132 @@ async def stream_content(
             f"threshold of {max_chunk_size:,} bytes, adjusting to maximum"
         )
         chunk_size = max_chunk_size
+    
+    return chunk_size
 
-    file_path = Path(file_name)
-    if not file_path.exists():
-        logger.error(f"File not found: {file_name}")
-        raise FileNotFoundError(f"File {file_name} does not exist")
-        
-    if not file_path.is_file():
-        logger.error(f"Not a file: {file_name}")
-        raise FileNotFoundError(f"Path {file_name} is not a file")
-        
-    if not os.access(file_path, os.W_OK):
-        logger.error(f"No write permission: {file_name}")
-        raise WritePermissionError(f"No write permission for file {file_name}")
-        
-    # Skip empty content
-    if not content:
-        logger.info("Empty content provided, no changes made")
-        return
 
-    # Validate markdown content integrity
+async def ensure_file_newline(file_path: Path, encoding: str) -> bool:
+    """Check if file needs a newline before appending content.
+    
+    Args:
+        file_path: Path to the file
+        encoding: File encoding
+        
+    Returns:
+        bool: True if newline needs to be added
+    """
+    async with aiofiles.open(file_path, mode='r', encoding=encoding) as f:
+        last_char = ''
+        while chunk := await f.read(1024):
+            last_char = chunk[-1]
+        return bool(last_char and last_char != '\n')
+
+
+def validate_markdown_content_integrity(content: str) -> None:
+    """Validate markdown content integrity.
+    
+    Args:
+        content: Content to validate
+        
+    Raises:
+        MarkdownIntegrityError: If content validation fails
+    """
     from .validation import validate_markdown_content
     validation_errors = validate_markdown_content(content)
     if validation_errors:
         logger.error("Content validation failed")
         raise MarkdownIntegrityError("\n".join(validation_errors))
 
+
+async def stream_chunks(
+    file_path: Path,
+    content_bytes: bytes,
+    chunk_size: int,
+    encoding_errors: str
+) -> None:
+    """Stream content to file in chunks.
+    
+    Args:
+        file_path: Path to target file
+        content_bytes: Content to write as bytes
+        chunk_size: Size of chunks to write
+        encoding_errors: How to handle encoding errors
+    """
+    total_chunks = (len(content_bytes) + chunk_size - 1) // chunk_size
+    
+    logger.debug(
+        f"Beginning content streaming: {len(content_bytes):,} bytes "
+        f"will be processed in {total_chunks:,} chunks"
+    )
+    
+    async with aiofiles.open(file_path, mode='a') as f:
+        for i in range(0, len(content_bytes), chunk_size):
+            try:
+                chunk = content_bytes[i:i + chunk_size].decode('utf-8', errors=encoding_errors)
+                await f.write(chunk)
+                await f.flush()
+                
+                progress = ((i + chunk_size) / len(content_bytes)) * 100
+                logger.debug(
+                    f"Wrote chunk {i//chunk_size + 1:,} of {total_chunks:,} "
+                    f"({progress:.1f}% complete)"
+                )
+                
+            except UnicodeError as e:
+                if encoding_errors == 'strict':
+                    logger.error(
+                        f"Unicode encoding error in chunk {i//chunk_size + 1:,}: {str(e)}"
+                    )
+                    raise MarkdownIntegrityError(
+                        f"Content contains invalid Unicode characters in chunk {i//chunk_size + 1:,}"
+                    ) from e
+                else:
+                    logger.warning(
+                        f"Unicode encoding issues in chunk {i//chunk_size + 1:,}, "
+                        f"characters were {encoding_errors}d"
+                    )
+
+
+async def stream_content(
+    file_name: str,
+    content: str,
+    chunk_size: Optional[int] = None,
+    ensure_newline: bool = True,
+    config: Optional[WriterConfig] = None,
+    encoding_errors: str = 'strict'
+) -> None:
+    """Append content to a Markdown file in chunks to handle large content efficiently."""
+    config = get_config(config)
+    file_path = Path(file_name)
+    
+    # Validate inputs
+    await validate_streaming_inputs(file_path, content, chunk_size, encoding_errors)
+    
+    # Skip empty content
+    if not content:
+        logger.info("Empty content provided, no changes made")
+        return
+    
+    # Validate markdown content
+    validate_markdown_content_integrity(content)
+    
     try:
-        # Check if we need to add a newline
-        if ensure_newline:
-            async with aiofiles.open(file_path, mode='r') as f:
-                last_char = ''
-                while chunk := await f.read(1024):
-                    last_char = chunk[-1]
-                needs_newline = last_char and last_char != '\n'
+        # Determine chunk size
+        content_bytes = content.encode('utf-8')
+        final_chunk_size = determine_chunk_size(len(content_bytes), chunk_size, config)
         
-        # Stream the content in chunks
-        async with aiofiles.open(file_path, mode='a') as f:
-            # Add newline if needed
-            if ensure_newline and needs_newline:
+        # Check if newline needed
+        if ensure_newline and await ensure_file_newline(file_path, config.default_encoding):
+            async with aiofiles.open(file_path, mode='a') as f:
                 await f.write('\n')
                 logger.debug("Added newline before content")
-                
-            # Process content in chunks
-            content_bytes = content.encode('utf-8')
-            total_chunks = (len(content_bytes) + chunk_size - 1) // chunk_size
-            
-            logger.debug(
-                f"Beginning content streaming: {len(content_bytes):,} bytes "
-                f"will be processed in {total_chunks:,} chunks"
-            )
-            
-            for i in range(0, len(content_bytes), chunk_size):
-                try:
-                    # Try to decode with specified error handling
-                    chunk = content_bytes[i:i + chunk_size].decode('utf-8', errors=encoding_errors)
-                    await f.write(chunk)
-                    await f.flush()
-                    
-                    # Calculate progress percentage
-                    progress = ((i + chunk_size) / len(content_bytes)) * 100
-                    logger.debug(
-                        f"Wrote chunk {i//chunk_size + 1:,} of {total_chunks:,} "
-                        f"({progress:.1f}% complete)"
-                    )
-                    
-                except UnicodeError as e:
-                    if encoding_errors == 'strict':
-                        logger.error(
-                            f"Unicode encoding error in chunk {i//chunk_size + 1:,}: {str(e)}"
-                        )
-                        raise MarkdownIntegrityError(
-                            f"Content contains invalid Unicode characters in chunk {i//chunk_size + 1:,}"
-                        ) from e
-                    else:
-                        # Log warning for replaced/ignored characters
-                        logger.warning(
-                            f"Unicode encoding issues in chunk {i//chunk_size + 1:,}, "
-                            f"characters were {encoding_errors}d"
-                        )
-                
+        
+        # Stream content
+        await stream_chunks(file_path, content_bytes, final_chunk_size, encoding_errors)
+        
         logger.info(
             f"Successfully streamed {len(content_bytes):,} bytes to {file_name} "
-            f"using {chunk_size:,}-byte chunks (encoding_errors='{encoding_errors}')"
+            f"using {final_chunk_size:,}-byte chunks (encoding_errors='{encoding_errors}')"
         )
         
     except UnicodeError as e:
