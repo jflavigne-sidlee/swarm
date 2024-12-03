@@ -135,6 +135,7 @@ The module empowers teams and systems to manage Markdown documents efficiently, 
         - Return True if the lock is successful, False if the section is already locked.
     - **Notes:**
         - Ensure locks are removed when edits are complete or after a timeout.
+        - this feature is implemented in src/functions/writer/locking.py
 
 7. save_version(file_name: str) -> str
     - **Purpose:** Save the current state of the document as a versioned snapshot.

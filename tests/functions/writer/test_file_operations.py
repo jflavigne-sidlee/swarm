@@ -15,9 +15,10 @@ from src.functions.writer.file_operations import (
     get_section_marker_position,
     get_section,
     section_exists,
+    stream_content,
 )
 from src.functions.writer.config import WriterConfig
-from src.functions.writer.exceptions import WriterError, SectionNotFoundError, FileValidationError, FilePermissionError
+from src.functions.writer.exceptions import WriterError, SectionNotFoundError, FileValidationError, FilePermissionError, InvalidChunkSizeError
 from src.functions.writer.validation_constants import (
     MAX_PATH_LENGTH,
 )
@@ -1352,6 +1353,128 @@ class TestSectionExists:
         """Test with empty section title."""
         with pytest.raises(WriterError, match=ERROR_INVALID_SECTION_TITLE):
             section_exists("test_doc.md", "", test_config)
+
+
+class TestStreamContent:
+    """Tests for stream_content function."""
+
+    @pytest.mark.asyncio
+    async def test_stream_content_basic(self, sample_document, test_config):
+        """Test basic content streaming."""
+        # Create initial content
+        initial_content = (
+            "---\n"
+            "title: Test Document\n"
+            "author: Test Author\n"
+            "date: 2024-03-21\n"
+            "---\n\n"
+        )
+        sample_document.write_text(initial_content, encoding=test_config.default_encoding)
+
+        # Stream additional content
+        content = "Test content\n" * 100
+        await stream_content(str(sample_document), content, chunk_size=1024)
+        
+        # Verify result
+        result = sample_document.read_text(encoding=test_config.default_encoding)
+        assert result.startswith(initial_content)
+        assert result.endswith(content)
+
+    @pytest.mark.asyncio
+    async def test_stream_content_empty(self, sample_document, test_config):
+        """Test streaming empty content."""
+        # Create initial content
+        initial_content = (
+            "---\n"
+            "title: Test Document\n"
+            "---\n"
+        )
+        sample_document.write_text(initial_content, encoding=test_config.default_encoding)
+        
+        # Stream empty content
+        await stream_content(str(sample_document), "", chunk_size=1024)
+        
+        # Verify no changes
+        result = sample_document.read_text(encoding=test_config.default_encoding)
+        assert result == initial_content
+
+    @pytest.mark.asyncio
+    async def test_stream_content_invalid_chunk_size(self, sample_document, test_config):
+        """Test invalid chunk size handling."""
+        # Create initial content to ensure file exists
+        initial_content = "---\ntitle: Test Document\n---\n"
+        sample_document.write_text(initial_content, encoding=test_config.default_encoding)
+        
+        # Test zero chunk size
+        with pytest.raises(InvalidChunkSizeError, match="Chunk size must be a positive integer"):
+            await stream_content(str(sample_document), "content", chunk_size=0)
+        
+        # Test negative chunk size
+        with pytest.raises(InvalidChunkSizeError, match="Chunk size must be a positive integer"):
+            await stream_content(str(sample_document), "content", chunk_size=-1)
+
+    @pytest.mark.asyncio
+    async def test_stream_content_file_not_found(self, test_config):
+        """Test non-existent file handling."""
+        nonexistent_file = "nonexistent.md"
+        expected_path = test_config.drafts_dir / nonexistent_file
+        with pytest.raises(FileNotFoundError, match=f"File {str(expected_path)} does not exist"):
+            await stream_content(str(expected_path), "content")
+
+    @pytest.mark.asyncio
+    async def test_stream_content_newline_handling(self, sample_document, test_config):
+        """Test newline handling between existing and new content."""
+        # Create initial content without trailing newline
+        initial_content = (
+            "---\n"
+            "title: Test Document\n"
+            "---"  # No trailing newline
+        )
+        sample_document.write_text(initial_content, encoding=test_config.default_encoding)
+        
+        # Stream new content
+        new_content = "New content"
+        await stream_content(sample_document.name, new_content, ensure_newline=True)
+        
+        # Verify newline was added
+        result = sample_document.read_text(encoding=test_config.default_encoding)
+        assert result == f"{initial_content}\nNew content"
+
+    @pytest.mark.asyncio
+    async def test_stream_content_permission_error(self, sample_document, test_config):
+        """Test handling of permission errors."""
+        # Make file read-only
+        sample_document.chmod(0o444)
+        try:
+            with pytest.raises(WriterError, match="Permission denied"):
+                await stream_content(sample_document.name, "content")
+        finally:
+            # Restore permissions for cleanup
+            sample_document.chmod(0o666)
+
+    @pytest.mark.asyncio
+    async def test_stream_content_large_file(self, sample_document, test_config):
+        """Test streaming to a large file."""
+        # Create large content (approximately 1MB)
+        large_content = "Large content chunk.\n" * 50000
+        
+        # Stream content in small chunks
+        await stream_content(sample_document.name, large_content, chunk_size=1024)
+        
+        # Verify content
+        result = sample_document.read_text(encoding=test_config.default_encoding)
+        assert result == large_content
+
+    @pytest.mark.asyncio
+    async def test_stream_content_unicode(self, sample_document, test_config):
+        """Test handling of Unicode content."""
+        # Content with various Unicode characters
+        unicode_content = "Hello 世界! ñ € 🌟 \u2022 α β γ"
+        
+        await stream_content(sample_document.name, unicode_content)
+        
+        result = sample_document.read_text(encoding=test_config.default_encoding)
+        assert result == unicode_content
 
 
 # pytest tests/functions/writer/test_file_operations.py

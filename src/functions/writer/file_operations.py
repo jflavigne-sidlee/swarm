@@ -6,9 +6,20 @@ import os
 import re
 import logging
 from types import SimpleNamespace
+import aiofiles
 
 from .config import WriterConfig
-from .exceptions import WriterError, FileValidationError, FilePermissionError, SectionNotFoundError, DuplicateSectionError
+from .exceptions import (
+    WriterError,
+    FileValidationError,
+    FilePermissionError,
+    SectionNotFoundError,
+    DuplicateSectionError,
+    InvalidChunkSizeError,
+    WritePermissionError,
+    MarkdownIntegrityError
+)
+from builtins import FileNotFoundError
 from .constants import (
     FILE_MODE_APPEND,
     FILE_MODE_READ,
@@ -1066,3 +1077,82 @@ def section_exists(file_name: str, section_title: str, config: Optional[WriterCo
     except (OSError, IOError) as e:
         logger.error(LOG_FILE_OPERATION_ERROR.format(error=str(e)))
         raise WriterError(str(e))
+
+
+async def stream_content(
+    file_name: str,
+    content: str,
+    chunk_size: int = 1024,
+    ensure_newline: bool = True
+) -> None:
+    """Append content to a Markdown file in chunks to handle large content efficiently.
+    
+    Args:
+        file_name: Path to the Markdown file
+        content: Content to append to the file
+        chunk_size: Size of each chunk in bytes (default: 1024)
+        ensure_newline: Add newline before content if needed (default: True)
+        
+    Raises:
+        FileNotFoundError: If the specified file doesn't exist
+        InvalidChunkSizeError: If chunk_size is not a positive integer
+        WritePermissionError: If the file cannot be written to
+        MarkdownIntegrityError: If content would break Markdown formatting
+    """
+    # Validate inputs
+    if not isinstance(chunk_size, int) or chunk_size <= 0:
+        logger.error(f"Invalid chunk size: {chunk_size}")
+        raise InvalidChunkSizeError(f"Chunk size must be a positive integer, got {chunk_size}")
+        
+    file_path = Path(file_name)
+    if not file_path.exists():
+        logger.error(f"File not found: {file_name}")
+        raise FileNotFoundError(f"File {file_name} does not exist")
+        
+    if not file_path.is_file():
+        logger.error(f"Not a file: {file_name}")
+        raise FileNotFoundError(f"Path {file_name} is not a file")
+        
+    if not os.access(file_path, os.W_OK):
+        logger.error(f"No write permission: {file_name}")
+        raise WritePermissionError(f"No write permission for file {file_name}")
+        
+    # Skip empty content
+    if not content:
+        logger.info("Empty content provided, no changes made")
+        return
+
+    try:
+        # Check if we need to add a newline
+        if ensure_newline:
+            async with aiofiles.open(file_path, mode='r') as f:
+                last_char = ''
+                while chunk := await f.read(1024):
+                    last_char = chunk[-1]
+                needs_newline = last_char and last_char != '\n'
+        
+        # Stream the content in chunks
+        async with aiofiles.open(file_path, mode='a') as f:
+            # Add newline if needed
+            if ensure_newline and needs_newline:
+                await f.write('\n')
+                
+            # Process content in chunks
+            content_bytes = content.encode('utf-8')
+            for i in range(0, len(content_bytes), chunk_size):
+                chunk = content_bytes[i:i + chunk_size].decode('utf-8', errors='strict')
+                await f.write(chunk)
+                await f.flush()
+                logger.debug(f"Wrote chunk {i//chunk_size + 1}")
+                
+        logger.info(f"Successfully streamed content to {file_name}")
+        
+    except UnicodeError as e:
+        logger.error(f"Unicode encoding error: {str(e)}")
+        raise MarkdownIntegrityError("Content contains invalid Unicode characters") from e
+    except IOError as e:
+        logger.error(f"IO error while streaming content: {str(e)}")
+        raise WritePermissionError(f"Failed to write to file: {str(e)}") from e
+    except Exception as e:
+        logger.error(f"Unexpected error while streaming content: {str(e)}")
+        raise

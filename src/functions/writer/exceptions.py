@@ -47,3 +47,15 @@ class PathValidationError(ConfigurationError):
 class LockAcquisitionError(WriterError):
     """Raised when a section lock cannot be acquired."""
     pass 
+
+class InvalidChunkSizeError(ValueError):
+    """Raised when the chunk size is not a positive integer."""
+    pass
+
+class WritePermissionError(IOError):
+    """Raised when the file cannot be written to."""
+    pass
+
+class MarkdownIntegrityError(ValueError):
+    """Raised when content would break Markdown formatting."""
+    pass
