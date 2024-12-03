@@ -1,11 +1,12 @@
 """Module for managing section-level locking in markdown documents.
 
-This module provides thread-safe locking mechanisms for concurrent access to document sections.
-It includes automatic cleanup of stale locks and supports agent identification.
+Provides thread-safe locking mechanisms for concurrent access to document sections,
+with support for automatic cleanup of stale locks, configurable timeouts, and
+agent identification.
 
 Classes:
-    SectionLock: Context manager for handling exclusive section locks
-    LockCleanupManager: Manager for cleaning up stale lock files
+    SectionLock: Context manager for exclusive section locks
+    LockCleanupManager: Manager for cleaning up stale locks
 """
 
 from datetime import datetime
@@ -72,22 +73,21 @@ logger = logging.getLogger(__name__)
 class SectionLock:
     """Context manager for handling exclusive section locks.
     
-    Provides thread-safe locking for document sections with automatic expiration
-    and cleanup of stale locks. Can be used either as a context manager or
-    with explicit acquire/release calls.
+    Provides thread-safe locking with automatic expiration and cleanup.
+    Can be used as a context manager or with explicit acquire/release calls.
     
     Attributes:
-        file_path (Path): Path to the document containing the section
-        section_title (str): Title of the section to lock
-        timeout (int): Lock timeout in seconds
-        agent_id (Optional[str]): Identifier for the agent acquiring the lock
-        lock_file (Path): Path to the lock file
+        file_path (Path): Document path
+        section_title (str): Section to lock
+        timeout (int): Lock expiry timeout in seconds
+        agent_id (Optional[str]): Agent identifier
+        acquire_timeout (float): Maximum wait time for acquisition
         is_locked (bool): Current lock status
         
     Example:
-        >>> with SectionLock("doc.md", "Introduction", timeout=300) as lock:
+        >>> with SectionLock("doc.md", "Introduction") as lock:
         ...     # Modify section content
-        ...     pass  # Lock is automatically released
+        ...     pass  # Lock automatically released
     """
     
     def __init__(
@@ -101,11 +101,11 @@ class SectionLock:
         """Initialize a section lock.
         
         Args:
-            file_path: Path to the document containing the section
-            section_title: Title of the section to lock
+            file_path: Document path
+            section_title: Section to lock
             timeout: Lock expiry timeout in seconds
-            agent_id: Optional identifier for the agent acquiring the lock
-            acquire_timeout: Maximum time to wait for lock acquisition in seconds
+            agent_id: Optional agent identifier
+            acquire_timeout: Maximum acquisition wait time in seconds
             
         Raises:
             ValueError: If acquire_timeout is outside allowed range
@@ -152,10 +152,10 @@ class SectionLock:
         return False  # Don't suppress exceptions
         
     def is_expired(self) -> bool:
-        """Check if the lock has expired based on metadata.
+        """Check if the lock has expired.
         
         Returns:
-            bool: True if the lock has expired, False otherwise
+            bool: True if lock exists and has exceeded timeout
         """
         if not self.lock_file.exists():
             return False
@@ -171,14 +171,11 @@ class SectionLock:
     def acquire(self) -> bool:
         """Attempt to acquire the lock.
         
-        Waits up to acquire_timeout seconds to acquire the lock. If the existing
-        lock is expired, it will be cleaned up and acquisition will be attempted.
+        Waits up to acquire_timeout seconds for lock acquisition.
+        Cleans up expired locks if encountered.
         
         Returns:
-            bool: True if lock was acquired successfully, False otherwise
-            
-        Note:
-            A return value of False can indicate either timeout or existing valid lock
+            bool: True if acquired, False if timeout or valid lock exists
         """
         if self.lock_file.exists():
             if self.is_expired():
@@ -209,7 +206,11 @@ class SectionLock:
             return False
             
     def release(self) -> None:
-        """Release the lock if held."""
+        """Release the lock if currently held.
+        
+        Removes the lock file and updates internal state.
+        Safe to call multiple times.
+        """
         if self._locked:
             try:
                 self._lock.release()
@@ -251,7 +252,15 @@ class SectionLock:
         return self._locked
 
 class LockCleanupManager:
-    """Manager for cleaning up stale lock files."""
+    """Manager for cleaning up stale lock files.
+    
+    Handles detection and removal of expired locks with batch processing
+    to maintain system performance.
+    
+    Attributes:
+        config (WriterConfig): Lock management configuration
+        max_age (int): Maximum lock age in seconds
+    """
     
     def __init__(self, config: WriterConfig):
         """Initialize the cleanup manager."""
@@ -261,11 +270,8 @@ class LockCleanupManager:
     def maybe_cleanup(self) -> None:
         """Perform probabilistic cleanup of stale locks.
         
-        Executes cleanup with a probability defined by LOCK_CLEANUP_PROBABILITY
-        to maintain system performance while ensuring eventual cleanup.
-        
-        Note:
-            Failures during cleanup are logged but don't raise exceptions
+        Executes cleanup based on LOCK_CLEANUP_PROBABILITY to balance
+        maintenance with performance. Failures are logged but not raised.
         """
         if random.random() < LOCK_CLEANUP_PROBABILITY:
             try:
@@ -274,13 +280,16 @@ class LockCleanupManager:
                 logger.warning(LOG_CLEANUP_ERROR.format(error=e))
     
     def cleanup_stale_locks(self, directory: Optional[Path] = None) -> int:
-        """Clean up stale lock files in the specified directory.
+        """Clean up stale lock files.
         
         Args:
-            directory: Directory to clean up (defaults to config.drafts_dir)
+            directory: Target directory (defaults to config.drafts_dir)
             
         Returns:
-            int: Number of locks that were cleaned up
+            int: Number of locks cleaned up
+            
+        Note:
+            Processes up to LOCK_CLEANUP_BATCH_SIZE locks per call
         """
         directory = directory or self.config.drafts_dir
         cleaned_count = 0
@@ -341,22 +350,25 @@ def lock_section(
     agent_id: Optional[str] = None,
     acquire_timeout: Optional[float] = None
 ) -> bool:
-    """Lock a section for exclusive access.
+    """Acquire an exclusive lock on a document section.
+    
+    High-level interface for section locking with automatic cleanup
+    and configurable timeouts.
     
     Args:
-        file_name: Name of the file containing the section
-        section_title: Title of the section to lock
-        config: Optional configuration object
-        agent_id: Optional identifier for the agent acquiring the lock
-        acquire_timeout: Optional timeout for lock acquisition (seconds)
+        file_name: Document file name
+        section_title: Section to lock
+        config: Optional configuration (uses defaults if None)
+        agent_id: Optional agent identifier
+        acquire_timeout: Optional acquisition timeout override
         
     Returns:
-        bool: True if lock was acquired successfully, False otherwise
+        bool: True if lock acquired, False otherwise
         
     Raises:
-        FileValidationError: If the file is invalid or inaccessible
-        SectionNotFoundError: If the specified section doesn't exist
-        ValueError: If acquire_timeout is outside allowed range
+        FileValidationError: Invalid or inaccessible file
+        SectionNotFoundError: Section doesn't exist
+        ValueError: Invalid acquire_timeout value
     """
     if config is None:
         config = WriterConfig()
