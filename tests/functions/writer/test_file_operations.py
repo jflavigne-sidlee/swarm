@@ -1466,6 +1466,10 @@ class TestStreamContent:
     @pytest.mark.asyncio
     async def test_stream_content_large_file(self, sample_document, test_config):
         """Test streaming to a large file."""
+        # Create initial content to ensure file exists
+        sample_document.parent.mkdir(parents=True, exist_ok=True)
+        sample_document.touch()  # Create empty file
+        
         # Create large content (approximately 1MB)
         large_content = "Large content chunk.\n" * 50000
         
@@ -1479,10 +1483,14 @@ class TestStreamContent:
     @pytest.mark.asyncio
     async def test_stream_content_unicode(self, sample_document, test_config):
         """Test handling of Unicode content."""
+        # Create initial content to ensure file exists
+        sample_document.parent.mkdir(parents=True, exist_ok=True)
+        sample_document.touch()  # Create empty file
+        
         # Content with various Unicode characters
         unicode_content = "Hello 世界! ñ € 🌟 \u2022 α β γ"
         
-        await stream_content(sample_document.name, unicode_content)
+        await stream_content(str(sample_document), unicode_content)
         
         result = sample_document.read_text(encoding=test_config.default_encoding)
         assert result == unicode_content
