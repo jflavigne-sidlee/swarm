@@ -94,5 +94,8 @@ LOCK_FILE_PATTERN = "*.lock"  # Already exists
 LOCK_FILE_PREFIX = "."
 LOCK_FILE_SUFFIX = ".lock"
 
-# Lock timeouts
-DEFAULT_LOCK_TIMEOUT = 5  # Default timeout in seconds
+# Lock timeouts and retry settings
+DEFAULT_LOCK_TIMEOUT = 5  # Default timeout for lock expiry in seconds
+DEFAULT_ACQUIRE_TIMEOUT = 0.1  # Default timeout for lock acquisition in seconds
+MIN_ACQUIRE_TIMEOUT = 0.0  # Minimum allowed acquisition timeout
+MAX_ACQUIRE_TIMEOUT = 60.0  # Maximum allowed acquisition timeout (1 minute)

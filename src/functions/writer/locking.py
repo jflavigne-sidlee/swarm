@@ -28,7 +28,10 @@ from .constants import (
     LOCK_METADATA_TIMESTAMP,
     LOCK_FILE_PREFIX,
     LOCK_FILE_SUFFIX,
-    DEFAULT_LOCK_TIMEOUT
+    DEFAULT_LOCK_TIMEOUT,
+    DEFAULT_ACQUIRE_TIMEOUT,
+    MIN_ACQUIRE_TIMEOUT,
+    MAX_ACQUIRE_TIMEOUT
 )
 from .errors import (
     ERROR_LOCK_ACQUISITION,
@@ -92,20 +95,31 @@ class SectionLock:
         file_path: Path,
         section_title: str,
         timeout: int = DEFAULT_LOCK_TIMEOUT,
-        agent_id: Optional[str] = None
+        agent_id: Optional[str] = None,
+        acquire_timeout: float = DEFAULT_ACQUIRE_TIMEOUT
     ):
         """Initialize a section lock.
         
         Args:
             file_path: Path to the document containing the section
             section_title: Title of the section to lock
-            timeout: Lock timeout in seconds (default: DEFAULT_LOCK_TIMEOUT)
+            timeout: Lock expiry timeout in seconds
             agent_id: Optional identifier for the agent acquiring the lock
+            acquire_timeout: Maximum time to wait for lock acquisition in seconds
+            
+        Raises:
+            ValueError: If acquire_timeout is outside allowed range
         """
+        if not MIN_ACQUIRE_TIMEOUT <= acquire_timeout <= MAX_ACQUIRE_TIMEOUT:
+            raise ValueError(
+                f"acquire_timeout must be between {MIN_ACQUIRE_TIMEOUT} and {MAX_ACQUIRE_TIMEOUT} seconds"
+            )
+            
         self.file_path = Path(file_path)
         self.section_title = section_title
         self.timeout = timeout
         self.agent_id = agent_id
+        self.acquire_timeout = acquire_timeout
         self.lock_file = self.file_path.parent / f"{LOCK_FILE_PREFIX}{section_title}{LOCK_FILE_SUFFIX}"
         self._lock = FileLock(str(self.lock_file))
         self._locked = False
@@ -157,11 +171,14 @@ class SectionLock:
     def acquire(self) -> bool:
         """Attempt to acquire the lock.
         
+        Waits up to acquire_timeout seconds to acquire the lock. If the existing
+        lock is expired, it will be cleaned up and acquisition will be attempted.
+        
         Returns:
             bool: True if lock was acquired successfully, False otherwise
             
         Note:
-            If acquisition fails, no cleanup is needed as the lock was never held
+            A return value of False can indicate either timeout or existing valid lock
         """
         if self.lock_file.exists():
             if self.is_expired():
@@ -174,18 +191,21 @@ class SectionLock:
                 return False
                 
         try:
-            self._lock.acquire(timeout=0)
+            self._lock.acquire(timeout=self.acquire_timeout)
             self._locked = True
             self._write_metadata()
             logger.debug(LOG_LOCK_ACQUIRED.format(section=self.section_title))
             return True
         except Timeout:
-            logger.debug(LOG_LOCK_FAILED.format(section=self.section_title))
+            logger.debug(LOG_LOCK_FAILED.format(
+                section=self.section_title,
+                timeout=self.acquire_timeout
+            ))
             return False
         except Exception as e:
             logger.error(ERROR_LOCK_ACQUISITION.format(section=self.section_title))
             if self._locked:
-                self.release()  # Only release if we actually acquired the lock
+                self.release()
             return False
             
     def release(self) -> None:
@@ -318,7 +338,8 @@ def lock_section(
     file_name: str,
     section_title: str,
     config: Optional[WriterConfig] = None,
-    agent_id: Optional[str] = None
+    agent_id: Optional[str] = None,
+    acquire_timeout: Optional[float] = None
 ) -> bool:
     """Lock a section for exclusive access.
     
@@ -327,6 +348,7 @@ def lock_section(
         section_title: Title of the section to lock
         config: Optional configuration object
         agent_id: Optional identifier for the agent acquiring the lock
+        acquire_timeout: Optional timeout for lock acquisition (seconds)
         
     Returns:
         bool: True if lock was acquired successfully, False otherwise
@@ -334,15 +356,18 @@ def lock_section(
     Raises:
         FileValidationError: If the file is invalid or inaccessible
         SectionNotFoundError: If the specified section doesn't exist
+        ValueError: If acquire_timeout is outside allowed range
     """
     if config is None:
         config = WriterConfig()
         
+    # Use config value if not explicitly provided
+    if acquire_timeout is None:
+        acquire_timeout = getattr(config, 'acquire_timeout', DEFAULT_ACQUIRE_TIMEOUT)
+        
     try:
-        # Handle cleanup separately from locking logic
         LockCleanupManager(config).maybe_cleanup()
         
-        # Validate file and section
         validate_filename(Path(file_name).name, config)
         file_path = Path(config.drafts_dir) / file_name
         
@@ -356,8 +381,13 @@ def lock_section(
                 section_title=section_title
             ))
             
-        # Attempt to acquire lock
-        lock = SectionLock(file_path, section_title, config.lock_timeout, agent_id)
+        lock = SectionLock(
+            file_path,
+            section_title,
+            config.lock_timeout,
+            agent_id,
+            acquire_timeout
+        )
         return lock.acquire()
         
     except (FileValidationError, SectionNotFoundError):
