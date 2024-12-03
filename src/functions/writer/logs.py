@@ -184,16 +184,21 @@ LOG_INVALID_METADATA_CHOICE = "Invalid choice for metadata field '{field}'. Allo
 LOG_DEFAULT_METADATA_VALIDATION_FAILED: Final = "Default metadata failed validation, returning empty dict"
 
 # Lock debug messages
-LOG_LOCK_EXISTS = "Lock already exists for section '{section}'"
-LOG_LOCK_ACQUIRED = "Lock acquired for section '{section}'"
-LOG_LOCK_FAILED = "Failed to acquire lock for section '{section}'"
-LOG_LOCK_RELEASED = "Lock released for section '{section}'"
+LOG_LOCK_EXISTS: Final = "Lock already exists for section '{section}'"
+LOG_LOCK_ACQUIRED: Final = "Lock acquired for section '{section}'"
+LOG_LOCK_FAILED: Final = "Failed to acquire lock for section '{section}'"
+LOG_LOCK_RELEASED: Final = "Lock released for section '{section}'"
 
-# Lock cleanup log messages
-LOG_CLEANUP_START = "Starting lock cleanup in directory: {directory}"
-LOG_CLEANUP_COMPLETE = "Lock cleanup complete: removed {count} stale locks"
-LOG_CLEANUP_ERROR = "Lock cleanup failed: {error}"
-LOG_STALE_LOCK_REMOVED = "Removed stale lock: {lock_file}"
-LOG_INVALID_LOCK_FILE = "Invalid lock file {lock_file}: {error}"
-LOG_LOCK_REMOVAL_FAILED = "Failed to remove lock {lock_file}: {error}"
-LOG_LOCK_AGE_CHECK_FAILED = "Error checking lock age for {lock_file}: {error}"
+# Lock configuration validation
+LOG_CONFIG_VALIDATION: Final = "Validating lock configuration"
+LOG_CONFIG_VALIDATED: Final = "Lock configuration validated successfully"
+LOG_CONFIG_ERROR: Final = "Invalid configuration value for {param}: {error}"
+
+# Lock cleanup messages
+LOG_CLEANUP_START: Final = "Starting lock cleanup in directory: {directory}"
+LOG_CLEANUP_COMPLETE: Final = "Lock cleanup complete: removed {count} stale locks"
+LOG_CLEANUP_ERROR: Final = "Lock cleanup failed: {error}"
+LOG_STALE_LOCK_REMOVED: Final = "Removed stale lock: {lock_file}"
+LOG_INVALID_LOCK_FILE: Final = "Invalid lock file {lock_file}: {error}"
+LOG_LOCK_REMOVAL_FAILED: Final = "Failed to remove lock {lock_file}: {error}"
+LOG_LOCK_AGE_CHECK_FAILED: Final = "Error checking lock age for {lock_file}: {error}"

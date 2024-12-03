@@ -19,41 +19,49 @@ import random
 
 from .config import WriterConfig
 from .constants import (
+    DEFAULT_ACQUIRE_TIMEOUT,
+    DEFAULT_LOCK_TIMEOUT,
     LOCK_CLEANUP_BATCH_SIZE,
     LOCK_CLEANUP_DEFAULT_AGE,
     LOCK_CLEANUP_PROBABILITY,
     LOCK_FILE_PATTERN,
+    LOCK_FILE_PREFIX,
+    LOCK_FILE_SUFFIX,
     LOCK_METADATA_AGENT,
     LOCK_METADATA_FILE,
     LOCK_METADATA_SECTION,
     LOCK_METADATA_TIMESTAMP,
-    LOCK_FILE_PREFIX,
-    LOCK_FILE_SUFFIX,
-    DEFAULT_LOCK_TIMEOUT,
-    DEFAULT_ACQUIRE_TIMEOUT,
     MIN_ACQUIRE_TIMEOUT,
     MAX_ACQUIRE_TIMEOUT
 )
 from .errors import (
+    ERROR_INVALID_BATCH_SIZE,
+    ERROR_INVALID_CLEANUP_AGE,
+    ERROR_INVALID_PROBABILITY,
+    ERROR_INVALID_TIMEOUT,
     ERROR_LOCK_ACQUISITION,
     ERROR_LOCK_CLEANUP,
     ERROR_LOCK_METADATA,
     ERROR_LOCK_RELEASE,
     ERROR_SECTION_NOT_FOUND,
     ERROR_UNEXPECTED_LOCK,
+    ERROR_INVALID_ACQUIRE_TIMEOUT
 )
 from .logs import (
+    LOG_CLEANUP_COMPLETE,
+    LOG_CLEANUP_ERROR,
+    LOG_CLEANUP_START,
+    LOG_CONFIG_ERROR,
+    LOG_CONFIG_VALIDATED,
+    LOG_CONFIG_VALIDATION,
+    LOG_INVALID_LOCK_FILE,
     LOG_LOCK_ACQUIRED,
+    LOG_LOCK_AGE_CHECK_FAILED,
     LOG_LOCK_EXISTS,
     LOG_LOCK_FAILED,
     LOG_LOCK_RELEASED,
-    LOG_CLEANUP_START,
-    LOG_CLEANUP_COMPLETE,
-    LOG_CLEANUP_ERROR,
-    LOG_STALE_LOCK_REMOVED,
-    LOG_INVALID_LOCK_FILE,
     LOG_LOCK_REMOVAL_FAILED,
-    LOG_LOCK_AGE_CHECK_FAILED,
+    LOG_STALE_LOCK_REMOVED,
 )
 from .exceptions import (
     WriterError,
@@ -111,9 +119,10 @@ class SectionLock:
             ValueError: If acquire_timeout is outside allowed range
         """
         if not MIN_ACQUIRE_TIMEOUT <= acquire_timeout <= MAX_ACQUIRE_TIMEOUT:
-            raise ValueError(
-                f"acquire_timeout must be between {MIN_ACQUIRE_TIMEOUT} and {MAX_ACQUIRE_TIMEOUT} seconds"
-            )
+            raise ValueError(ERROR_INVALID_ACQUIRE_TIMEOUT.format(
+                min_timeout=MIN_ACQUIRE_TIMEOUT,
+                max_timeout=MAX_ACQUIRE_TIMEOUT
+            ))
             
         self.file_path = Path(file_path)
         self.section_title = section_title
@@ -252,45 +261,22 @@ class SectionLock:
         return self._locked
 
 class LockCleanupManager:
-    """Manager for cleaning up stale lock files.
-    
-    Handles detection and removal of expired locks with batch processing
-    to maintain system performance.
-    
-    Attributes:
-        config (WriterConfig): Lock management configuration
-        max_age (int): Maximum lock age in seconds
-    """
+    """Manager for cleaning up stale lock files."""
     
     def __init__(self, config: WriterConfig):
         """Initialize the cleanup manager."""
-        self.config = config
-        self.max_age = getattr(config, 'lock_cleanup_age', LOCK_CLEANUP_DEFAULT_AGE)
+        self.config = LockConfig(config)
         
     def maybe_cleanup(self) -> None:
-        """Perform probabilistic cleanup of stale locks.
-        
-        Executes cleanup based on LOCK_CLEANUP_PROBABILITY to balance
-        maintenance with performance. Failures are logged but not raised.
-        """
-        if random.random() < LOCK_CLEANUP_PROBABILITY:
+        """Perform probabilistic cleanup of stale locks."""
+        if random.random() < self.config.cleanup_probability:
             try:
                 self.cleanup_stale_locks()
             except Exception as e:
                 logger.warning(LOG_CLEANUP_ERROR.format(error=e))
     
     def cleanup_stale_locks(self, directory: Optional[Path] = None) -> int:
-        """Clean up stale lock files.
-        
-        Args:
-            directory: Target directory (defaults to config.drafts_dir)
-            
-        Returns:
-            int: Number of locks cleaned up
-            
-        Note:
-            Processes up to LOCK_CLEANUP_BATCH_SIZE locks per call
-        """
+        """Clean up stale lock files."""
         directory = directory or self.config.drafts_dir
         cleaned_count = 0
         
@@ -304,7 +290,7 @@ class LockCleanupManager:
                         self._remove_lock(lock_file)
                         cleaned_count += 1
                         
-                    if cleaned_count >= LOCK_CLEANUP_BATCH_SIZE:
+                    if cleaned_count >= self.config.cleanup_batch_size:
                         break
                         
                 except (json.JSONDecodeError, KeyError) as e:
@@ -326,7 +312,7 @@ class LockCleanupManager:
             metadata = json.loads(lock_file.read_text())
             lock_time = datetime.fromisoformat(metadata[LOCK_METADATA_TIMESTAMP])
             age = (datetime.now() - lock_time).total_seconds()
-            return age > self.max_age
+            return age > self.config.cleanup_age
         except Exception as e:
             logger.error(LOG_LOCK_AGE_CHECK_FAILED.format(
                 lock_file=lock_file, error=e
@@ -351,10 +337,7 @@ def lock_section(
     acquire_timeout: Optional[float] = None
 ) -> bool:
     """Acquire an exclusive lock on a document section.
-    
-    High-level interface for section locking with automatic cleanup
-    and configurable timeouts.
-    
+
     Args:
         file_name: Document file name
         section_title: Section to lock
@@ -364,7 +347,7 @@ def lock_section(
         
     Returns:
         bool: True if lock acquired, False otherwise
-        
+
     Raises:
         FileValidationError: Invalid or inaccessible file
         SectionNotFoundError: Section doesn't exist
@@ -407,3 +390,62 @@ def lock_section(
     except Exception as e:
         logger.error(ERROR_UNEXPECTED_LOCK.format(error=e))
         raise FileValidationError(str(e))
+
+class LockConfig:
+    """Helper class for managing lock-related configuration."""
+    
+    def __init__(self, config: WriterConfig):
+        """Initialize lock configuration."""
+        logger.debug(LOG_CONFIG_VALIDATION)
+        try:
+            self.lock_timeout = self._get_validated_timeout(config)
+            self.acquire_timeout = self._get_validated_acquire_timeout(config)
+            self.cleanup_age = self._get_validated_cleanup_age(config)
+            self.cleanup_batch_size = self._get_validated_batch_size(config)
+            self.cleanup_probability = self._get_validated_probability(config)
+            self.drafts_dir = config.drafts_dir
+            logger.debug(LOG_CONFIG_VALIDATED)
+        except ValueError as e:
+            logger.error(LOG_CONFIG_ERROR.format(param="lock configuration", error=str(e)))
+            raise
+        
+    def _get_validated_timeout(self, config: WriterConfig) -> int:
+        """Get and validate lock timeout."""
+        timeout = getattr(config, 'lock_timeout', DEFAULT_LOCK_TIMEOUT)
+        if timeout <= 0:
+            raise ValueError(ERROR_INVALID_TIMEOUT.format(
+                min_timeout=MIN_ACQUIRE_TIMEOUT,
+                max_timeout=MAX_ACQUIRE_TIMEOUT
+            ))
+        return timeout
+        
+    def _get_validated_acquire_timeout(self, config: WriterConfig) -> float:
+        """Get and validate acquisition timeout."""
+        timeout = getattr(config, 'acquire_timeout', DEFAULT_ACQUIRE_TIMEOUT)
+        if not MIN_ACQUIRE_TIMEOUT <= timeout <= MAX_ACQUIRE_TIMEOUT:
+            raise ValueError(ERROR_INVALID_TIMEOUT.format(
+                min_timeout=MIN_ACQUIRE_TIMEOUT,
+                max_timeout=MAX_ACQUIRE_TIMEOUT
+            ))
+        return timeout
+        
+    def _get_validated_cleanup_age(self, config: WriterConfig) -> int:
+        """Get and validate cleanup age."""
+        age = getattr(config, 'lock_cleanup_age', LOCK_CLEANUP_DEFAULT_AGE)
+        if age <= 0:
+            raise ValueError(ERROR_INVALID_CLEANUP_AGE)
+        return age
+        
+    def _get_validated_batch_size(self, config: WriterConfig) -> int:
+        """Get and validate cleanup batch size."""
+        size = getattr(config, 'lock_cleanup_batch_size', LOCK_CLEANUP_BATCH_SIZE)
+        if size <= 0:
+            raise ValueError(ERROR_INVALID_BATCH_SIZE)
+        return size
+        
+    def _get_validated_probability(self, config: WriterConfig) -> float:
+        """Get and validate cleanup probability."""
+        prob = getattr(config, 'lock_cleanup_probability', LOCK_CLEANUP_PROBABILITY)
+        if not 0 <= prob <= 1:
+            raise ValueError(ERROR_INVALID_PROBABILITY)
+        return prob
