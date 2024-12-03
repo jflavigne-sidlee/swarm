@@ -8,28 +8,35 @@ import random
 
 from .config import WriterConfig
 from .constants import (
-    LOCK_METADATA_SECTION,
-    LOCK_METADATA_TIMESTAMP,
-    LOCK_METADATA_FILE,
-    LOCK_METADATA_AGENT,
-    LOCK_FILE_PATTERN,
     LOCK_CLEANUP_BATCH_SIZE,
     LOCK_CLEANUP_DEFAULT_AGE,
-    LOCK_CLEANUP_PROBABILITY
+    LOCK_CLEANUP_PROBABILITY,
+    LOCK_FILE_PATTERN,
+    LOCK_METADATA_AGENT,
+    LOCK_METADATA_FILE,
+    LOCK_METADATA_SECTION,
+    LOCK_METADATA_TIMESTAMP
 )
 from .errors import (
-    ERROR_SECTION_NOT_FOUND,
     ERROR_LOCK_ACQUISITION,
-    ERROR_LOCK_METADATA,
     ERROR_LOCK_CLEANUP,
+    ERROR_LOCK_METADATA,
     ERROR_LOCK_RELEASE,
+    ERROR_SECTION_NOT_FOUND,
     ERROR_UNEXPECTED_LOCK,
 )
 from .logs import (
-    LOG_LOCK_EXISTS,
     LOG_LOCK_ACQUIRED,
+    LOG_LOCK_EXISTS,
     LOG_LOCK_FAILED,
     LOG_LOCK_RELEASED,
+    LOG_CLEANUP_START,
+    LOG_CLEANUP_COMPLETE,
+    LOG_CLEANUP_ERROR,
+    LOG_STALE_LOCK_REMOVED,
+    LOG_INVALID_LOCK_FILE,
+    LOG_LOCK_REMOVAL_FAILED,
+    LOG_LOCK_AGE_CHECK_FAILED,
 )
 from .exceptions import (
     WriterError,
@@ -86,19 +93,21 @@ class SectionLock:
             lock_time = datetime.fromisoformat(metadata[LOCK_METADATA_TIMESTAMP])
             return (datetime.now() - lock_time).total_seconds() > self.timeout
         except (json.JSONDecodeError, KeyError, ValueError) as e:
-            logger.error(f"Error checking lock expiry: {e}")
+            logger.error(ERROR_LOCK_METADATA.format(error=e))
             return False
 
     def acquire(self) -> bool:
         """Attempt to acquire the lock."""
         if self.lock_file.exists():
             if self.is_expired():
-                logger.debug(f"Removing expired lock for section '{self.section_title}'")
+                logger.debug(LOG_STALE_LOCK_REMOVED.format(
+                    lock_file=self.lock_file
+                ))
                 self._cleanup()
             else:
                 logger.debug(LOG_LOCK_EXISTS.format(section=self.section_title))
                 return False
-            
+                
         try:
             self._lock.acquire(timeout=0)
             self._locked = True
@@ -164,18 +173,12 @@ class LockCleanupManager:
         self.max_age = getattr(config, 'lock_cleanup_age', LOCK_CLEANUP_DEFAULT_AGE)
         
     def cleanup_stale_locks(self, directory: Optional[Path] = None) -> int:
-        """Clean up stale lock files in the specified directory.
-        
-        Args:
-            directory: Directory to clean up. Defaults to config.drafts_dir
-            
-        Returns:
-            Number of locks cleaned up
-        """
+        """Clean up stale lock files in the specified directory."""
         directory = directory or self.config.drafts_dir
         cleaned_count = 0
         
         try:
+            logger.info(LOG_CLEANUP_START.format(directory=directory))
             validate_path_permissions(directory, require_write=True)
             
             for lock_file in directory.glob(LOCK_FILE_PATTERN):
@@ -188,13 +191,16 @@ class LockCleanupManager:
                         break
                         
                 except (json.JSONDecodeError, KeyError) as e:
-                    logger.warning(f"Invalid lock file {lock_file}: {e}")
+                    logger.warning(LOG_INVALID_LOCK_FILE.format(
+                        lock_file=lock_file, error=e
+                    ))
                     self._remove_lock(lock_file)
                     cleaned_count += 1
                     
         except Exception as e:
-            logger.error(f"Lock cleanup failed: {e}")
+            logger.error(LOG_CLEANUP_ERROR.format(error=e))
             
+        logger.info(LOG_CLEANUP_COMPLETE.format(count=cleaned_count))
         return cleaned_count
         
     def _is_stale_lock(self, lock_file: Path) -> bool:
@@ -205,16 +211,20 @@ class LockCleanupManager:
             age = (datetime.now() - lock_time).total_seconds()
             return age > self.max_age
         except Exception as e:
-            logger.error(f"Error checking lock {lock_file}: {e}")
+            logger.error(LOG_LOCK_AGE_CHECK_FAILED.format(
+                lock_file=lock_file, error=e
+            ))
             return True
             
     def _remove_lock(self, lock_file: Path) -> None:
         """Safely remove a lock file."""
         try:
             lock_file.unlink()
-            logger.info(f"Removed stale lock: {lock_file}")
+            logger.info(LOG_STALE_LOCK_REMOVED.format(lock_file=lock_file))
         except Exception as e:
-            logger.error(f"Failed to remove lock {lock_file}: {e}")
+            logger.error(LOG_LOCK_REMOVAL_FAILED.format(
+                lock_file=lock_file, error=e
+            ))
 
 def lock_section(
     file_name: str,
@@ -222,17 +232,7 @@ def lock_section(
     config: Optional[WriterConfig] = None,
     agent_id: Optional[str] = None
 ) -> bool:
-    """Lock a section for exclusive access.
-    
-    Args:
-        file_name: Name of the file containing the section
-        section_title: Title of the section to lock
-        config: Optional configuration object
-        agent_id: Optional identifier for the agent/user acquiring the lock
-        
-    Returns:
-        bool: True if lock was acquired, False otherwise
-    """
+    """Lock a section for exclusive access."""
     if config is None:
         config = WriterConfig()
         
@@ -242,7 +242,7 @@ def lock_section(
             try:
                 LockCleanupManager(config).cleanup_stale_locks()
             except Exception as e:
-                logger.warning(f"Automatic lock cleanup failed: {e}")
+                logger.warning(LOG_CLEANUP_ERROR.format(error=e))
         
         validate_filename(Path(file_name).name, config)
         
@@ -253,7 +253,9 @@ def lock_section(
             raise FileValidationError(str(e))
         
         if not section_exists(file_path.name, section_title, config):
-            raise SectionNotFoundError(ERROR_SECTION_NOT_FOUND.format(section_title=section_title))
+            raise SectionNotFoundError(ERROR_SECTION_NOT_FOUND.format(
+                section_title=section_title
+            ))
             
         lock = SectionLock(file_path, section_title, config.lock_timeout, agent_id)
         acquired = lock.acquire()

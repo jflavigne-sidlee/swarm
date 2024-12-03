@@ -188,3 +188,12 @@ LOG_LOCK_EXISTS = "Lock already exists for section '{section}'"
 LOG_LOCK_ACQUIRED = "Lock acquired for section '{section}'"
 LOG_LOCK_FAILED = "Failed to acquire lock for section '{section}'"
 LOG_LOCK_RELEASED = "Lock released for section '{section}'"
+
+# Lock cleanup log messages
+LOG_CLEANUP_START = "Starting lock cleanup in directory: {directory}"
+LOG_CLEANUP_COMPLETE = "Lock cleanup complete: removed {count} stale locks"
+LOG_CLEANUP_ERROR = "Lock cleanup failed: {error}"
+LOG_STALE_LOCK_REMOVED = "Removed stale lock: {lock_file}"
+LOG_INVALID_LOCK_FILE = "Invalid lock file {lock_file}: {error}"
+LOG_LOCK_REMOVAL_FAILED = "Failed to remove lock {lock_file}: {error}"
+LOG_LOCK_AGE_CHECK_FAILED = "Error checking lock age for {lock_file}: {error}"
