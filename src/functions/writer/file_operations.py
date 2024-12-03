@@ -1114,18 +1114,29 @@ async def stream_content(
     # Calculate optimal chunk size if not provided
     if chunk_size is None:
         content_size = len(content.encode('utf-8'))
-        logger.debug(f"Calculating chunk size for content of {content_size} bytes")
+        logger.debug(f"Calculating chunk size for content of {content_size:,} bytes")
         
         # Use larger chunks for bigger content
         if content_size > 1024 * 1024:  # > 1MB
             chunk_size = 64 * 1024  # 64KB chunks
-            logger.debug("Using 64KB chunks for large content")
+            logger.debug(
+                f"Content size ({content_size:,} bytes) exceeds 1MB threshold: "
+                f"using {chunk_size:,}-byte chunks for optimal large file handling"
+            )
         elif content_size > 100 * 1024:  # > 100KB
             chunk_size = 16 * 1024  # 16KB chunks
-            logger.debug("Using 16KB chunks for medium content")
+            logger.debug(
+                f"Content size ({content_size:,} bytes) exceeds 100KB threshold: "
+                f"using {chunk_size:,}-byte chunks for medium file optimization"
+            )
         else:
             chunk_size = 4 * 1024  # 4KB chunks
-            logger.debug("Using 4KB chunks for small content")
+            logger.debug(
+                f"Content size ({content_size:,} bytes) below 100KB threshold: "
+                f"using {chunk_size:,}-byte chunks for small file efficiency"
+            )
+    else:
+        logger.debug(f"Using provided chunk size of {chunk_size:,} bytes")
     
     # Validate chunk size
     if not isinstance(chunk_size, int) or chunk_size <= 0:
@@ -1135,13 +1146,19 @@ async def stream_content(
     # Enforce minimum chunk size
     min_chunk_size = getattr(config, 'min_chunk_size', 1024)  # 1KB default minimum
     if chunk_size < min_chunk_size:
-        logger.warning(f"Chunk size {chunk_size} is below minimum {min_chunk_size}, using minimum")
+        logger.warning(
+            f"Requested chunk size ({chunk_size:,} bytes) is below minimum "
+            f"threshold of {min_chunk_size:,} bytes, adjusting to minimum"
+        )
         chunk_size = min_chunk_size
 
     # Validate maximum chunk size if configured
     max_chunk_size = getattr(config, 'max_chunk_size', 1024 * 1024)  # 1MB default max
     if chunk_size > max_chunk_size:
-        logger.warning(f"Chunk size {chunk_size} exceeds maximum {max_chunk_size}, using maximum")
+        logger.warning(
+            f"Requested chunk size ({chunk_size:,} bytes) exceeds maximum "
+            f"threshold of {max_chunk_size:,} bytes, adjusting to maximum"
+        )
         chunk_size = max_chunk_size
 
     file_path = Path(file_name)
@@ -1183,10 +1200,16 @@ async def stream_content(
             # Add newline if needed
             if ensure_newline and needs_newline:
                 await f.write('\n')
+                logger.debug("Added newline before content")
                 
             # Process content in chunks
             content_bytes = content.encode('utf-8')
             total_chunks = (len(content_bytes) + chunk_size - 1) // chunk_size
+            
+            logger.debug(
+                f"Beginning content streaming: {len(content_bytes):,} bytes "
+                f"will be processed in {total_chunks:,} chunks"
+            )
             
             for i in range(0, len(content_bytes), chunk_size):
                 try:
@@ -1194,23 +1217,32 @@ async def stream_content(
                     chunk = content_bytes[i:i + chunk_size].decode('utf-8', errors=encoding_errors)
                     await f.write(chunk)
                     await f.flush()
-                    logger.debug(f"Wrote chunk {i//chunk_size + 1} of {total_chunks}")
+                    
+                    # Calculate progress percentage
+                    progress = ((i + chunk_size) / len(content_bytes)) * 100
+                    logger.debug(
+                        f"Wrote chunk {i//chunk_size + 1:,} of {total_chunks:,} "
+                        f"({progress:.1f}% complete)"
+                    )
+                    
                 except UnicodeError as e:
                     if encoding_errors == 'strict':
-                        logger.error(f"Unicode encoding error in chunk {i//chunk_size + 1}: {str(e)}")
+                        logger.error(
+                            f"Unicode encoding error in chunk {i//chunk_size + 1:,}: {str(e)}"
+                        )
                         raise MarkdownIntegrityError(
-                            f"Content contains invalid Unicode characters in chunk {i//chunk_size + 1}"
+                            f"Content contains invalid Unicode characters in chunk {i//chunk_size + 1:,}"
                         ) from e
                     else:
                         # Log warning for replaced/ignored characters
                         logger.warning(
-                            f"Unicode encoding issues in chunk {i//chunk_size + 1}, "
+                            f"Unicode encoding issues in chunk {i//chunk_size + 1:,}, "
                             f"characters were {encoding_errors}d"
                         )
                 
         logger.info(
-            f"Successfully streamed content to {file_name} using {chunk_size} byte chunks "
-            f"(encoding_errors='{encoding_errors}')"
+            f"Successfully streamed {len(content_bytes):,} bytes to {file_name} "
+            f"using {chunk_size:,}-byte chunks (encoding_errors='{encoding_errors}')"
         )
         
     except UnicodeError as e:

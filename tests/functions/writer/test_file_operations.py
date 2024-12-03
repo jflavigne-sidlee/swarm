@@ -1575,12 +1575,12 @@ class TestStreamContent:
                 # Verify chunk size from info logs
                 success_logs = [
                     call for call in mock_info.call_args_list 
-                    if "Successfully streamed content" in str(call)
+                    if "Successfully streamed" in str(call)
                 ]
                 
                 assert len(success_logs) > 0, "No success message was logged"
                 success_message = success_logs[0].args[0]
-                chunk_size_used = int(success_message.split("using ")[1].split(" byte")[0])
+                chunk_size_used = int(success_message.split("using ")[1].split("-byte")[0].replace(",", ""))
                 
                 assert chunk_size_used == expected_chunk_size, \
                     f"Expected chunk size {expected_chunk_size}, got {chunk_size_used} for content size {content_size}"
