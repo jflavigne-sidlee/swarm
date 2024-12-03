@@ -19,6 +19,7 @@ from uuid import uuid4
 from datetime import datetime
 import errno
 import sys
+from .exceptions import FilePermissionError
 from .errors import (
     ERROR_ATOMIC_MOVE_UNSUPPORTED,
     ERROR_DIR_CREATION,
@@ -332,12 +333,12 @@ def check_write_permissions(path: Path) -> None:
         path: Path to check
 
     Raises:
-        PermissionError: If path is not writable
+        FilePermissionError: If path is not writable
     """
     if not os.access(path, os.W_OK):
         msg = ERROR_PATH_NO_WRITE.format(name="Path", path=path)
         logger.error(msg)
-        raise PermissionError(msg)
+        raise FilePermissionError(msg)
 
 
 def validate_path_permissions(path: Path, require_write: bool = False) -> None:
