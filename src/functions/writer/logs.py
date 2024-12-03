@@ -202,3 +202,14 @@ LOG_STALE_LOCK_REMOVED: Final = "Removed stale lock: {lock_file}"
 LOG_INVALID_LOCK_FILE: Final = "Invalid lock file {lock_file}: {error}"
 LOG_LOCK_REMOVAL_FAILED: Final = "Failed to remove lock {lock_file}: {error}"
 LOG_LOCK_AGE_CHECK_FAILED: Final = "Error checking lock age for {lock_file}: {error}"
+
+# Streaming related logs
+LOG_CHUNK_PROGRESS = "Wrote chunk {current}/{total} ({progress:.1f}%)"
+LOG_STREAM_START = "Starting to stream {bytes:,} bytes in {chunks:,} chunks"
+LOG_STREAM_COMPLETE = "Successfully streamed {bytes:,} bytes in {chunks:,} chunks"
+LOG_NEWLINE_ADDED = "Added newline to file {path}"
+
+# File cleanup logs
+LOG_REMOVING_PARTIAL_FILE = "Removing partial file: {path}"
+LOG_TEMP_CLEANUP = "Cleaning up temporary file: {path}"
+LOG_CLEANUP_FAILED = "Failed to clean up file {path}: {error}"

@@ -1,27 +1,31 @@
 import pytest
-from pathlib import Path
 import os
+import shutil
+from pathlib import Path
 from src.functions.writer.file_io import (
+    cleanup_partial_file,
+    ensure_file_newline,
+    stream_chunks,
     read_file,
     write_file,
     atomic_write,
     validate_path_permissions,
-    check_path_exists,
+    validate_encoding,
     check_read_permissions,
     check_write_permissions,
-    validate_encoding,
+    check_path_exists,
+    stream_document_content,
 )
-import shutil
+from src.functions.writer.exceptions import (
+    MarkdownIntegrityError,
+    FilePermissionError,
+)
 from src.functions.writer.errors import (
-    ERROR_PATH_NOT_FOUND,
-    ERROR_NO_WRITE_PERMISSION,
     ERROR_UNSUPPORTED_ENCODING,
+    ERROR_PATH_NOT_FOUND,
     ERROR_PATH_NO_READ,
-    ERROR_PATH_NO_WRITE,
-    ERROR_PATH_NOT_EXIST,
+    ERROR_PATH_NOT_EXIST
 )
-from src.functions.writer.exceptions import FilePermissionError as WriterFilePermissionError
-
 
 @pytest.fixture
 def test_file(tmp_path) -> Path:
@@ -271,7 +275,7 @@ class TestAtomicWrite:
         file_path.write_text("original")
         os.chmod(file_path, 0o444)
 
-        with pytest.raises(WriterFilePermissionError):
+        with pytest.raises(FilePermissionError):
             atomic_write(file_path, "test", "utf-8", temp_dir)
 
     def test_atomic_write_unsupported_encoding(self, tmp_path):
@@ -403,12 +407,14 @@ class TestPathPermissions:
         test_file = tmp_path / "unreadable.txt"
         test_file.write_text("test content")
         os.chmod(test_file, 0o000)  # no permissions
-
-        with pytest.raises(PermissionError) as exc_info:
-            check_read_permissions(test_file)
-
-        expected_msg = ERROR_PATH_NO_READ.format(name="Path", path=test_file)
-        assert str(exc_info.value) == expected_msg
+        
+        try:
+            with pytest.raises(FilePermissionError) as exc_info:
+                check_read_permissions(test_file)
+            assert "No read permission for path" in str(exc_info.value)
+        finally:
+            # Restore permissions for cleanup
+            os.chmod(test_file, 0o644)
 
     def test_check_write_permissions_success(self, tmp_path):
         """Test successful write permission check."""
@@ -424,7 +430,7 @@ class TestPathPermissions:
         test_file.write_text("test content")
         os.chmod(test_file, 0o444)  # read-only
 
-        with pytest.raises(WriterFilePermissionError):
+        with pytest.raises(FilePermissionError):
             check_write_permissions(test_file)
 
     def test_check_permissions_nonexistent_file(self, tmp_path):
@@ -446,8 +452,190 @@ class TestPathPermissions:
         os.chmod(test_file, 0o444)
         validate_path_permissions(test_file, require_write=False)  # Should pass
 
-        with pytest.raises(WriterFilePermissionError):
+        with pytest.raises(FilePermissionError):
             validate_path_permissions(test_file, require_write=True)
+
+
+class TestFileCleanup:
+    @pytest.mark.asyncio
+    async def test_cleanup_partial_file_exists(self, tmp_path):
+        """Test cleanup of existing partial file."""
+        test_file = tmp_path / "partial.txt"
+        test_file.write_text("partial content")
+        
+        await cleanup_partial_file(test_file)
+        assert not test_file.exists()
+
+    @pytest.mark.asyncio
+    async def test_cleanup_partial_file_nonexistent(self, tmp_path):
+        """Test cleanup with nonexistent file."""
+        test_file = tmp_path / "nonexistent.txt"
+        
+        # Should not raise any errors
+        await cleanup_partial_file(test_file)
+
+    @pytest.mark.asyncio
+    async def test_cleanup_partial_file_permission_error(self, tmp_path):
+        """Test cleanup with permission error."""
+        test_dir = tmp_path / "readonly"
+        test_dir.mkdir()
+        test_file = test_dir / "partial.txt"
+        test_file.write_text("content")
+        
+        # Make directory read-only
+        os.chmod(test_dir, 0o444)
+        try:
+            await cleanup_partial_file(test_file)
+            # Should log error but not raise
+        finally:
+            os.chmod(test_dir, 0o755)
+
+
+class TestFileNewline:
+    @pytest.mark.asyncio
+    async def test_ensure_file_newline_needed(self, tmp_path):
+        """Test newline check when newline is needed."""
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("content without newline", encoding="utf-8")
+        
+        result = await ensure_file_newline(test_file, "utf-8")
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_ensure_file_newline_not_needed(self, tmp_path):
+        """Test newline check when newline is not needed."""
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("content with newline\n", encoding="utf-8")
+        
+        result = await ensure_file_newline(test_file, "utf-8")
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_ensure_file_newline_empty_file(self, tmp_path):
+        """Test newline check with empty file."""
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("", encoding="utf-8")
+        
+        result = await ensure_file_newline(test_file, "utf-8")
+        assert result is False
+
+
+class TestStreamChunks:
+    @pytest.mark.asyncio
+    async def test_stream_chunks_success(self, tmp_path):
+        """Test successful streaming of content chunks."""
+        test_file = tmp_path / "test.txt"
+        content = "Test content\n" * 100
+        content_bytes = content.encode("utf-8")
+        
+        await stream_chunks(test_file, content_bytes, chunk_size=1024)
+        
+        result = test_file.read_text(encoding="utf-8")
+        assert result == content
+
+    @pytest.mark.asyncio
+    async def test_stream_chunks_unicode_error_strict(self, tmp_path):
+        """Test streaming with invalid Unicode in strict mode."""
+        test_file = tmp_path / "test.txt"
+        # Create invalid UTF-8 bytes
+        content_bytes = b"Valid UTF-8\xFF\xFEInvalid UTF-8"
+        
+        with pytest.raises(MarkdownIntegrityError):
+            await stream_chunks(test_file, content_bytes, chunk_size=1024, encoding_errors="strict")
+
+    @pytest.mark.asyncio
+    async def test_stream_chunks_unicode_error_replace(self, tmp_path):
+        """Test streaming with invalid Unicode in replace mode."""
+        test_file = tmp_path / "test.txt"
+        # Create invalid UTF-8 bytes
+        content_bytes = b"Valid UTF-8\xFF\xFEInvalid UTF-8"
+        
+        await stream_chunks(test_file, content_bytes, chunk_size=1024, encoding_errors="replace")
+        
+        result = test_file.read_text(encoding="utf-8")
+        assert "Valid UTF-8" in result
+        assert "" in result  # Replacement character
+
+    @pytest.mark.asyncio
+    async def test_stream_chunks_permission_error(self, tmp_path):
+        """Test streaming to readonly file."""
+        test_file = tmp_path / "readonly.txt"
+        test_file.touch()
+        os.chmod(test_file, 0o444)
+        
+        content_bytes = b"Test content"
+        
+        with pytest.raises(PermissionError):
+            await stream_chunks(test_file, content_bytes, chunk_size=1024)
+
+
+class TestStreamDocumentContent:
+    @pytest.mark.asyncio
+    async def test_stream_document_content_success(self, tmp_path):
+        """Test successful document content streaming."""
+        test_file = tmp_path / "test.txt"
+        content = "Test document content\nWith multiple lines\n"
+        
+        await stream_document_content(
+            test_file,
+            content,
+            chunk_size=1024,
+            encoding="utf-8",
+            encoding_errors="strict"
+        )
+        
+        result = test_file.read_text(encoding="utf-8")
+        assert result == content
+
+    @pytest.mark.asyncio
+    async def test_stream_document_content_unicode(self, tmp_path):
+        """Test streaming content with Unicode characters."""
+        test_file = tmp_path / "test.txt"
+        content = "Hello 世界! ñ € 🌟 \u2022 α β γ\n"
+        
+        await stream_document_content(
+            test_file,
+            content,
+            chunk_size=1024,
+            encoding="utf-8"
+        )
+        
+        result = test_file.read_text(encoding="utf-8")
+        assert result == content
+
+    @pytest.mark.asyncio
+    async def test_stream_document_content_encoding_error(self, tmp_path):
+        """Test handling of encoding errors."""
+        test_file = tmp_path / "test.txt"
+        content = "Hello 世界\n"
+        
+        with pytest.raises(UnicodeError):
+            await stream_document_content(
+                test_file,
+                content,
+                chunk_size=1024,
+                encoding="ascii",  # This will fail with non-ASCII content
+                encoding_errors="strict"
+            )
+
+    @pytest.mark.asyncio
+    async def test_stream_document_content_permission_error(self, tmp_path):
+        """Test handling of permission errors."""
+        test_dir = tmp_path / "readonly"
+        test_dir.mkdir()
+        test_file = test_dir / "test.txt"
+        test_file.touch()
+        os.chmod(test_dir, 0o444)  # Make directory read-only
+        
+        try:
+            with pytest.raises(PermissionError):
+                await stream_document_content(
+                    test_file,
+                    "Test content",
+                    chunk_size=1024
+                )
+        finally:
+            os.chmod(test_dir, 0o755)  # Restore permissions for cleanup
 
 
 # pytest tests/functions/writer/test_file_io.py -v

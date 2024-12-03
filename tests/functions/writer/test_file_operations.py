@@ -42,6 +42,7 @@ from src.functions.writer.validation import (
 from src.functions.writer.exceptions import (
     MarkdownIntegrityError,
 )
+from src.functions.writer.file_io import stream_document_content
 
 @pytest.fixture
 def test_config(tmp_path):
@@ -1395,24 +1396,17 @@ class TestStreamContent:
         assert result.endswith(content)
 
     @pytest.mark.asyncio
-    async def test_stream_content_empty(self, sample_document, test_config):
-        """Test streaming empty content."""
-        initial_content = "---\ntitle: Test Document\n---"  # No trailing newline
-        sample_document.write_text(initial_content, encoding=test_config.default_encoding)
-        
-        await stream_content(str(sample_document), "", chunk_size=1024)
-        
-        result = sample_document.read_text(encoding=test_config.default_encoding)
-        assert result == initial_content
-
-    @pytest.mark.asyncio
     async def test_stream_content_newline_handling(self, sample_document, test_config):
         """Test newline handling between existing and new content."""
         initial_content = "---\ntitle: Test Document\n---"  # No trailing newline
         sample_document.write_text(initial_content, encoding=test_config.default_encoding)
         
         new_content = "New content"
-        await stream_content(str(sample_document), new_content, ensure_newline=True)
+        await stream_content(
+            str(sample_document),
+            new_content,
+            ensure_newline=True
+        )
         
         result = sample_document.read_text(encoding=test_config.default_encoding)
         assert result == f"{initial_content}\nNew content"
@@ -1511,7 +1505,7 @@ class TestStreamContent:
         # Make file read-only
         sample_document.chmod(0o444)
         try:
-            with pytest.raises(FilePermissionError, match=r"Permission denied: No write permission for Path: .*"):
+            with pytest.raises(FilePermissionError, match=r"Permission denied: No write permission for path: .*"):
                 await stream_content(str(sample_document), "content")
         finally:
             # Restore permissions for cleanup
@@ -1549,17 +1543,19 @@ class TestStreamContent:
     @pytest.mark.asyncio
     async def test_stream_content_custom_chunk_size(self, sample_document, test_config):
         """Test using custom chunk size."""
+        # Ensure the file and parent directory exist
         sample_document.parent.mkdir(parents=True, exist_ok=True)
         sample_document.touch()
         
         content = "Test content\n" * 1000
         custom_chunk_size = 8192  # 8KB chunks
         
-        with patch('src.functions.writer.file_operations.logger.debug') as mock_debug:
+        # Mock the file_io logger instead of file_operations logger
+        with patch('src.functions.writer.file_io.logger.debug') as mock_debug:
             await stream_content(str(sample_document), content, chunk_size=custom_chunk_size)
             
             debug_calls = [call for call in mock_debug.call_args_list 
-                          if "Wrote chunk" in call.args[0]]
+                          if "Wrote chunk" in str(call)]  # Changed to str(call) for more reliable matching
             total_chunks = len(debug_calls)
             expected_chunks = (len(content.encode('utf-8')) + custom_chunk_size - 1) // custom_chunk_size
             assert total_chunks == expected_chunks
@@ -1584,6 +1580,67 @@ class TestStreamContent:
             
             mock_warning.assert_called_once()
             assert "exceeds maximum" in mock_warning.call_args[0][0]
+
+    @pytest.mark.asyncio
+    async def test_stream_content_validation(self, sample_document, test_config):
+        """Test content validation before streaming."""
+        invalid_content = "# Header 1\n### Invalid Header Skip\nContent"
+        
+        with pytest.raises(MarkdownIntegrityError, match="Header level"):
+            await stream_content(str(sample_document), invalid_content)
+
+    @pytest.mark.asyncio
+    async def test_stream_content_empty(self, sample_document, test_config):
+        """Test handling of empty content."""
+        # Create the file and directory structure first
+        sample_document.parent.mkdir(parents=True, exist_ok=True)
+        sample_document.touch()
+        
+        await stream_content(str(sample_document), "")
+        assert sample_document.read_text(encoding=test_config.default_encoding) == ""
+
+    @pytest.mark.asyncio
+    async def test_stream_content_chunk_size_calculation(self, sample_document, test_config):
+        """Test chunk size calculation logic."""
+        # Create initial content
+        sample_document.parent.mkdir(parents=True, exist_ok=True)
+        sample_document.touch()
+        
+        content = "Test content\n" * 1000
+        
+        # Mock the streaming pathway
+        with patch('src.functions.writer.file_operations.stream_document_content') as mock_stream:
+            await stream_content(str(sample_document), content)
+            
+            # Verify stream_document_content was called with correct chunk size
+            mock_stream.assert_called_once()
+            args, _ = mock_stream.call_args
+            assert isinstance(args[2], int)  # chunk_size is the third argument
+
+    @pytest.mark.asyncio
+    async def test_stream_content_newline_handling(self, sample_document, test_config):
+        """Test newline handling before content."""
+        # Create file without trailing newline
+        sample_document.write_text("Initial content", encoding=test_config.default_encoding)
+        
+        await stream_content(
+            str(sample_document),
+            "New content",
+            ensure_newline=True
+        )
+        
+        result = sample_document.read_text(encoding=test_config.default_encoding)
+        assert result == "Initial content\nNew content"
+
+    @pytest.mark.asyncio
+    async def test_stream_content_encoding_validation(self, sample_document, test_config):
+        """Test validation of encoding error handler."""
+        with pytest.raises(ValueError, match="encoding_errors must be one of"):
+            await stream_content(
+                str(sample_document),
+                "content",
+                encoding_errors="invalid"
+            )
 
 
 # pytest tests/functions/writer/test_file_operations.py

@@ -7,6 +7,7 @@ import re
 import logging
 from types import SimpleNamespace
 import aiofiles
+import warnings
 
 from .config import WriterConfig
 from .exceptions import (
@@ -134,14 +135,15 @@ from .validation_constants import (
     SECTION_MARKER_KEY,
     RESERVED_WINDOWS_FILENAMES,
 )
-from .file_io import read_file, write_file, atomic_write, validate_path_permissions, ensure_directory_exists
+from .file_io import read_file, write_file, atomic_write, validate_path_permissions, ensure_directory_exists, stream_document_content
 from .validation import validate_markdown_content
-from .file_validation import (
-    validate_file_inputs,
-    validate_metadata,
-    validate_filename,
-    validate_file
-)
+from .file_validation import validate_file_inputs as _validate_file_inputs
+from .file_validation import validate_filename as _validate_filename
+
+# these are imports I'm not sure about
+from .file_validation import validate_metadata
+from .file_validation import validate_file
+
 # Set up module logger
 logger = logging.getLogger(__name__)
 
@@ -181,10 +183,9 @@ def create_document(
     # Use default config if none provided
     config = get_config(config)
 
-    # Validate inputs
-    full_path = validate_filename(file_name, config)  # This returns a Path object
+    # Validate inputs using imported function directly
+    full_path = _validate_filename(file_name, config)
     validate_metadata(metadata, config)
-
 
     try:
         # Check if file exists
@@ -1001,54 +1002,6 @@ async def ensure_file_newline(file_path: Path, encoding: str) -> bool:
         raise
 
 
-async def stream_chunks(
-    file_path: Path,
-    content_bytes: bytes,
-    chunk_size: int,
-    encoding_errors: str
-) -> None:
-    """Stream content to file in chunks."""
-    from .file_io import validate_encoding
-    
-    # Validate encoding before streaming
-    if not validate_encoding('utf-8'):
-        raise ValueError("UTF-8 encoding is not supported on this system")
-    
-    total_chunks = (len(content_bytes) + chunk_size - 1) // chunk_size
-    
-    logger.debug(
-        f"Beginning content streaming: {len(content_bytes):,} bytes "
-        f"will be processed in {total_chunks:,} chunks"
-    )
-    
-    async with aiofiles.open(file_path, mode='a') as f:
-        for i in range(0, len(content_bytes), chunk_size):
-            try:
-                chunk = content_bytes[i:i + chunk_size].decode('utf-8', errors=encoding_errors)
-                await f.write(chunk)
-                await f.flush()
-                
-                progress = ((i + chunk_size) / len(content_bytes)) * 100
-                logger.debug(
-                    f"Wrote chunk {i//chunk_size + 1:,} of {total_chunks:,} "
-                    f"({progress:.1f}% complete)"
-                )
-                
-            except UnicodeError as e:
-                if encoding_errors == 'strict':
-                    logger.error(
-                        f"Unicode encoding error in chunk {i//chunk_size + 1:,}: {str(e)}"
-                    )
-                    raise MarkdownIntegrityError(
-                        f"Content contains invalid Unicode characters in chunk {i//chunk_size + 1:,}"
-                    ) from e
-                else:
-                    logger.warning(
-                        f"Unicode encoding issues in chunk {i//chunk_size + 1:,}, "
-                        f"characters were {encoding_errors}d"
-                    )
-
-
 async def stream_content(
     file_name: str,
     content: str,
@@ -1062,8 +1015,8 @@ async def stream_content(
         config = get_config(config)
         file_path = Path(file_name)
         
-        # Validate file
-        validate_file_inputs(
+        # Validate inputs
+        _validate_file_inputs(
             file_path,
             config,
             require_write=True,
@@ -1080,7 +1033,7 @@ async def stream_content(
             logger.info("Empty content provided, no changes made")
             return
         
-        # Validate markdown content using existing validation function
+        # Validate markdown content
         validation_errors = validate_markdown_content(content)
         if validation_errors:
             logger.error("Markdown content validation failed")
@@ -1088,8 +1041,11 @@ async def stream_content(
         
         try:
             # Determine chunk size
-            content_bytes = content.encode('utf-8')
-            final_chunk_size = determine_chunk_size(len(content_bytes), chunk_size, config)
+            final_chunk_size = determine_chunk_size(
+                len(content.encode(config.default_encoding)), 
+                chunk_size, 
+                config
+            )
             
             # Check if newline needed
             if ensure_newline and await ensure_file_newline(file_path, config.default_encoding):
@@ -1097,17 +1053,24 @@ async def stream_content(
                     await f.write('\n')
                     logger.debug("Added newline before content")
             
-            # Stream content
-            await stream_chunks(file_path, content_bytes, final_chunk_size, encoding_errors)
+            # Stream content using new I/O function
+            await stream_document_content(
+                file_path,
+                content,
+                final_chunk_size,
+                config.default_encoding,
+                encoding_errors
+            )
             
             logger.info(
-                f"Successfully streamed {len(content_bytes):,} bytes to {file_name} "
-                f"using {final_chunk_size:,}-byte chunks (encoding_errors='{encoding_errors}')"
+                f"Successfully streamed content to {file_name} "
+                f"using {final_chunk_size:,}-byte chunks "
+                f"(encoding_errors='{encoding_errors}')"
             )
         
         except FileNotFoundError as e:
             logger.error(f"File not found: {str(e)}")
-            raise  # Re-raise the original FileNotFoundError
+            raise
         except PermissionError as e:
             logger.error(f"Permission error: {str(e)}")
             raise FilePermissionError(f"No write permission for file: {file_path}") from e
@@ -1119,7 +1082,7 @@ async def stream_content(
             raise
             
     except (FileNotFoundError, FilePermissionError, WritePermissionError):
-        raise  # Re-raise these exceptions without wrapping
+        raise
     except Exception as e:
         logger.error(f"Error during stream setup: {str(e)}")
         raise
@@ -1174,3 +1137,32 @@ def determine_chunk_size(
         chunk_size = config.max_chunk_size
 
     return chunk_size
+
+
+def validate_file_inputs(file_path: Path, config: WriterConfig, require_write: bool = True, 
+                        create_parents: bool = False, check_extension: bool = True) -> None:
+    """
+    DEPRECATED: Use file_validation.validate_file_inputs instead.
+    Wrapper for backward compatibility.
+    """
+    warnings.warn(
+        "This function has been moved to file_validation.validate_file_inputs",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    return _validate_file_inputs(
+        file_path, config, require_write, create_parents, check_extension
+    )
+
+
+def validate_filename(file_name: str, config: WriterConfig) -> Path:
+    """
+    DEPRECATED: Use file_validation.validate_filename instead.
+    Wrapper for backward compatibility.
+    """
+    warnings.warn(
+        "This function has been moved to file_validation.validate_filename",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    return _validate_filename(file_name, config)

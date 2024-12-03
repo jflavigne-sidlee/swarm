@@ -1,14 +1,4 @@
-"""Centralized file I/O operations with strict content preservation rules.
-
-This module requires:
-- Python 3.7+ for Path objects
-- shutil.move with atomic operations support
-- os.access for permission checks
-
-System requirements:
-- File system with atomic rename support
-- Permission handling compatible with os.access
-"""
+"""Centralized file I/O operations."""
 
 import logging
 from pathlib import Path
@@ -36,6 +26,7 @@ from .errors import (
     ERROR_UNSUPPORTED_ENCODING,
     ERROR_DIR_EXISTS,
     ERROR_DIRECTORY_PERMISSION,
+    ERROR_PATH_NOT_FOUND,
 )
 from .logs import (
     LOG_ATOMIC_WRITE_START,
@@ -64,6 +55,22 @@ from .logs import (
     LOG_DIR_CREATION_ERROR,
 )
 from .exceptions import WriterError
+import aiofiles
+from .exceptions import (
+    WriterError,
+    MarkdownIntegrityError,
+    InvalidChunkSizeError,
+    WritePermissionError,
+)
+from .logs import (
+    LOG_CLEANUP_FAILED,
+    LOG_REMOVING_PARTIAL_FILE,
+    LOG_TEMP_CLEANUP,
+    LOG_CHUNK_PROGRESS,
+    LOG_STREAM_START,
+    LOG_STREAM_COMPLETE,
+    LOG_NEWLINE_ADDED,
+)
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -205,25 +212,18 @@ def read_file(file_path: Path, encoding: str) -> str:
 
 
 def validate_encoding(encoding: str) -> bool:
-    """Validate if an encoding is supported by Python.
-
+    """Validate if an encoding is supported by the system.
+    
     Args:
         encoding: Encoding name to validate
-
+        
     Returns:
         bool: True if encoding is supported, False otherwise
-
-    Example:
-        >>> validate_encoding('utf-8')
-        True
-        >>> validate_encoding('invalid-encoding')
-        False
     """
     try:
         "test".encode(encoding)
         return True
     except LookupError:
-        logger.error(ERROR_UNSUPPORTED_ENCODING.format(encoding=encoding))
         return False
 
 
@@ -306,48 +306,42 @@ def generate_temp_filename(original_name: str) -> str:
 
 
 def check_path_exists(path: Path) -> None:
-    """Verify path exists.
-
+    """Check if a path exists.
+    
     Args:
         path: Path to check
-
+        
     Raises:
-        FileNotFoundError: If path does not exist
+        FileNotFoundError: If path doesn't exist
     """
     if not path.exists():
-        msg = ERROR_PATH_NOT_EXIST.format(name="Path", path=path)
-        logger.error(msg)
-        raise FileNotFoundError(msg)
+        raise FileNotFoundError(ERROR_PATH_NOT_FOUND.format(path=path))
 
 
 def check_read_permissions(path: Path) -> None:
-    """Verify read permissions for path.
-
+    """Check if a path has read permissions.
+    
     Args:
         path: Path to check
-
+        
     Raises:
-        PermissionError: If path is not readable
+        FilePermissionError: If path lacks read permissions
     """
     if not os.access(path, os.R_OK):
-        msg = ERROR_PATH_NO_READ.format(name="Path", path=path)
-        logger.error(msg)
-        raise PermissionError(msg)
+        raise FilePermissionError(ERROR_PATH_NO_READ.format(path=path))
 
 
 def check_write_permissions(path: Path) -> None:
-    """Verify write permissions for path.
-
+    """Check if a path has write permissions.
+    
     Args:
         path: Path to check
-
+        
     Raises:
-        FilePermissionError: If path is not writable
+        FilePermissionError: If path lacks write permissions
     """
     if not os.access(path, os.W_OK):
-        msg = ERROR_PATH_NO_WRITE.format(name="Path", path=path)
-        logger.error(msg)
-        raise FilePermissionError(msg)
+        raise FilePermissionError(ERROR_PATH_NO_WRITE.format(path=path))
 
 
 def validate_path_permissions(path: Path, require_write: bool = False) -> None:
@@ -491,4 +485,137 @@ def ensure_file_readable(file_path: Path) -> None:
         raise
     except PermissionError:
         logger.error(LOG_NO_READ_PERMISSION.format(path=file_path))
+        raise
+
+
+async def cleanup_partial_file(file_path: Path) -> None:
+    """Clean up partially written files in case of errors."""
+    try:
+        if os.path.exists(str(file_path)):
+            logger.debug(LOG_REMOVING_PARTIAL_FILE.format(path=file_path))
+            os.remove(str(file_path))
+    except (OSError, PermissionError) as e:
+        logger.error(LOG_CLEANUP_FAILED.format(path=file_path, error=str(e)))
+
+
+async def ensure_file_newline(file_path: Path, encoding: str) -> bool:
+    """Check if file needs a newline before appending content.
+    
+    Args:
+        file_path: Path to the file to check
+        encoding: File encoding to use
+        
+    Returns:
+        bool: True if file needs a newline, False otherwise
+        
+    Raises:
+        FileNotFoundError: If file doesn't exist
+        PermissionError: If file can't be read
+    """
+    try:
+        content = read_file(file_path, encoding)
+        return bool(content and not content.endswith('\n'))
+    except (FileNotFoundError, PermissionError) as e:
+        logger.error(f"Error checking file newline: {str(e)}")
+        raise
+
+
+async def stream_chunks(
+    file_path: Path,
+    content_bytes: bytes,
+    chunk_size: int,
+    encoding_errors: str = 'strict'
+) -> None:
+    """Stream content to file in chunks.
+    
+    Args:
+        file_path: Path to target file
+        content_bytes: Content to write as bytes
+        chunk_size: Size of each chunk in bytes
+        encoding_errors: How to handle encoding errors ('strict', 'replace', 'ignore')
+        
+    Raises:
+        PermissionError: If file can't be written
+        UnicodeError: If content can't be encoded with specified encoding
+        OSError: If write operation fails
+    """
+    if not validate_encoding('utf-8'):
+        raise ValueError("UTF-8 encoding is not supported on this system")
+    
+    total_chunks = (len(content_bytes) + chunk_size - 1) // chunk_size
+    
+    logger.debug(LOG_STREAM_START.format(
+        bytes=len(content_bytes),
+        chunks=total_chunks
+    ))
+    
+    async with aiofiles.open(file_path, mode='a') as f:
+        for i in range(0, len(content_bytes), chunk_size):
+            try:
+                chunk = content_bytes[i:i + chunk_size].decode('utf-8', errors=encoding_errors)
+                await f.write(chunk)
+                await f.flush()
+                
+                progress = ((i + chunk_size) / len(content_bytes)) * 100
+                logger.debug(LOG_CHUNK_PROGRESS.format(
+                    current=i//chunk_size + 1,
+                    total=total_chunks,
+                    progress=progress
+                ))
+                
+            except UnicodeError as e:
+                if encoding_errors == 'strict':
+                    logger.error(f"Unicode encoding error in chunk {i//chunk_size + 1}: {str(e)}")
+                    raise MarkdownIntegrityError(
+                        f"Content contains invalid Unicode characters in chunk {i//chunk_size + 1}"
+                    ) from e
+                else:
+                    logger.warning(
+                        f"Unicode encoding issues in chunk {i//chunk_size + 1}, "
+                        f"characters were {encoding_errors}d"
+                    )
+    
+    logger.info(LOG_STREAM_COMPLETE.format(
+        bytes=len(content_bytes),
+        chunks=total_chunks
+    ))
+
+
+async def stream_document_content(
+    file_path: Path,
+    content: str,
+    chunk_size: int,
+    encoding: str = 'utf-8',
+    encoding_errors: str = 'strict'
+) -> None:
+    """Stream content to a document file with proper encoding and chunking.
+    
+    Args:
+        file_path: Path to target file
+        content: Content to write
+        chunk_size: Size of each chunk in bytes
+        encoding: File encoding to use
+        encoding_errors: How to handle encoding errors ('strict', 'replace', 'ignore')
+        
+    Raises:
+        PermissionError: If file can't be written
+        UnicodeError: If content can't be encoded
+        OSError: If write operation fails
+    """
+    try:
+        # Convert content to bytes
+        content_bytes = content.encode(encoding)
+        
+        # Stream the content
+        await stream_chunks(
+            file_path,
+            content_bytes,
+            chunk_size,
+            encoding_errors
+        )
+    except UnicodeError as e:
+        logger.error(f"Failed to encode content: {str(e)}")
+        raise
+    except Exception as e:
+        logger.error(f"Failed to stream content: {str(e)}")
         raise
