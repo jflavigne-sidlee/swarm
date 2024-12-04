@@ -112,7 +112,8 @@ from .validation_constants import (
 )
 from .file_io import read_file, atomic_write, ensure_directory_exists, stream_document_content
 from .validation import validate_markdown_content
-from .file_validation import validate_file_inputs as _validate_file_inputs
+#from .file_validation import validate_file_inputs as _validate_file_inputs
+from .file_validation import validate_file_inputs
 from .file_validation import validate_filename
 
 # these are imports I'm not sure about
@@ -991,7 +992,7 @@ async def stream_content(
         file_path = Path(file_name)
         
         # Validate inputs
-        _validate_file_inputs(
+        validate_file_inputs(
             file_path,
             config,
             require_write=True,
@@ -1113,18 +1114,3 @@ def determine_chunk_size(
 
     return chunk_size
 
-
-def validate_file_inputs(file_path: Path, config: WriterConfig, require_write: bool = True, 
-                        create_parents: bool = False, check_extension: bool = True) -> None:
-    """
-    DEPRECATED: Use file_validation.validate_file_inputs instead.
-    Wrapper for backward compatibility.
-    """
-    warnings.warn(
-        "This function has been moved to file_validation.validate_file_inputs",
-        DeprecationWarning,
-        stacklevel=2
-    )
-    return _validate_file_inputs(
-        file_path, config, require_write, create_parents, check_extension
-    )
