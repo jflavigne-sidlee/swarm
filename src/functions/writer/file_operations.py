@@ -113,7 +113,7 @@ from .validation_constants import (
 from .file_io import read_file, atomic_write, ensure_directory_exists, stream_document_content
 from .validation import validate_markdown_content
 from .file_validation import validate_file_inputs as _validate_file_inputs
-from .file_validation import validate_filename as _validate_filename
+from .file_validation import validate_filename
 
 # these are imports I'm not sure about
 from .file_validation import validate_metadata
@@ -159,7 +159,7 @@ def create_document(
     config = get_config(config)
 
     # Validate inputs using imported function directly
-    full_path = _validate_filename(file_name, config)
+    full_path = validate_filename(file_name, config)
     validate_metadata(metadata, config)
 
     try:
@@ -1128,16 +1128,3 @@ def validate_file_inputs(file_path: Path, config: WriterConfig, require_write: b
     return _validate_file_inputs(
         file_path, config, require_write, create_parents, check_extension
     )
-
-
-def validate_filename(file_name: str, config: WriterConfig) -> Path:
-    """
-    DEPRECATED: Use file_validation.validate_filename instead.
-    Wrapper for backward compatibility.
-    """
-    warnings.warn(
-        "This function has been moved to file_validation.validate_filename",
-        DeprecationWarning,
-        stacklevel=2
-    )
-    return _validate_filename(file_name, config)

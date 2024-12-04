@@ -39,6 +39,9 @@ from src.functions.writer.errors import (
 from src.functions.writer.validation import (
     validate_markdown_content,
 )
+from src.functions.writer.file_validation import (
+    validate_filename,
+)
 from src.functions.writer.exceptions import (
     MarkdownIntegrityError,
 )
