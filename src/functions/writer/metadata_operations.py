@@ -45,7 +45,7 @@ from .logs import (
     LOG_NO_READ_PERMISSION,
     LOG_NO_WRITE_PERMISSION,
 )
-from .file_operations import validate_path_permissions
+from .file_io import validate_path_permissions
 from .file_io import read_file, atomic_write
 from .config import WriterConfig
 from .validation_constants import ValidationKeys

@@ -15,7 +15,6 @@ from .exceptions import (
     FileValidationError,
     FilePermissionError,
     SectionNotFoundError,
-    DuplicateSectionError,
     InvalidChunkSizeError,
     WritePermissionError,
     MarkdownIntegrityError
@@ -25,7 +24,6 @@ from .constants import (
     FILE_MODE_APPEND,
     FILE_MODE_READ,
     FILE_MODE_WRITE,
-    MD_EXTENSION,   
 )
 from .patterns import (
     INSERT_AFTER_MARKER,
@@ -50,10 +48,6 @@ from .patterns import (
     YAML_FRONTMATTER_START,
 )
 from .errors import (
-    ERROR_DIR_EXISTS,
-    ERROR_DIR_CREATION,
-    ERROR_DIR_EXISTS,
-    ERROR_DIRECTORY_PERMISSION,
     ERROR_DOCUMENT_NOT_EXIST,
     ERROR_DUPLICATE_SECTION_MARKER,
     ERROR_FAILED_APPEND_SECTION,
@@ -61,17 +55,11 @@ from .errors import (
     ERROR_FILE_WRITE,
     ERROR_HEADER_LEVEL,
     ERROR_INVALID_CONTENT,
-    ERROR_INVALID_FILENAME,
     ERROR_INVALID_HEADER_LEVEL,
-    ERROR_INVALID_MARKDOWN_FILE,
-    ERROR_INVALID_METADATA_TYPE,
     ERROR_INVALID_SECTION_TITLE,
     ERROR_MISMATCHED_SECTION_MARKER,
-    ERROR_MISSING_METADATA,
     ERROR_MISSING_SECTION_MARKER,
     ERROR_ORPHANED_SECTION_MARKER,
-    ERROR_PATH_TOO_LONG,
-    ERROR_PERMISSION_DENIED_DIR,
     ERROR_PERMISSION_DENIED_FILE,
     ERROR_PERMISSION_DENIED_PATH,
     ERROR_PERMISSION_DENIED_WRITE,
@@ -81,31 +69,23 @@ from .errors import (
     ERROR_YAML_SERIALIZATION,
 )
 from .logs import (
-    LOG_ADDED_EXTENSION,
     LOG_APPEND_TO_EXISTING_SECTION,
     LOG_CLEANUP_FAILED,
     LOG_CLEANUP_PARTIAL_FILE,
-    LOG_CREATING_DIRECTORY,
-    LOG_DIR_CREATION_ERROR,
     LOG_DOCUMENT_CREATED,
     LOG_DUPLICATE_MARKER,
     LOG_ERROR_APPENDING_SECTION,
     LOG_FILE_EXISTS,
-    LOG_FILE_NOT_FOUND,
     LOG_FILE_OPERATION_ERROR,
     LOG_FILE_VALIDATION,
     LOG_FOUND_SECTION_BOUNDARIES,
     LOG_HEADER_LEVEL_ERROR,
     LOG_INVALID_CONTENT,
-    LOG_INVALID_FILE_FORMAT,
     LOG_INVALID_HEADER_LEVEL,
-    LOG_INVALID_METADATA_TYPES,
     LOG_INVALID_SECTION_TITLE,
     LOG_MISMATCHED_MARKER,
     LOG_MISSING_MARKER,
-    LOG_MISSING_METADATA_FIELDS,
     LOG_ORPHANED_MARKER,
-    LOG_PATH_TOO_LONG,
     LOG_PERMISSION_DENIED_APPEND,
     LOG_PERMISSION_ERROR,
     LOG_READ_SUCCESS,
@@ -121,21 +101,16 @@ from .logs import (
     LOG_UNEXPECTED_ERROR,
     LOG_USING_DEFAULT_CONFIG,
     LOG_USING_HEADER_LEVEL,
-    LOG_VALIDATE_FILENAME,
     LOG_WRITING_FILE,
     LOG_YAML_SERIALIZATION,
     NO_ASSOCIATED_HEADER,
 )
 from .validation_constants import (
-    FORBIDDEN_FILENAME_CHARS,
-    MAX_FILENAME_LENGTH,
-    MAX_PATH_LENGTH,
     SECTION_CONTENT_KEY,
     SECTION_HEADER_KEY,
     SECTION_MARKER_KEY,
-    RESERVED_WINDOWS_FILENAMES,
 )
-from .file_io import read_file, write_file, atomic_write, validate_path_permissions, ensure_directory_exists, stream_document_content
+from .file_io import read_file, atomic_write, ensure_directory_exists, stream_document_content
 from .validation import validate_markdown_content
 from .file_validation import validate_file_inputs as _validate_file_inputs
 from .file_validation import validate_filename as _validate_filename

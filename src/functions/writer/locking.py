@@ -71,10 +71,11 @@ from .exceptions import (
 )
 from .file_operations import (
     validate_file,
-    validate_filename,
     section_exists,
-    validate_path_permissions
 )
+from .file_validation import validate_filename
+
+from .file_io import validate_path_permissions
 
 logger = logging.getLogger(__name__)
 
