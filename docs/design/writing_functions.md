@@ -295,36 +295,64 @@ project_name/
 │   ├── functions/
 │   │   ├── writer/
 │   │   │   ├── __init__.py
-│   │   │   ├── file_operations.py        # Create, read, write files
-│   │   │   ├── metadata_operations.py    # Metadata management
-│   │   │   ├── markdown_parser.py        # Markdown-specific handling
-│   │   │   ├── section_editor.py         # Append, edit, get sections
-│   │   │   ├── validation.py             # Validate Markdown
-│   │   │   ├── version_control.py        # Save versions
-│   │   │   ├── streaming.py              # Handle streaming content
-│   ├── __init__.py
-│   ├── main.py                           # Entry point for the software
+│   │   │   ├── config.py               # Configuration management
+│   │   │   ├── exceptions.py           # Custom exceptions
+│   │   │   ├── file_operations.py      # Core file operations and section handling
+│   │   │   ├── metadata_operations.py  # Metadata management
+│   │   │   ├── metadata_utils.py       # Metadata utility functions
+│   │   │   ├── patterns.py             # Pattern matching constants
+│   │   │   ├── validation.py           # Markdown validation
+│   │   │   ├── validation_constants.py # Validation constants
+│   │   │   ├── file_validation.py      # File-specific validation
+│   │   │   ├── file_io.py              # Low-level file operations
+│   │   │   ├── utils.py                # System-related utility functions
+│   │   │   ├── version_control.py      # Version management
+│   │   │   ├── streaming.py            # Content streaming
+│   │   │   ├── locking.py              # Section locking
+│   │   │   ├── finalize.py             # Document finalization
+│   │   │   ├── errors.py               # Error messages
+│   │   │   ├── logs.py                 # Logging messages
+│   │   │   └── constants.py            # Shared constants
 │   ├── utils/
 │   │   ├── __init__.py
-│   │   ├── logger.py                     # Logging utility
-│   │   ├── config_loader.py              # Load configurations
-├── data/
-│   ├── temp/                             # Temporary files (streaming, locks)
-│   ├── finalized/                        # Finalized documents
-│   ├── drafts/                           # Drafts being worked on
+│   │   ├── logger.py                   # Logging utility
+│   │   └── decorators.py               # Shared decorators (e.g., deprecation)
 ├── tests/
-│   ├── test_functions/
-│   │   ├── test_file_operations.py
-│   │   ├── test_section_editor.py
-│   │   ├── test_validation.py
-│   ├── __init__.py
-│   ├── test_main.py
-├── docs/                                 # Documentation
+│   ├── functions/
+│   │   └── writer/
+│   │       ├── test_file_operations.py
+│   │       ├── test_metadata_operations.py
+│   │       ├── test_validation.py
+│   │       ├── test_file_validation.py
+│   │       ├── test_file_io.py
+│   │       ├── test_version_control.py
+│   │       ├── test_streaming.py
+│   │       ├── test_locking.py
+│   │       └── test_finalize.py
+│   ├── utils/
+│   │   ├── test_logger.py
+│   │   └── test_config.py
+│   └── conftest.py                # Test configurations
+├── data/
+│   ├── temp/                      # Temporary files
+│   │   └── .gitkeep
+│   ├── finalized/                 # Finalized documents
+│   │   └── .gitkeep
+│   ├── drafts/                    # Work in progress
+│   │   └── .gitkeep
+│   └── .gitignore                 # Ignore temp files but keep structure
+├── docs/
+│   ├── design/
+│   │   ├── done/                 # Completed design docs
+│   │   └── to_do/               # Pending design docs
 │   ├── api_reference.md
-│   ├── user_guide.md
-├── .gitignore
-├── requirements.txt                      # List of dependencies
-├── README.md
+│   └── user_guide.md
+├── .env.example                  # Example environment variables
+├── requirements.txt              # Production dependencies
+├── requirements-dev.txt          # Development dependencies
+├── setup.py                     # Package setup
+├── MANIFEST.in                  # Package manifest
+└── README.md
 
 
 ### Explanation of Key Folders
