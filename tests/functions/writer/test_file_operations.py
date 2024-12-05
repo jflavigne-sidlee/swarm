@@ -1643,22 +1643,56 @@ class TestStreamContent:
             )
 
 
-@pytest.mark.parametrize("test_input,search,replace,expected_count,expected_content,case_sensitive", [
+@pytest.mark.parametrize("test_input,search,replace,expected_count,expected_content,case_sensitive,use_regex", [
+    # Case sensitive matching
     (
         "This is a test document. Test the function.",
         "Test",
         "Sample",
         1,
         "This is a test document. Sample the function.",
-        True  # Case-sensitive match
+        True,
+        False
     ),
+    # Case insensitive matching
+    (
+        "This is a test document. Test the function.",
+        "test",
+        "sample",
+        2,
+        "This is a sample document. sample the function.",
+        False,
+        False
+    ),
+    # No matches
     (
         "This is a test document.",
         "nonexistent",
         "sample",
         0,
         "This is a test document.",
-        False  # Case-insensitive is fine here
+        False,
+        False
+    ),
+    # Regex pattern
+    (
+        "Test1 test2 Test3",
+        r"Test\d",
+        "Sample",
+        2,
+        "Sample test2 Sample",
+        True,
+        True
+    ),
+    # Special characters
+    (
+        "Special chars: $*^",
+        r"\$\*\^",
+        "###",
+        1,
+        "Special chars: ###",
+        True,
+        True
     ),
 ])
 def test_search_and_replace(
@@ -1668,6 +1702,7 @@ def test_search_and_replace(
     expected_count: int,
     expected_content: str,
     case_sensitive: bool,
+    use_regex: bool,
     test_config: WriterConfig,
     tmp_path: Path
 ):
@@ -1678,12 +1713,13 @@ def test_search_and_replace(
     file_path = test_config.drafts_dir / file_name
     file_path.write_text(test_input, encoding=test_config.default_encoding)
 
-    # Execute: Perform search and replace with just the filename
+    # Execute: Perform search and replace
     replacements = search_and_replace(
         file_name, 
         search, 
         replace, 
         case_sensitive=case_sensitive,
+        use_regex=use_regex,
         config=test_config
     )
 
@@ -1691,14 +1727,58 @@ def test_search_and_replace(
     assert replacements == expected_count
     assert file_path.read_text(encoding=test_config.default_encoding) == expected_content
 
-def test_search_and_replace_invalid_regex(test_config: WriterConfig):
-    """Test handling of invalid regex patterns."""
-    # Setup: Create test file in the drafts directory
+def test_search_and_replace_empty_search(test_config: WriterConfig):
+    """Test handling of empty search string."""
     file_name = "test_document.md"
     test_config.drafts_dir.mkdir(parents=True, exist_ok=True)
     file_path = test_config.drafts_dir / file_name
     file_path.write_text("Test content", encoding=test_config.default_encoding)
 
-    # Execute & Verify: Expect ValueError for invalid regex
-    with pytest.raises(ValueError, match="Invalid regular expression pattern"):
-        search_and_replace(file_name, "(", "sample", use_regex=True, config=test_config)
+    with pytest.raises(ValueError, match="Search text cannot be empty"):
+        search_and_replace(file_name, "", "sample", config=test_config)
+
+def test_search_and_replace_permission_error(test_config: WriterConfig):
+    """Test handling of permission errors."""
+    file_name = "test_document.md"
+    test_config.drafts_dir.mkdir(parents=True, exist_ok=True)
+    file_path = test_config.drafts_dir / file_name
+    file_path.write_text("Test content", encoding=test_config.default_encoding)
+    
+    # Make file read-only
+    file_path.chmod(0o444)
+    try:
+        with pytest.raises(FilePermissionError):
+            search_and_replace(file_name, "test", "sample", config=test_config)
+    finally:
+        # Restore permissions for cleanup
+        file_path.chmod(0o666)
+
+def test_search_and_replace_file_not_found(test_config: WriterConfig):
+    """Test handling of non-existent files."""
+    with pytest.raises(WriterError, match="Document does not exist"):
+        search_and_replace(
+            "nonexistent.md",
+            "test",
+            "sample",
+            config=test_config
+        )
+
+def test_search_and_replace_with_encoding(test_config: WriterConfig):
+    """Test search and replace with different encodings."""
+    file_name = "test_document.md"
+    test_config.drafts_dir.mkdir(parents=True, exist_ok=True)
+    file_path = test_config.drafts_dir / file_name
+    
+    # Write content with specific encoding
+    content = "Test content with üñîçødé characters"
+    file_path.write_text(content, encoding='utf-8')
+    
+    replacements = search_and_replace(
+        file_name,
+        "üñîçødé",
+        "unicode",
+        config=test_config
+    )
+    
+    assert replacements == 1
+    assert file_path.read_text(encoding='utf-8') == "Test content with unicode characters"
