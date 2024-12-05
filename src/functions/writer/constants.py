@@ -99,3 +99,9 @@ DEFAULT_LOCK_TIMEOUT = 5  # Default timeout for lock expiry in seconds
 DEFAULT_ACQUIRE_TIMEOUT = 0.1  # Default timeout for lock acquisition in seconds
 MIN_ACQUIRE_TIMEOUT = 0.0  # Minimum allowed acquisition timeout
 MAX_ACQUIRE_TIMEOUT = 60.0  # Maximum allowed acquisition timeout (1 minute)
+
+# Version control messages
+ERROR_VERSION_CREATE = "Failed to create version for {file}: {error}"
+ERROR_VERSION_EXISTS = "Version file already exists: {file}"
+LOG_VERSION_CREATED = "Created version snapshot: {source} -> {target}"
+LOG_VERSION_UPDATING = "Updating version metadata in {file} to {version}"

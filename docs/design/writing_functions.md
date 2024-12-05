@@ -125,6 +125,7 @@ The module empowers teams and systems to manage Markdown documents efficiently, 
         - Save the final document and return its path.
     - **Notes:**
         - Support additional formats with appropriate tools (e.g., Pandoc for PDF).
+        - this feature is implemented in src/functions/writer/finalize.py
 
 ## Advanced Functions
 
@@ -143,7 +144,8 @@ The module empowers teams and systems to manage Markdown documents efficiently, 
     - Copy the current document to a versioned file (e.g., file_name_v1.md).
     - Store version metadata in the original file if required.
     - **Notes:**
-    - Ensure versioning does not overwrite prior snapshots.
+        - Ensure versioning does not overwrite prior snapshots.
+        - this feature is implemented in src/functions/writer/version_control.py
 
 8. search_and_replace(file_name: str, search_text: str, replace_text: str) -> int
     - **Purpose:** Find and replace text across the entire document or within a specific section.
@@ -169,6 +171,7 @@ The module empowers teams and systems to manage Markdown documents efficiently, 
         - Write each chunk to the file sequentially.
     - **Notes:**
         - Maintain formatting integrity across chunks.
+        - this feature is implemented in src/functions/writer/streaming.py
 
 11. validate_markdown(file_name: str) -> bool
     - **Purpose:** Check if the document follows Markdown standards.
