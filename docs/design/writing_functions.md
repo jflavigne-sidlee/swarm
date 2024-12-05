@@ -308,7 +308,6 @@ project_name/
 │   │   │   ├── metadata_operations.py  # Metadata management
 │   │   │   ├── metadata_utils.py       # Metadata utility functions
 │   │   │   ├── patterns.py            # Pattern matching constants
-│   │   │   ├── streaming.py           # Content streaming
 │   │   │   ├── suggestions.py         # Error suggestions
 │   │   │   ├── utils.py               # System-related utility functions
 │   │   │   ├── validation.py          # Markdown validation
@@ -316,23 +315,19 @@ project_name/
 │   │   │   └── version_control.py      # Version management
 │   ├── utils/
 │   │   ├── __init__.py
-│   │   ├── logger.py                   # Logging utility
-│   │   └── decorators.py               # Shared decorators (e.g., deprecation)
 ├── tests/
 │   ├── functions/
 │   │   └── writer/
+│   │       ├── test_config.py
+│   │       ├── test_file_io.py
 │   │       ├── test_file_operations.py
+│   │       ├── test_file_validation.py
+│   │       ├── test_finalize.py
+│   │       ├── test_locking.py
 │   │       ├── test_metadata_operations.py
 │   │       ├── test_validation.py
-│   │       ├── test_file_validation.py
-│   │       ├── test_file_io.py
-│   │       ├── test_version_control.py
-│   │       ├── test_streaming.py
-│   │       ├── test_locking.py
-│   │       └── test_finalize.py
+│   │       └── test_version_control.py
 │   ├── utils/
-│   │   ├── test_logger.py
-│   │   └── test_config.py
 │   └── conftest.py                # Test configurations
 ├── data/
 │   ├── temp/                      # Temporary files
