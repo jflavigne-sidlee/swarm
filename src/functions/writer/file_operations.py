@@ -46,6 +46,8 @@ from .patterns import (
     SECTION_HEADER_PREFIX,
     YAML_FRONTMATTER_END,
     YAML_FRONTMATTER_START,
+    REGEX_FLAGS_CASE_SENSITIVE,
+    REGEX_FLAGS_CASE_INSENSITIVE,
 )
 from .errors import (
     ERROR_DOCUMENT_NOT_EXIST,
@@ -67,6 +69,9 @@ from .errors import (
     ERROR_SECTION_INSERT_AFTER_NOT_FOUND,
     ERROR_SECTION_NOT_FOUND,
     ERROR_YAML_SERIALIZATION,
+    ERROR_INVALID_REGEX,
+    ERROR_EMPTY_SEARCH_TEXT,
+    ERROR_SEARCH_REPLACE_FAILED,
 )
 from .logs import (
     LOG_APPEND_TO_EXISTING_SECTION,
@@ -104,6 +109,8 @@ from .logs import (
     LOG_WRITING_FILE,
     LOG_YAML_SERIALIZATION,
     NO_ASSOCIATED_HEADER,
+    LOG_SEARCH_REPLACE_COMPLETE,
+    LOG_NO_MATCHES_FOUND,
 )
 from .validation_constants import (
     SECTION_CONTENT_KEY,
@@ -1113,4 +1120,77 @@ def determine_chunk_size(
         chunk_size = config.max_chunk_size
 
     return chunk_size
+
+
+def search_and_replace(
+    file_name: str,
+    search_text: str,
+    replace_text: str,
+    case_sensitive: bool = False,
+    use_regex: bool = False,
+    config: Optional[WriterConfig] = None
+) -> int:
+    """Search and replace text in a Markdown document.
+    
+    Args:
+        file_name: Name of the Markdown file to modify
+        search_text: Text or pattern to search for
+        replace_text: Text to replace matches with
+        case_sensitive: Whether to perform case-sensitive search (default: False)
+        use_regex: Whether to treat search_text as regex pattern (default: False)
+        config: Optional configuration object
+        
+    Returns:
+        int: Number of replacements made
+        
+    Raises:
+        WriterError: If file validation fails or search/replace operation fails
+        ValueError: If search_text is empty or invalid regex pattern
+    """
+    # Use default config if none provided
+    config = get_config(config)
+
+    # Validate filename and get full path
+    file_path = validate_filename(file_name, config)
+
+    # Validate file exists and is readable/writable
+    validate_file(file_path, require_write=True)
+
+    # Validate search_text
+    if not search_text:
+        logger.error(ERROR_EMPTY_SEARCH_TEXT)
+        raise ValueError(ERROR_EMPTY_SEARCH_TEXT)
+
+    # Prepare regex flags
+    regex_flags = REGEX_FLAGS_CASE_SENSITIVE if case_sensitive else REGEX_FLAGS_CASE_INSENSITIVE
+
+    # Compile regex pattern if needed
+    if use_regex:
+        try:
+            pattern = re.compile(search_text, flags=regex_flags)
+        except re.error as e:
+            logger.error(ERROR_INVALID_REGEX.format(error=str(e)))
+            raise ValueError(ERROR_INVALID_REGEX.format(error=str(e)))
+    else:
+        pattern = re.compile(re.escape(search_text), flags=regex_flags)
+
+    try:
+        # Read file content
+        content = read_file(file_path, config.default_encoding)
+
+        # Perform search and replace
+        new_content, replacements = pattern.subn(replace_text, content)
+
+        # Write back to file if changes were made
+        if replacements > 0:
+            atomic_write(file_path, new_content, config.default_encoding, Path(config.temp_dir))
+            logger.info(LOG_SEARCH_REPLACE_COMPLETE.format(count=replacements))
+        else:
+            logger.info(LOG_NO_MATCHES_FOUND)
+
+        return replacements
+
+    except Exception as e:
+        logger.error(ERROR_SEARCH_REPLACE_FAILED.format(error=str(e)))
+        raise WriterError(ERROR_SEARCH_REPLACE_FAILED.format(error=str(e)))
 

@@ -171,3 +171,8 @@ ERROR_INVALID_CLEANUP_AGE: Final = "Cleanup age must be positive"
 ERROR_INVALID_BATCH_SIZE: Final = "Cleanup batch size must be positive"
 ERROR_INVALID_PROBABILITY: Final = "Cleanup probability must be between 0 and 1"
 ERROR_INVALID_ACQUIRE_TIMEOUT: Final = "acquire_timeout must be between {min_timeout} and {max_timeout} seconds"
+
+
+ERROR_EMPTY_SEARCH_TEXT: Final = "Search text cannot be empty"
+ERROR_INVALID_REGEX: Final = "Invalid regular expression pattern: {error}"
+ERROR_SEARCH_REPLACE_FAILED: Final = "Search and replace operation failed: {error}"

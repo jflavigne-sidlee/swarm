@@ -213,3 +213,7 @@ LOG_NEWLINE_ADDED = "Added newline to file {path}"
 LOG_REMOVING_PARTIAL_FILE = "Removing partial file: {path}"
 LOG_TEMP_CLEANUP = "Cleaning up temporary file: {path}"
 LOG_CLEANUP_FAILED = "Failed to clean up file {path}: {error}"
+
+# Log messages for search and replace operations
+LOG_SEARCH_REPLACE_COMPLETE: Final = "Completed search/replace: {count} replacements made"
+LOG_NO_MATCHES_FOUND: Final = "No matches found for search text"

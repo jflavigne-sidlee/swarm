@@ -89,3 +89,17 @@ PATTERN_TASK_LIST_MISSING_SPACE_AFTER = r'^- \[[ xX]\](?!\s)'
 PATTERN_TASK_LIST_VALID = r'^- \[[ xX]\] .+$'
 PATTERN_TASK_LIST_MARKER: Final = r"^- \[([ xX])\] "
 PATTERN_MARKDOWNLINT_ERROR: Final = r".*:(\d+):\s*(MD\d+)\s*(.+)"
+
+# Regex flags for search operations
+REGEX_FLAGS_CASE_INSENSITIVE = re.IGNORECASE
+REGEX_FLAGS_CASE_SENSITIVE = 0
+
+# Error messages (add to errors.py)
+ERROR_EMPTY_SEARCH_TEXT = "Search text cannot be empty"
+ERROR_INVALID_REGEX = "Invalid regular expression pattern: {error}"
+ERROR_SEARCH_REPLACE_FAILED = "Search and replace operation failed: {error}"
+
+# Log messages (add to logs.py)
+LOG_SEARCH_REPLACE_START = "Starting search/replace in {file_path}"
+LOG_SEARCH_REPLACE_COMPLETE = "Completed search/replace: {count} replacements made"
+LOG_NO_MATCHES_FOUND = "No matches found for search text"

@@ -2,7 +2,7 @@ import pytest
 from pathlib import Path
 import yaml
 from datetime import datetime
-import re
+import re, os
 from unittest.mock import patch, mock_open
 
 from src.functions.writer.file_operations import (
@@ -16,6 +16,7 @@ from src.functions.writer.file_operations import (
     get_section,
     section_exists,
     stream_content,
+    search_and_replace,
 )
 from src.functions.writer.config import WriterConfig
 from src.functions.writer.exceptions import (
@@ -1642,4 +1643,62 @@ class TestStreamContent:
             )
 
 
-# pytest tests/functions/writer/test_file_operations.py
+@pytest.mark.parametrize("test_input,search,replace,expected_count,expected_content,case_sensitive", [
+    (
+        "This is a test document. Test the function.",
+        "Test",
+        "Sample",
+        1,
+        "This is a test document. Sample the function.",
+        True  # Case-sensitive match
+    ),
+    (
+        "This is a test document.",
+        "nonexistent",
+        "sample",
+        0,
+        "This is a test document.",
+        False  # Case-insensitive is fine here
+    ),
+])
+def test_search_and_replace(
+    test_input: str,
+    search: str,
+    replace: str,
+    expected_count: int,
+    expected_content: str,
+    case_sensitive: bool,
+    test_config: WriterConfig,
+    tmp_path: Path
+):
+    """Test search and replace functionality with various inputs."""
+    # Setup: Create test file with content in the drafts directory
+    file_name = "test_document.md"
+    test_config.drafts_dir.mkdir(parents=True, exist_ok=True)
+    file_path = test_config.drafts_dir / file_name
+    file_path.write_text(test_input, encoding=test_config.default_encoding)
+
+    # Execute: Perform search and replace with just the filename
+    replacements = search_and_replace(
+        file_name, 
+        search, 
+        replace, 
+        case_sensitive=case_sensitive,
+        config=test_config
+    )
+
+    # Verify: Check the number of replacements and file content
+    assert replacements == expected_count
+    assert file_path.read_text(encoding=test_config.default_encoding) == expected_content
+
+def test_search_and_replace_invalid_regex(test_config: WriterConfig):
+    """Test handling of invalid regex patterns."""
+    # Setup: Create test file in the drafts directory
+    file_name = "test_document.md"
+    test_config.drafts_dir.mkdir(parents=True, exist_ok=True)
+    file_path = test_config.drafts_dir / file_name
+    file_path.write_text("Test content", encoding=test_config.default_encoding)
+
+    # Execute & Verify: Expect ValueError for invalid regex
+    with pytest.raises(ValueError, match="Invalid regular expression pattern"):
+        search_and_replace(file_name, "(", "sample", use_regex=True, config=test_config)
