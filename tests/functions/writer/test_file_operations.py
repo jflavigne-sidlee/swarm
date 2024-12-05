@@ -1439,6 +1439,10 @@ class TestStreamContent:
     @pytest.mark.asyncio
     async def test_stream_content_invalid_markdown(self, sample_document, test_config):
         """Test that invalid markdown content is rejected."""
+        # Create the file and directory structure first
+        sample_document.parent.mkdir(parents=True, exist_ok=True)
+        sample_document.touch()
+        
         invalid_content = "# Header 1\n### Invalid Header Skip\nContent"
         
         with pytest.raises(MarkdownIntegrityError, match="Header level"):
@@ -1460,6 +1464,10 @@ class TestStreamContent:
     @pytest.mark.asyncio
     async def test_stream_content_invalid_task_list(self, sample_document, test_config):
         """Test that invalid task list formatting is rejected."""
+        # Create the file and directory structure first
+        sample_document.parent.mkdir(parents=True, exist_ok=True)
+        sample_document.touch()
+        
         invalid_content = "# Header\n-[] Invalid task\n-[x]No space after"
         
         with pytest.raises(MarkdownIntegrityError, match="task list"):
@@ -1486,7 +1494,7 @@ class TestStreamContent:
         """Test non-existent file handling."""
         nonexistent_file = "nonexistent.md"
         expected_path = test_config.drafts_dir / nonexistent_file
-        with pytest.raises(FileNotFoundError, match=f"File does not exist: {str(expected_path)}"):
+        with pytest.raises(FileNotFoundError, match=f"Path does not exist: {str(expected_path)}"):
             await stream_content(str(expected_path), "content")
 
     @pytest.mark.asyncio
@@ -1577,14 +1585,6 @@ class TestStreamContent:
             assert "exceeds maximum" in mock_warning.call_args[0][0]
 
     @pytest.mark.asyncio
-    async def test_stream_content_validation(self, sample_document, test_config):
-        """Test content validation before streaming."""
-        invalid_content = "# Header 1\n### Invalid Header Skip\nContent"
-        
-        with pytest.raises(MarkdownIntegrityError, match="Header level"):
-            await stream_content(str(sample_document), invalid_content)
-
-    @pytest.mark.asyncio
     async def test_stream_content_empty(self, sample_document, test_config):
         """Test handling of empty content."""
         # Create the file and directory structure first
@@ -1630,6 +1630,10 @@ class TestStreamContent:
     @pytest.mark.asyncio
     async def test_stream_content_encoding_validation(self, sample_document, test_config):
         """Test validation of encoding error handler."""
+        # Create the file and directory structure first
+        sample_document.parent.mkdir(parents=True, exist_ok=True)
+        sample_document.touch()
+        
         with pytest.raises(ValueError, match="encoding_errors must be one of"):
             await stream_content(
                 str(sample_document),

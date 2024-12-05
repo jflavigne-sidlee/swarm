@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 import os
 import shutil
-from typing import Optional
+from typing import Optional, Callable
 from uuid import uuid4
 from datetime import datetime
 import errno
@@ -71,6 +71,8 @@ from .logs import (
     LOG_STREAM_COMPLETE,
     LOG_NEWLINE_ADDED,
 )
+from functools import wraps
+import warnings
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -262,7 +264,7 @@ def write_file(file_path: Path, content: str, encoding: str) -> None:
         ensure_parent_exists(file_path)
 
         if file_path.exists():
-            validate_path_permissions(file_path, require_write=True)
+            validate_file_access(file_path, require_write=True, check_exists=True)
 
         with open(file_path, "w", encoding=encoding) as f:
             f.write(content)
@@ -305,63 +307,6 @@ def generate_temp_filename(original_name: str) -> str:
     return f"temp_{timestamp}_{unique_id}_{original_name}"
 
 
-def check_path_exists(path: Path) -> None:
-    """Check if a path exists.
-    
-    Args:
-        path: Path to check
-        
-    Raises:
-        FileNotFoundError: If path doesn't exist
-    """
-    if not path.exists():
-        raise FileNotFoundError(ERROR_PATH_NOT_FOUND.format(path=path))
-
-
-def check_read_permissions(path: Path) -> None:
-    """Check if a path has read permissions.
-    
-    Args:
-        path: Path to check
-        
-    Raises:
-        FilePermissionError: If path lacks read permissions
-    """
-    if not os.access(path, os.R_OK):
-        raise FilePermissionError(ERROR_PATH_NO_READ.format(path=path))
-
-
-def check_write_permissions(path: Path) -> None:
-    """Check if a path has write permissions.
-    
-    Args:
-        path: Path to check
-        
-    Raises:
-        FilePermissionError: If path lacks write permissions
-    """
-    if not os.access(path, os.W_OK):
-        raise FilePermissionError(ERROR_PATH_NO_WRITE.format(path=path))
-
-
-def validate_path_permissions(path: Path, require_write: bool = False) -> None:
-    """Validate existence and permissions for path.
-
-    Args:
-        path: Path to validate
-        require_write: If True, verify write permissions
-
-    Raises:
-        FileNotFoundError: If path does not exist
-        PermissionError: If required permissions are not available
-    """
-    check_path_exists(path)
-    check_read_permissions(path)
-
-    if require_write:
-        check_write_permissions(path)
-
-
 def atomic_write(file_path: Path, content: str, encoding: str, temp_dir: Path) -> None:
     """Write content atomically using a temporary file.
 
@@ -393,7 +338,7 @@ def atomic_write(file_path: Path, content: str, encoding: str, temp_dir: Path) -
     try:
         # Validate temp directory
         try:
-            validate_path_permissions(temp_dir, require_write=True)
+            validate_file_access(temp_dir, require_write=True, check_exists=True)
         except FileNotFoundError:
             logger.error(LOG_TEMP_DIR_NOT_FOUND.format(path=temp_dir))
             raise
@@ -419,7 +364,7 @@ def atomic_write(file_path: Path, content: str, encoding: str, temp_dir: Path) -
         # Check target file permissions if it exists
         if file_path.exists():
             try:
-                validate_path_permissions(file_path, require_write=True)
+                validate_file_access(file_path, require_write=True, check_exists=True)
             except PermissionError:
                 logger.error(LOG_NO_WRITE_PERMISSION.format(path=file_path))
                 raise
@@ -479,7 +424,7 @@ def ensure_file_readable(file_path: Path) -> None:
         PermissionError: If file isn't readable
     """
     try:
-        validate_path_permissions(file_path, require_write=False)
+        validate_file_access(file_path, require_write=False)
     except FileNotFoundError:
         logger.error(LOG_PATH_NOT_FOUND.format(path=file_path))
         raise
@@ -619,3 +564,77 @@ async def stream_document_content(
     except Exception as e:
         logger.error(f"Failed to stream content: {str(e)}")
         raise
+
+def validate_file_access(
+    file_path: Path,
+    *,
+    require_write: bool = False,
+    create_parents: bool = False,
+    check_exists: bool = True
+) -> None:
+    """Comprehensive file access validation.
+    
+    Args:
+        file_path: Path to validate
+        require_write: Whether write permission is required
+        create_parents: Whether to create parent directories
+        check_exists: Whether to check if file exists
+        
+    Raises:
+        FileNotFoundError: If file doesn't exist and check_exists is True
+        PermissionError: If required permissions are not available
+        OSError: If parent directory creation fails
+    """
+    try:
+        # Handle parent directory creation first if requested
+        if create_parents:
+            ensure_directory_exists(file_path.parent)
+            
+        # Check existence if required
+        if check_exists and not file_path.exists():
+            logger.error(ERROR_PATH_NOT_FOUND.format(path=file_path))
+            raise FileNotFoundError(ERROR_PATH_NOT_FOUND.format(path=file_path))
+            
+        # Check read permissions if file exists
+        if file_path.exists() and not os.access(file_path, os.R_OK):
+            logger.error(ERROR_PATH_NO_READ.format(path=file_path))
+            raise FilePermissionError(ERROR_PATH_NO_READ.format(path=file_path))
+            
+        # Check write permissions if required
+        if require_write and file_path.exists() and not os.access(file_path, os.W_OK):
+            logger.error(ERROR_PATH_NO_WRITE.format(path=file_path))
+            raise FilePermissionError(ERROR_PATH_NO_WRITE.format(path=file_path))
+            
+        # Check parent directory write permissions if we need to create the file
+        if require_write and not file_path.exists():
+            parent_dir = file_path.parent
+            if not os.access(parent_dir, os.W_OK):
+                logger.error(ERROR_PERMISSION_DENIED_PATH.format(path=parent_dir))
+                raise FilePermissionError(ERROR_PERMISSION_DENIED_PATH.format(path=parent_dir))
+                
+    except (FileNotFoundError, FilePermissionError):
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error during file access validation: {str(e)}")
+        raise
+
+def deprecated_permission_check(message: str) -> Callable:
+    """Decorator to mark permission check functions as deprecated.
+    
+    Args:
+        message: Message explaining what to use instead
+        
+    Returns:
+        Decorator function
+    """
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            warnings.warn(
+                f"Deprecated: {func.__name__} will be removed in version 2.0.0. {message}",
+                DeprecationWarning,
+                stacklevel=2
+            )
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator

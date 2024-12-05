@@ -1,6 +1,7 @@
 import pytest
 from pathlib import Path
 from unittest.mock import Mock, patch
+import os
 
 from src.functions.writer.file_validation import (
     validate_file_inputs,
@@ -29,12 +30,16 @@ class TestFileValidation:
         assert is_valid_filename(".") is False
         assert is_valid_filename("..") is False
 
-    @patch('src.functions.writer.file_validation.validate_path_permissions')
-    def test_validate_file_inputs_valid(self, mock_validate_perms, mock_config):
+    @patch('src.functions.writer.file_validation.validate_file_access')
+    def test_validate_file_inputs_valid(self, mock_validate_access, mock_config):
         test_path = Path("test.md")
-        with patch.object(Path, 'exists', return_value=True):
-            validate_file_inputs(test_path, mock_config)
-            mock_validate_perms.assert_called_once()
+        validate_file_inputs(test_path, mock_config)
+        mock_validate_access.assert_called_once_with(
+            test_path,
+            require_write=True,
+            create_parents=False,
+            check_exists=True
+        )
 
     def test_validate_file_inputs_invalid_extension(self, mock_config):
         test_path = Path("test.txt")
@@ -46,20 +51,50 @@ class TestFileValidation:
         with pytest.raises(FileValidationError, match="Invalid filename"):
             validate_file_inputs(test_path, mock_config)
 
-    @patch('src.functions.writer.file_validation.validate_path_permissions')
-    @patch('src.functions.writer.file_validation.ensure_parent_exists')
-    def test_ensure_valid_markdown_file_create(
-        self, mock_ensure_parent, mock_validate_perms, mock_config
-    ):
-        test_path = Path("test.md")
-        with patch.object(Path, 'exists', return_value=False), \
-             patch.object(Path, 'touch') as mock_touch:
-            ensure_valid_markdown_file(test_path, mock_config, create=True)
-            mock_touch.assert_called_once()
+    @patch('src.functions.writer.file_validation.validate_file_access')
+    def test_validate_file_inputs_permissions(self, mock_validate_access, tmp_path):
+        """Test file permission validation in validate_file_inputs."""
+        config = Mock(spec=WriterConfig)
+        test_file = tmp_path / "test.md"
+        test_file.touch()
+        
+        # Configure mock to raise FilePermissionError
+        mock_validate_access.side_effect = FilePermissionError(
+            f"Permission denied: No write permission for path: {test_file}"
+        )
+        
+        # Test read-only file
+        test_file.chmod(0o444)
+        with pytest.raises(FilePermissionError):
+            validate_file_inputs(test_file, config, require_write=True)
+        
+        mock_validate_access.assert_called_once_with(
+            test_file,
+            require_write=True,
+            create_parents=False,
+            check_exists=True
+        )
 
-    def test_ensure_valid_markdown_file_invalid(self, mock_config):
-        test_path = Path("invalid?.md")
-        with pytest.raises(FileValidationError):
-            ensure_valid_markdown_file(test_path, mock_config) 
+    @patch('src.functions.writer.file_validation.validate_file_access')
+    def test_validate_file_inputs_parent_creation(self, mock_validate_access, tmp_path):
+        """Test parent directory creation in validate_file_inputs."""
+        config = Mock(spec=WriterConfig)
+        test_file = tmp_path / "subdir" / "test.md"
+        
+        validate_file_inputs(test_file, config, create_parents=True)
+        mock_validate_access.assert_called_with(
+            test_file,
+            require_write=True,
+            create_parents=True,
+            check_exists=False
+        )
+
+    def test_validate_file_inputs_missing_file(self, tmp_path):
+        """Test handling of missing files in validate_file_inputs."""
+        config = Mock(spec=WriterConfig)
+        non_existent = tmp_path / "missing.md"
+        
+        with pytest.raises(FileNotFoundError):
+            validate_file_inputs(non_existent, config, require_write=False)
 
 # pytest -v tests/functions/writer/test_file_validation.py

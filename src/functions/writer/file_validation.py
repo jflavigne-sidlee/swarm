@@ -11,7 +11,7 @@ from .exceptions import (
     FileValidationError,
     FilePermissionError
 )
-from .file_io import validate_path_permissions, ensure_parent_exists
+from .file_io import validate_file_access
 from .validation_constants import (
     MAX_FILENAME_LENGTH,
     MAX_PATH_LENGTH,
@@ -79,17 +79,14 @@ def validate_file_inputs(
         logger.error(f"Invalid file extension: {file_path.suffix}")
         raise FileValidationError(f"File must have {extension} extension")
 
-    # Create parent directories if needed
-    if create_parents and config.create_directories:
-        ensure_parent_exists(file_path)
+    # Validate file access using centralized function
+    validate_file_access(
+        file_path,
+        require_write=require_write,
+        create_parents=create_parents,
+        check_exists=not create_parents
+    )
 
-    # Check file existence and permissions
-    if file_path.exists():
-        validate_path_permissions(file_path, require_write=require_write)
-    elif not require_write:
-        logger.error(f"File not found: {file_path}")
-        raise FileNotFoundError(f"File does not exist: {file_path}")
-    
 def validate_filename(file_name: str, config: WriterConfig) -> Path:
     """Validate filename and return full path."""
     if not file_name or not is_valid_filename(file_name):
@@ -214,7 +211,7 @@ def validate_file(file_path: Path, require_write: bool = False) -> None:
     """
     try:
         # Check if file exists and has correct permissions
-        validate_path_permissions(file_path, require_write=require_write)
+        validate_file_access(file_path, require_write=require_write, check_exists=True)
 
         # Verify file extension
         if file_path.suffix.lower() != MD_EXTENSION:

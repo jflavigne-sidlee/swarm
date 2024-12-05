@@ -75,7 +75,7 @@ from .file_operations import (
 )
 from .file_validation import validate_filename
 
-from .file_io import validate_path_permissions
+from .file_io import validate_file_access
 
 logger = logging.getLogger(__name__)
 
@@ -283,7 +283,7 @@ class LockCleanupManager:
         
         try:
             logger.info(LOG_CLEANUP_START.format(directory=directory))
-            validate_path_permissions(directory, require_write=True)
+            validate_file_access(directory, require_write=True, check_exists=True)
             
             for lock_file in directory.glob(LOCK_FILE_PATTERN):
                 try:

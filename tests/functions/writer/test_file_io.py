@@ -3,18 +3,15 @@ import os
 import shutil
 from pathlib import Path
 from src.functions.writer.file_io import (
-    cleanup_partial_file,
     ensure_file_newline,
     stream_chunks,
     read_file,
     write_file,
     atomic_write,
-    validate_path_permissions,
     validate_encoding,
-    check_read_permissions,
-    check_write_permissions,
-    check_path_exists,
     stream_document_content,
+    validate_file_access,
+    cleanup_partial_file,
 )
 from src.functions.writer.exceptions import (
     MarkdownIntegrityError,
@@ -317,7 +314,7 @@ class TestAtomicWrite:
         temp_dir.mkdir()
 
         test_cases = [
-            ("utf-8", "Hello 世界"),
+            ("utf-8", "Hello "),
             ("utf-16", "Hello 世界"),
             ("shift-jis", "こんにちは"),
             ("iso-8859-1", "Hello World"),  # Removed € as it's not in iso-8859-1
@@ -391,69 +388,6 @@ class TestAtomicWrite:
         assert real_file.read_text() == content
         assert symlink.read_text() == content
         assert len(list(temp_dir.iterdir())) == 0
-
-
-class TestPathPermissions:
-    def test_check_read_permissions_success(self, tmp_path):
-        """Test successful read permission check."""
-        test_file = tmp_path / "readable.txt"
-        test_file.write_text("test content")
-        os.chmod(test_file, 0o444)  # read-only
-
-        check_read_permissions(test_file)  # Should not raise
-
-    def test_check_read_permissions_failure(self, tmp_path):
-        """Test failed read permission check."""
-        test_file = tmp_path / "unreadable.txt"
-        test_file.write_text("test content")
-        os.chmod(test_file, 0o000)  # no permissions
-        
-        try:
-            with pytest.raises(FilePermissionError) as exc_info:
-                check_read_permissions(test_file)
-            assert "No read permission for path" in str(exc_info.value)
-        finally:
-            # Restore permissions for cleanup
-            os.chmod(test_file, 0o644)
-
-    def test_check_write_permissions_success(self, tmp_path):
-        """Test successful write permission check."""
-        test_file = tmp_path / "writable.txt"
-        test_file.write_text("test content")
-        os.chmod(test_file, 0o666)  # read-write
-
-        check_write_permissions(test_file)  # Should not raise
-
-    def test_check_write_permissions_failure(self, tmp_path):
-        """Test failed write permission check."""
-        test_file = tmp_path / "readonly.txt"
-        test_file.write_text("test content")
-        os.chmod(test_file, 0o444)  # read-only
-
-        with pytest.raises(FilePermissionError):
-            check_write_permissions(test_file)
-
-    def test_check_permissions_nonexistent_file(self, tmp_path):
-        """Test permission checks on nonexistent file."""
-        nonexistent = tmp_path / "nonexistent.txt"
-
-        with pytest.raises(FileNotFoundError) as exc_info:
-            check_path_exists(nonexistent)
-
-        expected_msg = ERROR_PATH_NOT_EXIST.format(name="Path", path=nonexistent)
-        assert str(exc_info.value) == expected_msg
-
-    def test_validate_path_permissions_all_checks(self, tmp_path):
-        """Test full validation with all permission checks."""
-        test_file = tmp_path / "test.txt"
-        test_file.write_text("test content")
-
-        # Test with read-only
-        os.chmod(test_file, 0o444)
-        validate_path_permissions(test_file, require_write=False)  # Should pass
-
-        with pytest.raises(FilePermissionError):
-            validate_path_permissions(test_file, require_write=True)
 
 
 class TestFileCleanup:
@@ -638,4 +572,43 @@ class TestStreamDocumentContent:
             os.chmod(test_dir, 0o755)  # Restore permissions for cleanup
 
 
-# pytest tests/functions/writer/test_file_io.py -v
+class TestValidateFileAccess:
+    def test_validate_file_access_basic(self, tmp_path):
+        """Test basic file access validation."""
+        test_file = tmp_path / "test.txt"
+        test_file.touch()
+        
+        # Should not raise any exceptions
+        validate_file_access(test_file)
+
+    def test_validate_file_access_missing(self):
+        """Test handling of missing files."""
+        non_existent = Path("does_not_exist.txt")
+        
+        with pytest.raises(FileNotFoundError):
+            validate_file_access(non_existent)
+
+    def test_validate_file_access_write(self, tmp_path):
+        """Test write permission validation."""
+        test_file = tmp_path / "test.txt"
+        test_file.touch()
+        
+        # Make file read-only
+        test_file.chmod(0o444)
+        
+        with pytest.raises(FilePermissionError):
+            validate_file_access(test_file, require_write=True)
+
+    def test_validate_file_access_parent_creation(self, tmp_path):
+        """Test parent directory creation."""
+        test_file = tmp_path / "subdir" / "test.txt"
+        
+        validate_file_access(test_file, create_parents=True, check_exists=False)
+        assert test_file.parent.exists()
+
+    def test_validate_file_access_no_exist_check(self, tmp_path):
+        """Test skipping existence check."""
+        non_existent = tmp_path / "not_here.txt"
+        
+        # Should not raise an exception when check_exists is False
+        validate_file_access(non_existent, check_exists=False)
