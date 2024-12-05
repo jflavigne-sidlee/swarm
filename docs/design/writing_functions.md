@@ -155,6 +155,7 @@ The module empowers teams and systems to manage Markdown documents efficiently, 
         - Return the count of replacements made.
     - **Notes:**
         - Support case sensitivity and regex-based searches if needed.
+        - this feature is implemented in src/functions/writer/file_operations.py
 
 9. section_exists(file_name: str, section_title: str) -> bool
     - **Purpose:** Check if a section exists in the document.
