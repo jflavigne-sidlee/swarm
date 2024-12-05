@@ -296,23 +296,24 @@ project_name/
 │   │   ├── writer/
 │   │   │   ├── __init__.py
 │   │   │   ├── config.py               # Configuration management
+│   │   │   ├── constants.py            # Shared constants
+│   │   │   ├── errors.py               # Error messages
 │   │   │   ├── exceptions.py           # Custom exceptions
+│   │   │   ├── file_io.py             # Low-level file operations
 │   │   │   ├── file_operations.py      # Core file operations and section handling
+│   │   │   ├── file_validation.py      # File-specific validation
+│   │   │   ├── finalize.py            # Document finalization
+│   │   │   ├── locking.py             # Section locking
+│   │   │   ├── logs.py                # Logging messages
 │   │   │   ├── metadata_operations.py  # Metadata management
 │   │   │   ├── metadata_utils.py       # Metadata utility functions
-│   │   │   ├── patterns.py             # Pattern matching constants
-│   │   │   ├── validation.py           # Markdown validation
+│   │   │   ├── patterns.py            # Pattern matching constants
+│   │   │   ├── streaming.py           # Content streaming
+│   │   │   ├── suggestions.py         # Error suggestions
+│   │   │   ├── utils.py               # System-related utility functions
+│   │   │   ├── validation.py          # Markdown validation
 │   │   │   ├── validation_constants.py # Validation constants
-│   │   │   ├── file_validation.py      # File-specific validation
-│   │   │   ├── file_io.py              # Low-level file operations
-│   │   │   ├── utils.py                # System-related utility functions
-│   │   │   ├── version_control.py      # Version management
-│   │   │   ├── streaming.py            # Content streaming
-│   │   │   ├── locking.py              # Section locking
-│   │   │   ├── finalize.py             # Document finalization
-│   │   │   ├── errors.py               # Error messages
-│   │   │   ├── logs.py                 # Logging messages
-│   │   │   └── constants.py            # Shared constants
+│   │   │   └── version_control.py      # Version management
 │   ├── utils/
 │   │   ├── __init__.py
 │   │   ├── logger.py                   # Logging utility
