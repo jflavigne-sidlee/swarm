@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union
 
 from .config import WriterConfig
 from .constants import MD_EXTENSION
@@ -108,16 +108,26 @@ def validate_filename(file_name: str, config: WriterConfig) -> Path:
 
     return full_path
 
-def is_valid_filename(filename: str) -> bool:
-    """Check if filename is valid.
+def is_valid_filename(
+    filename: Union[Path, str], 
+    extension: Optional[str] = None,
+    strict_extension: bool = True
+) -> bool:
+    """Check if filename is valid and optionally validate extension.
     
     Args:
-        filename: Name to validate
+        filename: Name or Path to validate
+        extension: Optional file extension to check (e.g., '.md')
+        strict_extension: If True, requires exact extension match when specified
         
     Returns:
-        bool: True if filename is valid
+        bool: True if filename is valid and matches extension if specified
     """
-    # Check length
+    # Convert Path to string if needed
+    if isinstance(filename, Path):
+        filename = filename.name
+    
+    # Basic validation
     if not filename or len(filename) > MAX_FILENAME_LENGTH:
         return False
 
@@ -137,6 +147,19 @@ def is_valid_filename(filename: str) -> bool:
     # Check for trailing spaces or dots
     if filename.endswith((" ", ".")):
         return False
+
+    # Validate extension if specified
+    if extension:
+        if not extension.startswith('.'):
+            extension = f'.{extension}'
+            
+        if strict_extension:
+            # Exact match required
+            return filename.lower().endswith(extension.lower())
+        else:
+            # Allow additional extensions after specified one
+            parts = filename.lower().split(extension.lower())
+            return len(parts) > 1 and not parts[0].endswith('.')
 
     return True
 

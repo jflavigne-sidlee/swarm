@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 import os
 import shutil
-from typing import Optional, Callable
+from typing import Optional, Callable, Union
 from uuid import uuid4
 from datetime import datetime
 import errno
@@ -638,3 +638,34 @@ def deprecated_permission_check(message: str) -> Callable:
             return func(*args, **kwargs)
         return wrapper
     return decorator
+
+def resolve_path_with_config(
+    file_path: Union[Path, str],
+    base_dir: Path
+) -> Path:
+    """Resolve a string or Path into an absolute Path with a base directory.
+    
+    Args:
+        file_path: Path to resolve (string or Path object)
+        base_dir: Base directory for resolving relative paths
+        
+    Returns:
+        Path: Resolved absolute Path object
+        
+    Example:
+        >>> resolve_path_with_config("doc.md", Path("/base/dir"))
+        Path("/base/dir/doc.md")
+        >>> resolve_path_with_config("/abs/path/doc.md", Path("/base/dir"))
+        Path("/abs/path/doc.md")
+    """
+    # First convert to Path if string
+    if isinstance(file_path, str):
+        logger.debug(f"Resolving string to Path: {file_path}")
+        file_path = Path(file_path)
+        
+    # Then resolve relative paths against base_dir
+    if not file_path.is_absolute():
+        logger.debug(f"Resolving relative path: {file_path} with base: {base_dir}")
+        file_path = base_dir / file_path
+        
+    return file_path.resolve()

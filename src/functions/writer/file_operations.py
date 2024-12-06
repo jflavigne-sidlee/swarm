@@ -1,7 +1,7 @@
 from datetime import datetime
 from pathlib import Path
 import yaml
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 import os
 import re
 import logging
@@ -117,7 +117,7 @@ from .validation_constants import (
     SECTION_HEADER_KEY,
     SECTION_MARKER_KEY,
 )
-from .file_io import read_file, atomic_write, ensure_directory_exists, stream_document_content
+from .file_io import read_file, atomic_write, ensure_directory_exists, stream_document_content, resolve_path_with_config
 from .validation import validate_markdown_content
 #from .file_validation import validate_file_inputs as _validate_file_inputs
 from .file_validation import validate_file_inputs
@@ -131,8 +131,26 @@ from .file_validation import validate_file
 logger = logging.getLogger(__name__)
 
 
-def write_document(file_path: Path, metadata: Dict[str, str], encoding: str) -> None:
-    """Write metadata and frontmatter to file."""
+def write_document(
+    file_path: Union[Path, str],
+    metadata: Dict[str, str],
+    encoding: str,
+    config: Optional[WriterConfig] = None
+) -> None:
+    """Write metadata and frontmatter to file.
+    
+    Args:
+        file_path: Path to the output file (Path object or string)
+        metadata: Dictionary of metadata to write
+        encoding: Character encoding to use
+        config: Optional configuration object
+    
+    Raises:
+        WriterError: If writing fails or path resolution fails
+    """
+    config = get_config(config)
+    file_path = resolve_path_with_config(file_path, config.drafts_dir)
+
     try:
         logger.debug(LOG_YAML_SERIALIZATION)
         yaml_content = yaml.dump(metadata, default_flow_style=False, sort_keys=False)
@@ -213,7 +231,7 @@ def cleanup_partial_file(file_path: Path) -> None:
 
 
 def append_section(
-    file_name: str,
+    file_path: Union[Path, str],
     section_title: str,
     content: str,
     config: Optional[WriterConfig] = None,
@@ -233,9 +251,9 @@ def append_section(
         logger.error(LOG_INVALID_SECTION_TITLE.format(title=section_title))
         raise WriterError(ERROR_INVALID_SECTION_TITLE)
 
-    # Validate filename and get full path
-    file_path = validate_filename(file_name, config)
-
+    # Resolve and validate file path using new approach
+    file_path = resolve_path_with_config(file_path, config.drafts_dir)
+    
     # Validate file exists and is readable/writable
     validate_file(file_path, require_write=True)
 

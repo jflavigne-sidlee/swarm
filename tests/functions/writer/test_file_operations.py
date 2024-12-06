@@ -475,7 +475,7 @@ class TestAppendSection:
         """Test error when inserting after a section that doesn't exist."""
         with pytest.raises(WriterError, match="Section to insert after not found: Nonexistent"):
             append_section(
-                file_name="test_doc.md",
+                file_path="test_doc.md",
                 section_title="New Section",
                 content="Content",
                 config=test_config,
@@ -1012,7 +1012,7 @@ class TestAppendSection:
 
         # Append new section
         append_section(
-            file_name=sample_document.name,  # Just the filename, not the full path
+            file_path=sample_document.name,  # Just the filename, not the full path
             section_title="New Section",
             content="Content for the new section.",
             config=test_config,  # Config contains the directory information
