@@ -618,40 +618,17 @@ def validate_file_access(
         logger.error(f"Unexpected error during file access validation: {str(e)}")
         raise
 
-def deprecated_permission_check(message: str) -> Callable:
-    """Decorator to mark permission check functions as deprecated.
-    
-    Args:
-        message: Message explaining what to use instead
-        
-    Returns:
-        Decorator function
-    """
-    def decorator(func: Callable) -> Callable:
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            warnings.warn(
-                f"Deprecated: {func.__name__} will be removed in version 2.0.0. {message}",
-                DeprecationWarning,
-                stacklevel=2
-            )
-            return func(*args, **kwargs)
-        return wrapper
-    return decorator
 
 def resolve_path_with_config(file_path: Union[Path, str], base_dir: Path) -> Path:
-    """Resolve a string or Path into an absolute Path with a base directory.
+    """Resolve a string or Path into an absolute Path with a base directory."""
     
-    Args:
-        file_path: Path to resolve (string or Path object)
-        base_dir: Base directory for resolving relative paths
-        
-    Returns:
-        Path: Resolved absolute Path object
-    """
-    
-    # Convert string to Path if needed
+    # Convert string to Path if needed and emit warning
     if isinstance(file_path, str):
+        warnings.warn(
+            f"String path '{file_path}' passed to {resolve_path_with_config.__name__}. "
+            "Consider passing a Path object instead.",
+            stacklevel=2  # This ensures the warning points to the calling code
+        )
         logger.debug(f"Converting string path '{file_path}' to Path object")
         file_path = Path(file_path)
     
@@ -660,7 +637,4 @@ def resolve_path_with_config(file_path: Union[Path, str], base_dir: Path) -> Pat
         logger.debug(f"Resolving relative path '{file_path}' using base directory '{base_dir}'")
         file_path = base_dir / file_path
     
-    # Resolve any .. or . components
-    resolved_path = file_path.resolve()
-    
-    return resolved_path
+    return file_path.resolve()

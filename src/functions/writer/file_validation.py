@@ -1,6 +1,7 @@
 """Centralized file validation utilities."""
 
 import logging
+import warnings
 from pathlib import Path
 from typing import Optional, Dict, Any, Union
 
@@ -262,6 +263,13 @@ def validate_and_resolve_path(
         WriterError: If path resolution fails
         FilePermissionError: If required permissions are not available
     """
+    # Convert string to Path if needed and emit warning
+    if isinstance(file_path, str):
+        warnings.warn(
+            f"String path '{file_path}' passed to {validate_and_resolve_path.__name__}. "
+            "Consider passing a Path object instead.",
+            stacklevel=2  # This ensures the warning points to the calling code
+        )
     # Initial conversion to string if needed
     file_name = str(file_path) if isinstance(file_path, Path) else file_path
     

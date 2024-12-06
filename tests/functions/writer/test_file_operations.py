@@ -74,7 +74,7 @@ def sample_document(test_config) -> Path:
 class TestCreateDocument:
     def test_create_document_success(self, test_config, valid_metadata):
         """Test successful document creation with valid inputs."""
-        file_name = "test_doc.md"
+        file_name = Path("test_doc.md")
         file_path = create_document(file_name, valid_metadata, test_config)
 
         # Verify file exists
@@ -90,13 +90,13 @@ class TestCreateDocument:
 
     def test_create_document_adds_md_extension(self, test_config, valid_metadata):
         """Test that .md extension is added if missing."""
-        file_name = "test_doc"  # No extension
+        file_name = Path("test_doc")  # No extension
         file_path = create_document(file_name, valid_metadata, test_config)
         assert file_path.suffix == ".md"
 
     def test_create_document_file_exists(self, test_config, valid_metadata):
         """Test error when file already exists."""
-        file_name = "existing_doc.md"
+        file_name = Path("existing_doc.md")
 
         # Create file first time
         create_document(file_name, valid_metadata, test_config)
@@ -113,7 +113,7 @@ class TestCreateDocument:
         }
 
         with pytest.raises(WriterError, match="Missing required metadata fields"):
-            create_document("test_doc.md", incomplete_metadata, test_config)
+            create_document(Path("test_doc.md"), incomplete_metadata, test_config)
 
     def test_create_document_default_config(
         self, valid_metadata, tmp_path, monkeypatch
@@ -134,7 +134,7 @@ class TestCreateDocument:
             test_config.drafts_dir.chmod(0o444)  # Read-only
 
             with pytest.raises(PermissionError, match="Permission denied"):
-                create_document("test_doc.md", valid_metadata, test_config)
+                create_document(Path("test_doc.md"), valid_metadata, test_config)
         finally:
             test_config.drafts_dir.chmod(0o755)
 
@@ -148,7 +148,7 @@ class TestCreateDocument:
             test_config.drafts_dir.chmod(0o000)  # No permissions
 
             with pytest.raises(PermissionError, match="Permission denied"):
-                create_document("test_doc.md", valid_metadata, test_config)
+                create_document(Path("test_doc.md"), valid_metadata, test_config)
         finally:
             # Restore permissions for cleanup
             try:
@@ -193,9 +193,9 @@ class TestCreateDocument:
             "test.md.",  # Dot after extension
         ]
 
-        for filename in invalid_filenames:
+        for path in invalid_filenames:
             with pytest.raises(FileValidationError, match="Invalid filename"):
-                create_document(filename, valid_metadata, test_config)
+                create_document(Path(path), valid_metadata, test_config)
 
     def test_create_document_valid_filename(self, test_config, valid_metadata):
         """Test that valid filenames are accepted."""
@@ -213,7 +213,7 @@ class TestCreateDocument:
 
         for filename in valid_filenames:
             try:
-                file_path = create_document(filename, valid_metadata, test_config)
+                file_path = create_document(Path(filename), valid_metadata, test_config)
                 assert file_path.exists()
                 assert file_path.name == filename
             except WriterError as e:
@@ -228,7 +228,7 @@ class TestCreateDocument:
         }
 
         with pytest.raises(WriterError, match="Invalid type for"):
-            create_document("test_doc.md", invalid_metadata, test_config)
+            create_document(Path("test_doc.md"), invalid_metadata, test_config)
 
     def test_create_document_directory_creation_failure(
         self, test_config, valid_metadata
@@ -243,7 +243,7 @@ class TestCreateDocument:
             f.write("blocking file")
 
         with pytest.raises(WriterError, match="Cannot create directory: A file is blocking directory creation"):
-            create_document("test_doc.md", valid_metadata, test_config)
+            create_document(Path("test_doc.md"), valid_metadata, test_config)
 
     def test_create_document_yaml_error(self, test_config):
         """Test error when metadata cannot be serialized to YAML."""
@@ -258,7 +258,7 @@ class TestCreateDocument:
         }
 
         with pytest.raises(WriterError, match="Invalid type for"):
-            create_document("test_doc.md", invalid_metadata, test_config)
+            create_document(Path("test_doc.md"), invalid_metadata, test_config)
 
     def test_create_document_preserves_metadata_order(self, test_config):
         """Test that metadata order is preserved in the YAML frontmatter."""
@@ -270,7 +270,7 @@ class TestCreateDocument:
             "tags": "test, example",
         }
 
-        file_path = create_document("test_doc.md", ordered_metadata, test_config)
+        file_path = create_document(Path("test_doc.md"), ordered_metadata, test_config)
 
         # Read the created file
         content = file_path.read_text(encoding=test_config.default_encoding)
@@ -301,6 +301,7 @@ class TestCreateDocument:
             with pytest.raises(FileValidationError, match="Invalid filename"):
                 create_document(filename, valid_metadata, test_config)
 
+
     def test_create_document_valid_dot_filenames(self, test_config, valid_metadata):
         """Test that valid filenames with dots are accepted."""
         valid_dot_filenames = [
@@ -311,7 +312,7 @@ class TestCreateDocument:
 
         for filename in valid_dot_filenames:
             try:
-                file_path = create_document(filename, valid_metadata, test_config)
+                file_path = create_document(Path(filename), valid_metadata, test_config)
                 assert file_path.exists()
                 assert file_path.name == filename
             except WriterError as e:
@@ -327,7 +328,7 @@ class TestCreateDocument:
         filename = f"{'a' * (available_length - 3)}.md"  # -3 for '.md'
 
         try:
-            file_path = create_document(filename, valid_metadata, test_config)
+            file_path = create_document(Path(filename), valid_metadata, test_config)
             assert file_path.exists()
             assert len(str(file_path)) <= MAX_PATH_LENGTH
         except WriterError as e:
@@ -342,19 +343,19 @@ class TestCreateDocument:
         filename = f"{'a' * (excess_length - 3)}.md" # -3 for '.md'
 
         with pytest.raises(FileValidationError, match="Path exceeds maximum length"):
-            create_document(filename, valid_metadata, test_config)
+            create_document(Path(filename), valid_metadata, test_config)
 
 
 class TestAppendSection:
     @pytest.fixture
     def sample_document(self, test_config, valid_metadata):
         """Create a sample document for testing append operations."""
-        file_path = create_document("test_doc.md", valid_metadata, test_config)
+        file_path = create_document(Path("test_doc.md"), valid_metadata, test_config)
         return file_path
 
     def test_append_section_success(self, sample_document, test_config):
         """Test successful section append with default header level."""
-        append_section("test_doc.md", "Test Section", "Test content", test_config)
+        append_section(Path("test_doc.md"), "Test Section", "Test content", test_config)
 
         content = sample_document.read_text(encoding=test_config.default_encoding)
         assert "## Test Section" in content
@@ -366,7 +367,7 @@ class TestAppendSection:
     ):
         """Test section append with specified header level."""
         append_section(
-            "test_doc.md", "Custom Level", "Content", test_config, header_level=3
+            Path("test_doc.md"), "Custom Level", "Content", test_config, header_level=3
         )
         content = sample_document.read_text()
         assert "### Custom Level" in content
@@ -374,10 +375,10 @@ class TestAppendSection:
     def test_append_section_to_existing_section(self, sample_document, test_config):
         """Test appending to existing section with allow_append=True."""
         # First append
-        append_section("test_doc.md", "Existing", "Original content", test_config)
+        append_section(Path("test_doc.md"), "Existing", "Original content", test_config)
         # Second append
         append_section(
-            "test_doc.md", "Existing", "New content", test_config, allow_append=True
+            Path("test_doc.md"), "Existing", "New content", test_config, allow_append=True
         )
 
         content = sample_document.read_text()
@@ -386,9 +387,9 @@ class TestAppendSection:
 
     def test_append_section_duplicate_error(self, sample_document, test_config):
         """Test error when attempting to add duplicate section."""
-        append_section("test_doc.md", "Duplicate", "Content", test_config)
+        append_section(Path("test_doc.md"), "Duplicate", "Content", test_config)
         with pytest.raises(WriterError, match="Section .* already exists"):
-            append_section("test_doc.md", "Duplicate", "New content", test_config)
+            append_section(Path("test_doc.md"), "Duplicate", "New content", test_config)
 
     def test_append_section_invalid_header_level(self, sample_document, test_config):
         """Test error when attempting to use invalid header level."""
@@ -396,20 +397,20 @@ class TestAppendSection:
             WriterError, match="Header level must be an integer between 1 and 6"
         ):
             append_section(
-                "test_doc.md", "Invalid", "Content", test_config, header_level=7
+                Path("test_doc.md"), "Invalid", "Content", test_config, header_level=7
             )
 
     def test_append_section_file_not_found(self, test_config):
         """Test error when target file doesn't exist."""
         with pytest.raises(WriterError, match="Document does not exist"):
-            append_section("nonexistent.md", "Section", "Content", test_config)
+            append_section(Path("nonexistent.md"), "Section", "Content", test_config)
 
     def test_append_section_permission_error(self, sample_document, test_config):
         """Test error when file permissions prevent writing."""
         sample_document.chmod(0o444)  # Read-only
         try:
             with pytest.raises(WriterError, match="Permission denied"):
-                append_section("test_doc.md", "Section", "Content", test_config)
+                append_section(Path("test_doc.md"), "Section", "Content", test_config)
         finally:
             sample_document.chmod(0o644)  # Restore permissions
 
@@ -419,35 +420,35 @@ class TestAppendSection:
         with open(sample_document, "a") as f:
             f.write("\n# Top Level\nContent")
 
-        append_section("test_doc.md", "Auto Level", "Content", test_config)
+        append_section(Path("test_doc.md"), "Auto Level", "Content", test_config)
         content = sample_document.read_text()
         assert "## Auto Level" in content  # Should be one level deeper
 
     def test_append_section_empty_content(self, sample_document, test_config):
         """Test error when attempting to append empty content."""
         with pytest.raises(WriterError, match="Content must be a non-empty string"):
-            append_section("test_doc.md", "Empty", "", test_config)
+            append_section(Path("test_doc.md"), "Empty", "", test_config)
 
     def test_append_section_empty_title(self, sample_document, test_config):
         """Test error when section title is empty."""
         with pytest.raises(
             WriterError, match="Section title must be a non-empty string"
         ):
-            append_section("test_doc.md", "", "Content", test_config)
+            append_section(Path("test_doc.md"), "", "Content", test_config)
 
     def test_append_section_preserves_existing_content(
         self, sample_document, test_config
     ):
         """Test that existing document content is preserved when appending."""
         original_content = sample_document.read_text()
-        append_section("test_doc.md", "New Section", "New content", test_config)
+        append_section(Path("test_doc.md"), "New Section", "New content", test_config)
         new_content = sample_document.read_text()
         assert original_content in new_content
 
     def test_append_section_proper_spacing(self, sample_document, test_config):
         """Test that proper spacing is maintained between sections."""
-        append_section("test_doc.md", "First", "Content 1", test_config)
-        append_section("test_doc.md", "Second", "Content 2", test_config)
+        append_section(Path("test_doc.md"), "First", "Content 1", test_config)
+        append_section(Path("test_doc.md"), "Second", "Content 2", test_config)
         content = sample_document.read_text()
         # Check for double newline between sections
         assert "\n\n## First" in content
@@ -456,12 +457,12 @@ class TestAppendSection:
     def test_insert_after_section(self, sample_document, test_config):
         """Test inserting a section after a specific section."""
         # Create initial sections
-        append_section("test_doc.md", "First", "Content 1", test_config)
-        append_section("test_doc.md", "Last", "Content 3", test_config)
+        append_section(Path("test_doc.md"), "First", "Content 1", test_config)
+        append_section(Path("test_doc.md"), "Last", "Content 3", test_config)
 
         # Insert section between First and Last
         append_section(
-            "test_doc.md", "Middle", "Content 2", test_config, insert_after="First"
+            Path("test_doc.md"), "Middle", "Content 2", test_config, insert_after="First"
         )
 
         content = sample_document.read_text()
@@ -472,7 +473,7 @@ class TestAppendSection:
         """Test error when inserting after a section that doesn't exist."""
         with pytest.raises(WriterError, match="Section to insert after not found: Nonexistent"):
             append_section(
-                file_path="test_doc.md",
+                file_path=Path("test_doc.md"),
                 section_title="New Section",
                 content="Content",
                 config=test_config,
@@ -482,12 +483,12 @@ class TestAppendSection:
     def test_insert_after_with_existing_content(self, sample_document, test_config):
         """Test that existing content is preserved when inserting sections."""
         # Create initial content
-        append_section("test_doc.md", "First", "Content 1", test_config)
+        append_section(Path("test_doc.md"), "First", "Content 1", test_config)
         original_content = sample_document.read_text()
 
         # Insert new section
         append_section(
-            "test_doc.md", "Second", "Content 2", test_config, insert_after="First"
+            Path("test_doc.md"), "Second", "Content 2", test_config, insert_after="First"
         )
 
         new_content = sample_document.read_text()
@@ -498,10 +499,10 @@ class TestAppendSection:
         """Test that section formatting is preserved when inserting."""
         # Create sections with specific formatting
         append_section(
-            "test_doc.md", "First", "Content 1\n\nWith paragraphs", test_config
+            Path("test_doc.md"), "First", "Content 1\n\nWith paragraphs", test_config
         )
         append_section(
-            "test_doc.md",
+            Path("test_doc.md"),
             "Middle",
             "- List item 1\n- List item 2",
             test_config,
@@ -516,13 +517,13 @@ class TestAppendSection:
         """Test inserting sections with different header levels."""
         # Create nested structure
         append_section(
-            "test_doc.md", "Main", "Main content", test_config, header_level=2
+            Path("test_doc.md"), "Main", "Main content", test_config, header_level=2
         )
-        append_section("test_doc.md", "Sub", "Sub content", test_config, header_level=3)
+        append_section(Path("test_doc.md"), "Sub", "Sub content", test_config, header_level=3)
 
         # Insert between sections
         append_section(
-            "test_doc.md",
+            Path("test_doc.md"),
             "Between",
             "Between content",
             test_config,
@@ -566,7 +567,7 @@ class TestAppendSection:
         validate_section_markers(document_content)
 
         # Try appending a new section (should work with valid markers)
-        append_section("test_doc.md", "Conclusion", "Final thoughts.", test_config)
+        append_section(Path("test_doc.md"), "Conclusion", "Final thoughts.", test_config)
 
         # Verify the new section was added with proper marker
         updated_content = sample_document.read_text()
@@ -1009,7 +1010,7 @@ class TestAppendSection:
 
         # Append new section
         append_section(
-            file_path=sample_document.name,  # Just the filename, not the full path
+            file_path=sample_document.name,  
             section_title="New Section",
             content="Content for the new section.",
             config=test_config,  # Config contains the directory information
@@ -1234,7 +1235,7 @@ class TestGetSection:
             f.write(content)
             
         # Get section content
-        result = get_section(sample_document.name, "Methods", test_config)
+        result = get_section(sample_document, "Methods", test_config)
         assert result == "Details about methods.\n\n"
         
     def test_section_not_found(self, sample_document, test_config):
@@ -1249,7 +1250,7 @@ class TestGetSection:
             f.write(content)
             
         with pytest.raises(SectionNotFoundError):
-            get_section(sample_document.name, "NonExistent", test_config)
+            get_section(sample_document, "NonExistent", test_config)
             
     def test_empty_section(self, sample_document, test_config):
         """Test retrieving empty section content."""
@@ -1263,7 +1264,7 @@ class TestGetSection:
         with open(sample_document, "w", encoding=test_config.default_encoding) as f:
             f.write(content)
             
-        result = get_section(sample_document.name, "Empty Section", test_config)
+        result = get_section(sample_document, "Empty Section", test_config)
         assert result == "\n\n"
         
     def test_whitespace_preservation(self, sample_document, test_config):
@@ -1280,7 +1281,7 @@ class TestGetSection:
         with open(sample_document, "w", encoding=test_config.default_encoding) as f:
             f.write(content)
             
-        result = get_section(sample_document.name, "Whitespace Test", test_config)
+        result = get_section(sample_document, "Whitespace Test", test_config)
         expected = (
             "Line with spaces    at end    \n"
             "   Indented line\n"
@@ -1291,10 +1292,10 @@ class TestGetSection:
         
     def test_file_not_found(self, test_config):
         """Test error when file doesn't exist."""
-        filename = "nonexistent.md"
-        expected_path = test_config.drafts_dir / filename
+        nonexistent_path = Path("nonexistent.md")
+        expected_path = test_config.drafts_dir / nonexistent_path
         with pytest.raises(WriterError) as exc_info:
-            get_section(filename, "Any Section", test_config)
+            get_section(nonexistent_path, "Any Section", test_config)
         assert ERROR_DOCUMENT_NOT_EXIST.format(file_path=expected_path) in str(exc_info.value)
             
     def test_invalid_file_permissions(self, sample_document, test_config):
@@ -1307,7 +1308,7 @@ class TestGetSection:
         sample_document.chmod(0o000)
         try:
             with pytest.raises(FilePermissionError):
-                get_section(sample_document.name, "Test", test_config)
+                get_section(sample_document, "Test", test_config)
         finally:
             # Restore permissions for cleanup
             sample_document.chmod(0o666)
@@ -1326,21 +1327,21 @@ class TestSectionExists:
 
     def test_section_exists_true(self, sample_document, test_config):
         """Test when section exists."""
-        assert section_exists("test_doc.md", "Existing Section", test_config) is True
+        assert section_exists(Path("test_doc.md"), "Existing Section", test_config) is True
 
     def test_section_exists_false(self, sample_document, test_config):
         """Test when section doesn't exist."""
-        assert section_exists("test_doc.md", "Nonexistent Section", test_config) is False
+        assert section_exists(Path("test_doc.md"), "Nonexistent Section", test_config) is False
 
     def test_section_exists_case_sensitive(self, sample_document, test_config):
         """Test that section matching is case-sensitive."""
-        assert section_exists("test_doc.md", "existing section", test_config) is False
-        assert section_exists("test_doc.md", "Existing Section", test_config) is True
+        assert section_exists(Path("test_doc.md"), "existing section", test_config) is False
+        assert section_exists(Path("test_doc.md"), "Existing Section", test_config) is True
 
     def test_section_exists_file_not_found(self, test_config):
         """Test error when file doesn't exist."""
         with pytest.raises(WriterError, match=ERROR_DOCUMENT_NOT_EXIST.format(file_path=test_config.drafts_dir / "nonexistent.md")):
-            section_exists("nonexistent.md", "Any Section", test_config)
+            section_exists(Path("nonexistent.md"), "Any Section", test_config)
 
     def test_section_exists_permission_error(self, sample_document, test_config):
         """Test handling of permission errors when checking section existence."""
@@ -1349,19 +1350,19 @@ class TestSectionExists:
             test_config.drafts_dir.chmod(0o000)
 
             with pytest.raises(FilePermissionError):  # Update to expect FilePermissionError
-                section_exists("test_doc.md", "Test Section", test_config)
+                section_exists(Path("test_doc.md"), "Test Section", test_config)
         finally:
             test_config.drafts_dir.chmod(0o755)
 
     def test_section_exists_with_special_chars(self, sample_document, test_config):
         """Test with section titles containing special characters."""
-        append_section("test_doc.md", "Special (Test)!", "Content", test_config)
-        assert section_exists("test_doc.md", "Special (Test)!", test_config) is True
+        append_section(Path("test_doc.md"), "Special (Test)!", "Content", test_config)
+        assert section_exists(Path("test_doc.md"), "Special (Test)!", test_config) is True
 
     def test_section_exists_empty_title(self, sample_document, test_config):
         """Test with empty section title."""
         with pytest.raises(WriterError, match=ERROR_INVALID_SECTION_TITLE):
-            section_exists("test_doc.md", "", test_config)
+            section_exists(Path("test_doc.md"), "", test_config)
 
 
 @pytest.mark.asyncio
@@ -1383,7 +1384,7 @@ class TestStreamContent:
 
         # Stream additional content
         content = "Test content\n" * 100
-        await stream_content(str(sample_document), content, chunk_size=1024)
+        await stream_content(sample_document, content, chunk_size=1024)
         
         # Verify result
         result = sample_document.read_text(encoding=test_config.default_encoding)
@@ -1398,7 +1399,7 @@ class TestStreamContent:
         
         new_content = "New content"
         await stream_content(
-            str(sample_document),
+            sample_document,
             new_content,
             ensure_newline=True
         )
@@ -1415,7 +1416,7 @@ class TestStreamContent:
         
         # Stream Unicode content
         unicode_content = "Hello 世界! ñ € 🌟 \u2022 α β γ"
-        await stream_content(str(sample_document), unicode_content)
+        await stream_content(sample_document, unicode_content)
         
         # Verify the result
         result = sample_document.read_text(encoding=test_config.default_encoding)
@@ -1430,7 +1431,7 @@ class TestStreamContent:
         
         # Stream large content
         large_content = "Large content chunk.\n" * 50000
-        await stream_content(str(sample_document), large_content, chunk_size=4096)  # Using minimum chunk size
+        await stream_content(sample_document, large_content, chunk_size=4096)  # Using minimum chunk size
         
         # Verify the result
         result = sample_document.read_text(encoding=test_config.default_encoding)
@@ -1446,7 +1447,7 @@ class TestStreamContent:
         invalid_content = "# Header 1\n### Invalid Header Skip\nContent"
         
         with pytest.raises(MarkdownIntegrityError, match="Header level"):
-            await stream_content(str(sample_document), invalid_content)
+            await stream_content(sample_document, invalid_content)
 
     @pytest.mark.asyncio
     async def test_stream_content_valid_markdown(self, sample_document, test_config):
@@ -1456,7 +1457,7 @@ class TestStreamContent:
         sample_document.touch()
         
         valid_content = "# Header 1\n## Header 2\nContent\n### Header 3"
-        await stream_content(str(sample_document), valid_content)
+        await stream_content(sample_document, valid_content)
         
         result = sample_document.read_text(encoding=test_config.default_encoding)
         assert result == valid_content
@@ -1471,7 +1472,7 @@ class TestStreamContent:
         invalid_content = "# Header\n-[] Invalid task\n-[x]No space after"
         
         with pytest.raises(MarkdownIntegrityError, match="task list"):
-            await stream_content(str(sample_document), invalid_content)
+            await stream_content(sample_document, invalid_content)
 
     @pytest.mark.asyncio
     async def test_stream_content_invalid_chunk_size(self, sample_document, test_config):
@@ -1483,19 +1484,19 @@ class TestStreamContent:
         
         # Test zero chunk size
         with pytest.raises(InvalidChunkSizeError, match="Chunk size must be a positive integer"):
-            await stream_content(str(sample_document), "content", chunk_size=0)
+            await stream_content(sample_document, "content", chunk_size=0)
         
         # Test negative chunk size
         with pytest.raises(InvalidChunkSizeError, match="Chunk size must be a positive integer"):
-            await stream_content(str(sample_document), "content", chunk_size=-1)
+            await stream_content(sample_document, "content", chunk_size=-1)
 
     @pytest.mark.asyncio
     async def test_stream_content_file_not_found(self, test_config):
         """Test non-existent file handling."""
-        nonexistent_file = "nonexistent.md"
+        nonexistent_file = Path("nonexistent.md")
         expected_path = test_config.drafts_dir / nonexistent_file
         with pytest.raises(FileNotFoundError, match=f"Path does not exist: {str(expected_path)}"):
-            await stream_content(str(expected_path), "content")
+            await stream_content(expected_path, "content")
 
     @pytest.mark.asyncio
     async def test_stream_content_permission_error(self, sample_document, test_config):
@@ -1509,7 +1510,7 @@ class TestStreamContent:
         sample_document.chmod(0o444)
         try:
             with pytest.raises(FilePermissionError, match=r"Permission denied: No write permission for path: .*"):
-                await stream_content(str(sample_document), "content")
+                await stream_content(sample_document, "content")
         finally:
             # Restore permissions for cleanup
             sample_document.chmod(0o666)
@@ -1530,7 +1531,7 @@ class TestStreamContent:
             sample_document.write_text("")
             
             with patch('src.functions.writer.file_operations.logger.info') as mock_info:
-                await stream_content(str(sample_document), content, chunk_size=None)
+                await stream_content(sample_document, content, chunk_size=None)
                 
                 success_logs = [call for call in mock_info.call_args_list 
                               if "Successfully streamed" in str(call)]
@@ -1555,7 +1556,7 @@ class TestStreamContent:
         
         # Mock the file_io logger instead of file_operations logger
         with patch('src.functions.writer.file_io.logger.debug') as mock_debug:
-            await stream_content(str(sample_document), content, chunk_size=custom_chunk_size)
+            await stream_content(sample_document, content, chunk_size=custom_chunk_size)
             
             debug_calls = [call for call in mock_debug.call_args_list 
                           if "Wrote chunk" in str(call)]  # Changed to str(call) for more reliable matching
@@ -1575,7 +1576,7 @@ class TestStreamContent:
         
         with patch('src.functions.writer.file_operations.logger.warning') as mock_warning:
             await stream_content(
-                str(sample_document), 
+                sample_document, 
                 content, 
                 chunk_size=requested_chunk_size,
                 config=test_config
@@ -1591,7 +1592,7 @@ class TestStreamContent:
         sample_document.parent.mkdir(parents=True, exist_ok=True)
         sample_document.touch()
         
-        await stream_content(str(sample_document), "")
+        await stream_content(sample_document, "")
         assert sample_document.read_text(encoding=test_config.default_encoding) == ""
 
     @pytest.mark.asyncio
@@ -1605,7 +1606,7 @@ class TestStreamContent:
         
         # Mock the streaming pathway
         with patch('src.functions.writer.file_operations.stream_document_content') as mock_stream:
-            await stream_content(str(sample_document), content)
+            await stream_content(sample_document, content)  # Use Path object directly
             
             # Verify stream_document_content was called with correct chunk size
             mock_stream.assert_called_once()
@@ -1619,7 +1620,7 @@ class TestStreamContent:
         sample_document.write_text("Initial content", encoding=test_config.default_encoding)
         
         await stream_content(
-            str(sample_document),
+            sample_document,
             "New content",
             ensure_newline=True
         )
@@ -1636,7 +1637,7 @@ class TestStreamContent:
         
         with pytest.raises(ValueError, match="encoding_errors must be one of"):
             await stream_content(
-                str(sample_document),
+                sample_document,  # Use Path object directly
                 "content",
                 encoding_errors="invalid"
             )
@@ -1707,14 +1708,13 @@ def test_search_and_replace(
 ):
     """Test search and replace functionality with various inputs."""
     # Setup: Create test file with content in the drafts directory
-    file_name = "test_document.md"
+    file_path = test_config.drafts_dir / "test_document.md"
     test_config.drafts_dir.mkdir(parents=True, exist_ok=True)
-    file_path = test_config.drafts_dir / file_name
     file_path.write_text(test_input, encoding=test_config.default_encoding)
 
     # Execute: Perform search and replace
     replacements = search_and_replace(
-        file_name, 
+        file_path, 
         search, 
         replace, 
         case_sensitive=case_sensitive,
@@ -1728,26 +1728,24 @@ def test_search_and_replace(
 
 def test_search_and_replace_empty_search(test_config: WriterConfig):
     """Test handling of empty search string."""
-    file_name = "test_document.md"
+    file_path = test_config.drafts_dir / "test_document.md"
     test_config.drafts_dir.mkdir(parents=True, exist_ok=True)
-    file_path = test_config.drafts_dir / file_name
     file_path.write_text("Test content", encoding=test_config.default_encoding)
 
     with pytest.raises(ValueError, match="Search text cannot be empty"):
-        search_and_replace(file_name, "", "sample", config=test_config)
+        search_and_replace(file_path, "", "sample", config=test_config)
 
 def test_search_and_replace_permission_error(test_config: WriterConfig):
     """Test handling of permission errors."""
-    file_name = "test_document.md"
+    file_path = test_config.drafts_dir / "test_document.md"
     test_config.drafts_dir.mkdir(parents=True, exist_ok=True)
-    file_path = test_config.drafts_dir / file_name
     file_path.write_text("Test content", encoding=test_config.default_encoding)
     
     # Make file read-only
     file_path.chmod(0o444)
     try:
         with pytest.raises(FilePermissionError):
-            search_and_replace(file_name, "test", "sample", config=test_config)
+            search_and_replace(file_path, "test", "sample", config=test_config)
     finally:
         # Restore permissions for cleanup
         file_path.chmod(0o666)
@@ -1756,7 +1754,7 @@ def test_search_and_replace_file_not_found(test_config: WriterConfig):
     """Test handling of non-existent files."""
     with pytest.raises(WriterError, match="Document does not exist"):
         search_and_replace(
-            "nonexistent.md",
+            Path("nonexistent.md"),
             "test",
             "sample",
             config=test_config
@@ -1764,16 +1762,12 @@ def test_search_and_replace_file_not_found(test_config: WriterConfig):
 
 def test_search_and_replace_with_encoding(test_config: WriterConfig):
     """Test search and replace with different encodings."""
-    file_name = "test_document.md"
+    file_path = test_config.drafts_dir / "test_document.md"
     test_config.drafts_dir.mkdir(parents=True, exist_ok=True)
-    file_path = test_config.drafts_dir / file_name
-    
-    # Write content with specific encoding
-    content = "Test content with üñîçødé characters"
-    file_path.write_text(content, encoding='utf-8')
-    
+    file_path.write_text("Test content with üñîçødé characters", encoding='utf-8')
+
     replacements = search_and_replace(
-        file_name,
+        file_path,
         "üñîçødé",
         "unicode",
         config=test_config
