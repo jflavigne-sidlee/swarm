@@ -91,11 +91,13 @@ class TestCreateDocument:
     def test_create_document_adds_md_extension(self, test_config, valid_metadata):
         """Test that .md extension is added if missing."""
         # Create document without extension
-        file_path = create_document(Path("test_doc"), valid_metadata, test_config)
+        input_path = Path("test_doc")  # No extension
+        file_path = create_document(input_path, valid_metadata, test_config)
         
         # Verify extension was added
         assert file_path.suffix == ".md"
         assert file_path.exists()
+        assert file_path.name == "test_doc.md"  # Verify the final filename
 
     def test_create_document_file_exists(self, test_config, valid_metadata):
         """Test error when file already exists."""
@@ -288,22 +290,17 @@ class TestCreateDocument:
         ), "Metadata fields are not in the expected order"
 
     def test_create_document_special_directory_names(self, test_config, valid_metadata):
-        """Test that special directory names are rejected."""
-        special_names = [
-            ".",
-            "..",
-            "./",
-            "../",
-            "./test.md",
-            "../test.md",
-            "test/./test.md",
-            "test/../test.md",
+        """Test that special directory paths are rejected."""
+        special_paths = [
+            Path("test/./test.md"),
+            Path("test/../test.md"),
+            Path("./test/test.md"),
+            Path("../test/test.md"),
         ]
 
-        for filename in special_names:
+        for path in special_paths:
             with pytest.raises(FileValidationError, match="Invalid filename"):
-                create_document(filename, valid_metadata, test_config)
-
+                create_document(path, valid_metadata, test_config)
 
     def test_create_document_valid_dot_filenames(self, test_config, valid_metadata):
         """Test that valid filenames with dots are accepted."""

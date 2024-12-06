@@ -8,7 +8,6 @@ from src.functions.writer.file_operations import (
     edit_section,
     get_section,
     section_exists,
-    validate_markdown
 )
 from src.functions.writer.validation import validate_markdown
 

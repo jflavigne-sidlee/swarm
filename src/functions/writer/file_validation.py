@@ -247,31 +247,17 @@ def validate_and_resolve_path(
     require_write: bool = True,
     check_exists: bool = True,
 ) -> Path:
-    """Validate filename, resolve path, and check file permissions.
-    
-    Args:
-        file_path: Path to validate and resolve (Path object or string)
-        config: Writer configuration
-        require_write: Whether write permission is required
-        check_exists: Whether to verify file existence
-        
-    Returns:
-        Path: Resolved and validated Path object
-        
-    Raises:
-        FileValidationError: If filename is invalid
-        WriterError: If path resolution fails
-        FilePermissionError: If required permissions are not available
-    """
-    # Convert string to Path if needed and emit warning
+    """Validate filename, resolve path, and check file permissions."""
     if isinstance(file_path, str):
         warnings.warn(
             f"String path '{file_path}' passed to {validate_and_resolve_path.__name__}. "
             "Consider passing a Path object instead.",
-            stacklevel=2  # This ensures the warning points to the calling code
+            stacklevel=2
         )
-    # Initial conversion to string if needed
-    file_name = str(file_path) if isinstance(file_path, Path) else file_path
+        file_path = Path(file_path)
+    
+    # Validate just the filename part
+    file_name = file_path.name
     
     # First validate basic filename without extension check
     if not is_valid_filename(file_name):
@@ -280,13 +266,13 @@ def validate_and_resolve_path(
 
     # Ensure .md extension only if filename is not empty
     if file_name and not file_name.endswith(MD_EXTENSION):
-        file_name += MD_EXTENSION
+        file_name = file_name + MD_EXTENSION
         logger.debug(LOG_ADDED_EXTENSION.format(filename=file_name))
-        file_path = file_name  # Update file_path with new extension
+        file_path = file_path.with_name(file_name)
 
     # Validate complete filename with extension
-    if not is_valid_filename(file_name, MD_EXTENSION, strict_extension=True):
-        logger.warning(LOG_VALIDATE_FILENAME.format(filename=file_name))
+    if not is_valid_filename(file_path.name, MD_EXTENSION, strict_extension=True):
+        logger.warning(LOG_VALIDATE_FILENAME.format(filename=file_path.name))
         raise FileValidationError("Invalid filename")
 
     # Resolve path
