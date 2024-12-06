@@ -256,10 +256,14 @@ def validate_and_resolve_path(
         )
         file_path = Path(file_path)
     
-    # Validate just the filename part
-    file_name = file_path.name
+    # Check for path traversal attempts - only block relative traversal
+    path_str = str(file_path)
+    if any(pattern in path_str for pattern in ["./", "../"]):
+        logger.warning(LOG_VALIDATE_FILENAME.format(filename=path_str))
+        raise FileValidationError("Invalid filename")
     
-    # First validate basic filename without extension check
+    # Validate the filename part
+    file_name = file_path.name
     if not is_valid_filename(file_name):
         logger.warning(LOG_VALIDATE_FILENAME.format(filename=file_name))
         raise FileValidationError("Invalid filename")
