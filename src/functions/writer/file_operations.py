@@ -913,12 +913,14 @@ def get_config(config: Optional[WriterConfig] = None) -> WriterConfig:
 
 
 def get_section(
-    file_name: str, section_title: str, config: Optional[WriterConfig] = None
+    file_path: Union[Path, str], 
+    section_title: str, 
+    config: Optional[WriterConfig] = None
 ) -> str:
     """Retrieve the content of a specific section from a Markdown document.
 
     Args:
-        file_name: Name of the Markdown file to search
+        file_path: Path to the Markdown file (Path object or string)
         section_title: Title of the section to retrieve
         config: Optional configuration object. Uses default if not provided.
 
@@ -931,17 +933,14 @@ def get_section(
     config = get_config(config)
 
     try:
-        # Validate filename and get full path
-        file_path = validate_filename(file_name, config)
-
-        # Validate file exists and is readable
+        # Resolve and validate path
+        file_path = resolve_path_with_config(file_path, config.drafts_dir)
+        
         try:
+            # Validate file exists and is readable
             validate_file(file_path, require_write=False)
-        except WriterError as e:
-            if ERROR_DOCUMENT_NOT_EXIST in str(e):
-                raise FileValidationError(str(file_path))
-            elif ERROR_PERMISSION_DENIED_FILE in str(e):
-                raise FilePermissionError(str(file_path))
+        except (FileValidationError, FilePermissionError) as e:
+            # These are already the correct error types, just re-raise
             raise
 
         # Read file content
@@ -956,7 +955,7 @@ def get_section(
             )
             raise SectionNotFoundError(section_title)
 
-        # Extract just the content - remove .strip() to preserve whitespace
+        # Extract just the content
         section_content = section_match.group(SECTION_CONTENT_KEY)
         return section_content
 

@@ -14,7 +14,7 @@ from pathlib import Path
 import json
 import logging
 from filelock import FileLock, Timeout
-from typing import Optional
+from typing import Optional, Union
 import random
 
 from .config import WriterConfig
@@ -72,10 +72,11 @@ from .exceptions import (
 from .file_operations import (
     validate_file,
     section_exists,
+    get_config,
 )
 from .file_validation import validate_filename
 
-from .file_io import validate_file_access
+from .file_io import validate_file_access, resolve_path_with_config
 
 logger = logging.getLogger(__name__)
 
@@ -331,7 +332,7 @@ class LockCleanupManager:
             ))
 
 def lock_section(
-    file_name: str,
+    file_path: Union[Path, str],
     section_title: str,
     config: Optional[WriterConfig] = None,
     agent_id: Optional[str] = None,
@@ -340,7 +341,7 @@ def lock_section(
     """Acquire an exclusive lock on a document section.
 
     Args:
-        file_name: Document file name
+        file_path: Path to the file (Path object or string)
         section_title: Section to lock
         config: Optional configuration (uses defaults if None)
         agent_id: Optional agent identifier
@@ -354,8 +355,7 @@ def lock_section(
         SectionNotFoundError: Section doesn't exist
         ValueError: Invalid acquire_timeout value
     """
-    if config is None:
-        config = WriterConfig()
+    config = get_config(config)
         
     # Use config value if not explicitly provided
     if acquire_timeout is None:
@@ -364,8 +364,8 @@ def lock_section(
     try:
         LockCleanupManager(config).maybe_cleanup()
         
-        validate_filename(Path(file_name).name, config)
-        file_path = Path(config.drafts_dir) / file_name
+        # Replace direct Path conversion with resolve_path_with_config
+        file_path = resolve_path_with_config(file_path, config.drafts_dir)
         
         try:
             validate_file(file_path, require_write=True)
