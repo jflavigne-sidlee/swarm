@@ -37,6 +37,7 @@ from src.functions.writer.errors import (
 )
 from src.functions.writer.exceptions import (
     MarkdownIntegrityError,
+    FileValidationError,
 )
 from src.functions.writer.file_io import stream_document_content
 
@@ -132,14 +133,10 @@ class TestCreateDocument:
             test_config.drafts_dir.mkdir(parents=True, exist_ok=True)
             test_config.drafts_dir.chmod(0o444)  # Read-only
 
-            with pytest.raises(WriterError, match="Permission denied"):
+            with pytest.raises(PermissionError, match="Permission denied"):
                 create_document("test_doc.md", valid_metadata, test_config)
         finally:
-            # Restore permissions for cleanup
-            try:
-                test_config.drafts_dir.chmod(0o755)
-            except Exception:
-                pass
+            test_config.drafts_dir.chmod(0o755)
 
     def test_create_document_permission_error_on_exists_check(
         self, test_config, valid_metadata
@@ -150,7 +147,7 @@ class TestCreateDocument:
             test_config.drafts_dir.mkdir(parents=True, exist_ok=True)
             test_config.drafts_dir.chmod(0o000)  # No permissions
 
-            with pytest.raises(WriterError, match="Permission denied"):
+            with pytest.raises(PermissionError, match="Permission denied"):
                 create_document("test_doc.md", valid_metadata, test_config)
         finally:
             # Restore permissions for cleanup
@@ -197,7 +194,7 @@ class TestCreateDocument:
         ]
 
         for filename in invalid_filenames:
-            with pytest.raises(WriterError, match="Invalid filename"):
+            with pytest.raises(FileValidationError, match="Invalid filename"):
                 create_document(filename, valid_metadata, test_config)
 
     def test_create_document_valid_filename(self, test_config, valid_metadata):
@@ -301,7 +298,7 @@ class TestCreateDocument:
         ]
 
         for filename in special_names:
-            with pytest.raises(WriterError, match="Invalid filename"):
+            with pytest.raises(FileValidationError, match="Invalid filename"):
                 create_document(filename, valid_metadata, test_config)
 
     def test_create_document_valid_dot_filenames(self, test_config, valid_metadata):
@@ -339,12 +336,12 @@ class TestCreateDocument:
     def test_create_document_path_too_long(self, test_config, valid_metadata):
         """Test error when full path exceeds system limits."""
         # Calculate a length that will exceed MAX_PATH_LENGTH
-        base_path_length = len(str(test_config.drafts_dir)) + 1  # +1 for path separator
-        excess_length = MAX_PATH_LENGTH - base_path_length + 10  # +10 to exceed limit
+        base_path_length = len(str(test_config.drafts_dir)) + 1
+        excess_length = MAX_PATH_LENGTH - base_path_length + 10
 
-        filename = f"{'a' * (excess_length - 3)}.md"  # -3 for '.md'
+        filename = f"{'a' * (excess_length - 3)}.md" # -3 for '.md'
 
-        with pytest.raises(WriterError, match="Full path exceeds maximum length"):
+        with pytest.raises(FileValidationError, match="Path exceeds maximum length"):
             create_document(filename, valid_metadata, test_config)
 
 
@@ -1346,13 +1343,15 @@ class TestSectionExists:
             section_exists("nonexistent.md", "Any Section", test_config)
 
     def test_section_exists_permission_error(self, sample_document, test_config):
-        """Test error when file permissions prevent reading."""
-        sample_document.chmod(0o000)
+        """Test handling of permission errors when checking section existence."""
         try:
-            with pytest.raises(WriterError, match="Permission denied"):
-                section_exists("test_doc.md", "Existing Section", test_config)
+            test_config.drafts_dir.mkdir(parents=True, exist_ok=True)
+            test_config.drafts_dir.chmod(0o000)
+
+            with pytest.raises(FilePermissionError):  # Update to expect FilePermissionError
+                section_exists("test_doc.md", "Test Section", test_config)
         finally:
-            sample_document.chmod(0o666)  # Restore permissions for cleanup
+            test_config.drafts_dir.chmod(0o755)
 
     def test_section_exists_with_special_chars(self, sample_document, test_config):
         """Test with section titles containing special characters."""
@@ -1782,3 +1781,5 @@ def test_search_and_replace_with_encoding(test_config: WriterConfig):
     
     assert replacements == 1
     assert file_path.read_text(encoding='utf-8') == "Test content with unicode characters"
+
+    # pytest tests/functions/writer/test_file_operations.py -v

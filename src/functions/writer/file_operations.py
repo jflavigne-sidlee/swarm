@@ -17,13 +17,14 @@ from .exceptions import (
     SectionNotFoundError,
     InvalidChunkSizeError,
     WritePermissionError,
-    MarkdownIntegrityError
+    MarkdownIntegrityError,
 )
 from builtins import FileNotFoundError
 from .constants import (
     FILE_MODE_APPEND,
     FILE_MODE_READ,
     FILE_MODE_WRITE,
+    MD_EXTENSION,
 )
 from .patterns import (
     INSERT_AFTER_MARKER,
@@ -37,7 +38,7 @@ from .patterns import (
     SECTION_MARKER_REGEX,
     SECTION_MARKER_TEMPLATE,
     DEFAULT_NEWLINE,
-    DOUBLE_NEWLINE,       
+    DOUBLE_NEWLINE,
     HEADER_LEVEL_2_PREFIX,
     HEADER_TITLE_GROUP,
     MARKER_TITLE_GROUP,
@@ -57,6 +58,7 @@ from .errors import (
     ERROR_FILE_WRITE,
     ERROR_HEADER_LEVEL,
     ERROR_INVALID_CONTENT,
+    ERROR_INVALID_FILENAME,
     ERROR_INVALID_HEADER_LEVEL,
     ERROR_INVALID_SECTION_TITLE,
     ERROR_MISMATCHED_SECTION_MARKER,
@@ -108,24 +110,34 @@ from .logs import (
     LOG_USING_HEADER_LEVEL,
     LOG_WRITING_FILE,
     LOG_YAML_SERIALIZATION,
+    LOG_VALIDATE_FILENAME,
     NO_ASSOCIATED_HEADER,
     LOG_SEARCH_REPLACE_COMPLETE,
     LOG_NO_MATCHES_FOUND,
+    LOG_ADDED_EXTENSION,
 )
 from .validation_constants import (
     SECTION_CONTENT_KEY,
     SECTION_HEADER_KEY,
     SECTION_MARKER_KEY,
 )
-from .file_io import read_file, atomic_write, ensure_directory_exists, stream_document_content, resolve_path_with_config
+from .file_io import (
+    read_file,
+    atomic_write,
+    ensure_directory_exists,
+    stream_document_content,
+    resolve_path_with_config,
+)
 from .validation import validate_markdown_content
-#from .file_validation import validate_file_inputs as _validate_file_inputs
-from .file_validation import validate_file_inputs
-from .file_validation import validate_filename
 
-# these are imports I'm not sure about
-from .file_validation import validate_metadata
-from .file_validation import validate_file
+from .file_validation import (
+    validate_file_inputs,
+    is_valid_filename,
+    validate_filename,
+    validate_metadata,
+    validate_path_length,
+    validate_file
+)
 
 # Set up module logger
 logger = logging.getLogger(__name__)
@@ -135,16 +147,16 @@ def write_document(
     file_path: Union[Path, str],
     metadata: Dict[str, str],
     encoding: str,
-    config: Optional[WriterConfig] = None
+    config: Optional[WriterConfig] = None,
 ) -> None:
     """Write metadata and frontmatter to file.
-    
+
     Args:
         file_path: Path to the output file (Path object or string)
         metadata: Dictionary of metadata to write
         encoding: Character encoding to use
         config: Optional configuration object
-    
+
     Raises:
         WriterError: If writing fails or path resolution fails
     """
@@ -176,31 +188,47 @@ def write_document(
 
 
 def create_document(
-    file_name: str, metadata: Dict[str, str], config: Optional[WriterConfig] = None
+    file_path: Union[Path, str],
+    metadata: Dict[str, str],
+    config: Optional[WriterConfig] = None,
 ) -> Path:
     """Create a new Markdown document with YAML frontmatter metadata."""
-    logger.debug(LOG_FILE_VALIDATION.format(file_name=file_name))
-
     # Use default config if none provided
     config = get_config(config)
-
-    # Validate inputs using imported function directly
-    full_path = validate_filename(file_name, config)
-    validate_metadata(metadata, config)
+    full_path = None  # Initialize early
 
     try:
-        # Check if file exists
-        try:
-            if os.path.exists(str(full_path)):
-                logger.warning(LOG_FILE_EXISTS.format(path=full_path))
-                raise WriterError(ERROR_FILE_EXISTS.format(path=full_path))
-        except (OSError, PermissionError) as e:
-            logger.error(LOG_PERMISSION_ERROR.format(path=full_path, error=str(e)))
-            raise WriterError(ERROR_PERMISSION_DENIED_PATH.format(path=full_path))
+        # Convert to string for initial filename validation if it's a Path
+        file_name = str(file_path) if isinstance(file_path, Path) else file_path
+        
+        # Initial filename validation before any path resolution
+        if not is_valid_filename(file_name):
+            logger.warning(LOG_VALIDATE_FILENAME.format(filename=file_name))
+            raise FileValidationError("Invalid filename")
 
-        # Create directories if needed
-        if config.create_directories:
-            ensure_directory_exists(config.drafts_dir)
+        # Resolve path and ensure .md extension
+        full_path = resolve_path_with_config(file_path, config.drafts_dir)
+        if not str(full_path).endswith(MD_EXTENSION):
+            full_path = full_path.with_suffix(MD_EXTENSION)
+            logger.debug(LOG_ADDED_EXTENSION.format(filename=full_path.name))
+
+        # Now do the comprehensive validation
+        validate_file_inputs(
+            full_path,
+            config,
+            require_write=True,
+            create_parents=True,
+            check_extension=True,
+            extension=MD_EXTENSION
+        )
+
+        # Validate metadata
+        validate_metadata(metadata, config)
+
+        # Check if file exists
+        if full_path.exists():
+            logger.warning(LOG_FILE_EXISTS.format(path=full_path))
+            raise WriterError(ERROR_FILE_EXISTS.format(path=full_path))
 
         # Write document
         write_document(full_path, metadata, config.default_encoding)
@@ -208,15 +236,10 @@ def create_document(
         return full_path
 
     except Exception as e:
-        # Clean up if file was partially written
-        logger.debug(LOG_CLEANUP_PARTIAL_FILE.format(path=full_path))
-        cleanup_partial_file(full_path)
-
-        if isinstance(e, WriterError):
-            raise
-
-        # Log and re-raise unexpected errors with original type
-        logger.error(LOG_UNEXPECTED_ERROR.format(error=str(e), error_type=type(e).__name__))
+        # Only cleanup if full_path was created
+        if full_path is not None:
+            logger.debug(LOG_CLEANUP_PARTIAL_FILE.format(path=full_path))
+            cleanup_partial_file(full_path)
         raise
 
 
@@ -253,7 +276,7 @@ def append_section(
 
     # Resolve and validate file path using new approach
     file_path = resolve_path_with_config(file_path, config.drafts_dir)
-    
+
     # Validate file exists and is readable/writable
     validate_file(file_path, require_write=True)
 
@@ -269,10 +292,18 @@ def append_section(
         section_start, _ = get_section_marker_position(content_str, section_title)
         if section_start != -1:
             if not allow_append:
-                logger.error(LOG_SECTION_EXISTS.format(section_title=section_title, file_path=file_path))
-                raise WriterError(ERROR_SECTION_EXISTS.format(section_title=section_title))
+                logger.error(
+                    LOG_SECTION_EXISTS.format(
+                        section_title=section_title, file_path=file_path
+                    )
+                )
+                raise WriterError(
+                    ERROR_SECTION_EXISTS.format(section_title=section_title)
+                )
             else:
-                logger.info(LOG_APPEND_TO_EXISTING_SECTION.format(section_title=section_title))
+                logger.info(
+                    LOG_APPEND_TO_EXISTING_SECTION.format(section_title=section_title)
+                )
                 return append_to_existing_section(
                     file_path, section_title, content, content_str, config
                 )
@@ -286,7 +317,9 @@ def append_section(
                 not isinstance(final_header_level, int)
                 or not 1 <= final_header_level <= 6
             ):
-                logger.error(LOG_INVALID_HEADER_LEVEL.format(header_level=final_header_level))
+                logger.error(
+                    LOG_INVALID_HEADER_LEVEL.format(header_level=final_header_level)
+                )
                 raise WriterError(ERROR_INVALID_HEADER_LEVEL)
         except ValueError as e:
             logger.error(LOG_HEADER_LEVEL_ERROR.format(error=str(e)))
@@ -298,7 +331,7 @@ def append_section(
             LOG_USING_HEADER_LEVEL.format(
                 final_header_level=final_header_level,
                 section_title=section_title,
-                file_path=file_path
+                file_path=file_path,
             )
         )
 
@@ -308,7 +341,7 @@ def append_section(
             header_prefix=header_prefix,
             section_title=section_title,
             section_marker=section_marker,
-            content=content.strip()
+            content=content.strip(),
         )
 
         # Handle insertion after specific section
@@ -316,8 +349,16 @@ def append_section(
             # Use new utility to find the section to insert after
             _, marker_end = get_section_marker_position(content_str, insert_after)
             if marker_end == -1:
-                logger.error(ERROR_SECTION_INSERT_AFTER_NOT_FOUND.format(insert_after=insert_after))
-                raise WriterError(ERROR_SECTION_INSERT_AFTER_NOT_FOUND.format(insert_after=insert_after))
+                logger.error(
+                    ERROR_SECTION_INSERT_AFTER_NOT_FOUND.format(
+                        insert_after=insert_after
+                    )
+                )
+                raise WriterError(
+                    ERROR_SECTION_INSERT_AFTER_NOT_FOUND.format(
+                        insert_after=insert_after
+                    )
+                )
 
             # Find the start of the next section (if any)
             next_marker_match = re.search(
@@ -345,25 +386,31 @@ def append_section(
             )
 
             # Write updated content
-            with open(file_path, FILE_MODE_WRITE, encoding=config.default_encoding) as f:
+            with open(
+                file_path, FILE_MODE_WRITE, encoding=config.default_encoding
+            ) as f:
                 f.write(updated_content)
 
             logger.info(
                 LOG_SECTION_INSERT_SUCCESS.format(
                     section_title=section_title,
                     insert_after=insert_after,
-                    file_path=file_path
+                    file_path=file_path,
                 )
             )
             return
 
         # Append the new section
         try:
-            with open(file_path, FILE_MODE_APPEND, encoding=config.default_encoding) as f:
+            with open(
+                file_path, FILE_MODE_APPEND, encoding=config.default_encoding
+            ) as f:
                 f.write(new_section)
 
             logger.info(
-                LOG_SECTION_APPEND_SUCCESS.format(section_title=section_title, file_path=file_path)
+                LOG_SECTION_APPEND_SUCCESS.format(
+                    section_title=section_title, file_path=file_path
+                )
             )
 
         except PermissionError:
@@ -371,13 +418,17 @@ def append_section(
             raise WriterError(ERROR_PERMISSION_DENIED_WRITE.format(file_path=file_path))
 
         except Exception as e:
-            logger.error(LOG_ERROR_APPENDING_SECTION.format(file_path=file_path, error=str(e)))
+            logger.error(
+                LOG_ERROR_APPENDING_SECTION.format(file_path=file_path, error=str(e))
+            )
             if isinstance(e, WriterError):
                 raise
             raise WriterError(ERROR_FAILED_APPEND_SECTION.format(error=str(e)))
 
     except Exception as e:
-        logger.error(LOG_ERROR_APPENDING_SECTION.format(file_path=file_path, error=str(e)))
+        logger.error(
+            LOG_ERROR_APPENDING_SECTION.format(file_path=file_path, error=str(e))
+        )
         if isinstance(e, WriterError):
             raise
         raise WriterError(ERROR_FAILED_APPEND_SECTION.format(error=str(e)))
@@ -394,10 +445,12 @@ def append_to_existing_section(
     try:
         # Use get_section to find the section content and validate it exists
         section_content = get_section(file_path.name, section_title, config)
-        
+
         # Find section boundaries using the existing utility
-        section_start, section_end = find_section_boundaries(existing_content, section_title)
-        
+        section_start, section_end = find_section_boundaries(
+            existing_content, section_title
+        )
+
         # Insert new content before the next section
         updated_content = (
             existing_content[:section_end]
@@ -410,17 +463,17 @@ def append_to_existing_section(
         # Write updated content back to file
         with open(file_path, FILE_MODE_WRITE, encoding=config.default_encoding) as f:
             f.write(updated_content)
-            
-        logger.info(LOG_SECTION_UPDATE.format(
-            section_title=section_title,
-            path=file_path
-        ))
-            
+
+        logger.info(
+            LOG_SECTION_UPDATE.format(section_title=section_title, path=file_path)
+        )
+
     except WriterError as e:
-        logger.error(LOG_ERROR_APPENDING_SECTION.format(
-            section_title=section_title,
-            error=str(e)
-        ))
+        logger.error(
+            LOG_ERROR_APPENDING_SECTION.format(
+                section_title=section_title, error=str(e)
+            )
+        )
         raise WriterError(ERROR_FAILED_APPEND_SECTION.format(error=str(e))) from e
 
 
@@ -449,7 +502,7 @@ def validate_section_markers(content: str) -> None:
         ... # Introduction
         ... <!-- Section: Introduction -->
         ... Content here
-        ... 
+        ...
         ... # Conclusion
         ... <!-- Section: Conclusion -->
         ... More content
@@ -491,7 +544,7 @@ def validate_section_markers(content: str) -> None:
         >>> content = '''
         ... # Empty Section
         ... <!-- Section: Empty Section -->
-        ... 
+        ...
         ... # Next Section
         ... '''
         >>> validate_section_markers(content)  # Valid - empty sections are allowed
@@ -521,7 +574,9 @@ def validate_section_markers(content: str) -> None:
 
         # Find the marker immediately following the header
         following_content = content[header_position:].strip()
-        first_line = following_content.split(DEFAULT_NEWLINE)[0] if following_content else ""
+        first_line = (
+            following_content.split(DEFAULT_NEWLINE)[0] if following_content else ""
+        )
 
         expected_marker = SECTION_MARKER_TEMPLATE.format(section_title=header_title)
 
@@ -546,12 +601,14 @@ def validate_section_markers(content: str) -> None:
             )
 
     # Check for orphaned markers (markers without headers)
-    header_titles = {header.group(HEADER_TITLE_GROUP).strip() for header in header_matches}
-    
+    header_titles = {
+        header.group(HEADER_TITLE_GROUP).strip() for header in header_matches
+    }
+
     for start, end in marker_positions:
         marker_match = re.match(PATTERN_SECTION_MARKER, content[start:end])
         marker_title = marker_match.group(MARKER_TITLE_GROUP).strip()
-        
+
         if not any(marker_title == header_title for header_title in header_titles):
             logger.error(LOG_ORPHANED_MARKER.format(marker_title=marker_title))
             raise WriterError(
@@ -563,7 +620,7 @@ def validate_section_markers(content: str) -> None:
 
 def find_section_boundaries(content: str, section_title: str) -> tuple[int, int]:
     """Find the start and end positions of a section in the content.
-    
+
     Args:
         content: The document content to search
         section_title: The title of the section to find
@@ -618,7 +675,9 @@ def find_section(content: str, section_title: str) -> Optional[re.Match]:
 
     # Find the content that follows the marker until the next header
     content_after_marker = content[marker_match.end() :]
-    next_header_match = re.search(PATTERN_UNTIL_NEXT_HEADER, content_after_marker, re.MULTILINE)
+    next_header_match = re.search(
+        PATTERN_UNTIL_NEXT_HEADER, content_after_marker, re.MULTILINE
+    )
 
     # If there's no next header, capture until the end
     if next_header_match:
@@ -639,19 +698,19 @@ def find_section(content: str, section_title: str) -> Optional[re.Match]:
 
 
 def edit_section(
-    file_name: str, 
-    section_title: str, 
-    new_content: str, 
-    config: Optional[WriterConfig] = None
+    file_name: str,
+    section_title: str,
+    new_content: str,
+    config: Optional[WriterConfig] = None,
 ):
     """Edit an existing section in the document.
-    
+
     Args:
         file_name: Name of the Markdown file
         section_title: Title of the section to edit
         new_content: New content for the section
         config: Optional configuration object
-        
+
     Raises:
         WriterError: If section not found or file operations fail
     """
@@ -660,41 +719,46 @@ def edit_section(
     try:
         # Validate filename and get full path
         file_path = validate_filename(file_name, config)
-        
+
         # Validate file exists and is readable/writable
         validate_file(file_path, require_write=True)
-        
+
         # Read file content
         content = read_file(file_path, config.default_encoding)
-        
+
         # Use get_section to find the section and validate it exists
         section_match = find_section(content, section_title)
         if not section_match:
             logger.error(LOG_SECTION_NOT_FOUND.format(section_title=section_title))
-            raise WriterError(ERROR_SECTION_NOT_FOUND.format(section_title=section_title))
-            
+            raise WriterError(
+                ERROR_SECTION_NOT_FOUND.format(section_title=section_title)
+            )
+
         # Create replacement preserving header and marker
         replacement = (
-            section_match.group(SECTION_HEADER_KEY) + 
-            section_match.group(SECTION_MARKER_KEY) + 
-            new_content.strip() + "\n\n"
+            section_match.group(SECTION_HEADER_KEY)
+            + section_match.group(SECTION_MARKER_KEY)
+            + new_content.strip()
+            + "\n\n"
         )
-        
+
         # Update content
         updated_content = (
-            content[:section_match.start()] +
-            replacement +
-            content[section_match.end():]
+            content[: section_match.start()]
+            + replacement
+            + content[section_match.end() :]
         )
-        
+
         # Validate section markers before writing
         validate_section_markers(updated_content)
-        
+
         # Write using atomic operation
-        atomic_write(file_path, updated_content, config.default_encoding, config.temp_dir)
-        
+        atomic_write(
+            file_path, updated_content, config.default_encoding, config.temp_dir
+        )
+
         logger.info(LOG_SECTION_UPDATE.format(section_title, file_path))
-        
+
     except (OSError, IOError) as e:
         logger.error(LOG_FILE_OPERATION_ERROR.format(error=str(e)))
         raise WriterError(str(e)) from e
@@ -762,7 +826,7 @@ def create_frontmatter(metadata: Dict[str, str]) -> str:
 
     Raises:
         WriterError: If YAML serialization fails or metadata is invalid
-    
+
     Note:
         The frontmatter is wrapped in triple-dash delimiters (---) as per YAML spec
         Metadata order is preserved using sort_keys=False
@@ -856,10 +920,10 @@ def get_section_marker_position(content: str, section_title: str) -> tuple[int, 
 
 def get_config(config: Optional[WriterConfig] = None) -> WriterConfig:
     """Return the provided configuration or the default configuration.
-    
+
     Args:
         config: Optional configuration object
-        
+
     Returns:
         WriterConfig: The provided config or a new default config
     """
@@ -869,17 +933,19 @@ def get_config(config: Optional[WriterConfig] = None) -> WriterConfig:
     return config
 
 
-def get_section(file_name: str, section_title: str, config: Optional[WriterConfig] = None) -> str:
+def get_section(
+    file_name: str, section_title: str, config: Optional[WriterConfig] = None
+) -> str:
     """Retrieve the content of a specific section from a Markdown document.
-    
+
     Args:
         file_name: Name of the Markdown file to search
         section_title: Title of the section to retrieve
         config: Optional configuration object. Uses default if not provided.
-        
+
     Returns:
         str: The content of the specified section
-        
+
     Raises:
         WriterError: If the section is not found, file doesn't exist, or other errors occur
     """
@@ -888,7 +954,7 @@ def get_section(file_name: str, section_title: str, config: Optional[WriterConfi
     try:
         # Validate filename and get full path
         file_path = validate_filename(file_name, config)
-        
+
         # Validate file exists and is readable
         try:
             validate_file(file_path, require_write=False)
@@ -898,85 +964,84 @@ def get_section(file_name: str, section_title: str, config: Optional[WriterConfi
             elif ERROR_PERMISSION_DENIED_FILE in str(e):
                 raise FilePermissionError(str(file_path))
             raise
-        
+
         # Read file content
         content = read_file(file_path, config.default_encoding)
-        logger.debug(LOG_READ_SUCCESS.format(
-            count=len(content),
-            path=file_path
-        ))
-        
+        logger.debug(LOG_READ_SUCCESS.format(count=len(content), path=file_path))
+
         # Find section using existing utility
         section_match = find_section(content, section_title)
         if not section_match:
-            logger.error(LOG_SECTION_MARKER_NOT_FOUND.format(section_title=section_title))
+            logger.error(
+                LOG_SECTION_MARKER_NOT_FOUND.format(section_title=section_title)
+            )
             raise SectionNotFoundError(section_title)
-            
+
         # Extract just the content - remove .strip() to preserve whitespace
         section_content = section_match.group(SECTION_CONTENT_KEY)
         return section_content
-        
+
     except (OSError, IOError) as e:
         logger.error(LOG_FILE_OPERATION_ERROR.format(error=str(e)))
         raise FileValidationError(str(file_path), str(e))
 
 
-def section_exists(file_name: str, section_title: str, config: Optional[WriterConfig] = None) -> bool:
+def section_exists(
+    file_name: str, section_title: str, config: Optional[WriterConfig] = None
+) -> bool:
     """Check if a section exists in the document.
-    
+
     Args:
         file_name: Name of the Markdown file to check
         section_title: Title of the section to look for
         config: Optional configuration object
-        
+
     Returns:
         bool: True if section exists, False otherwise
-        
+
     Raises:
         WriterError: If file validation fails or section title is invalid
     """
     config = get_config(config)
-    
+
     # Validate section title first
     if not section_title:
         logger.error(LOG_INVALID_SECTION_TITLE.format(title=section_title))
         raise WriterError(ERROR_INVALID_SECTION_TITLE)
-    
+
     try:
         # Validate filename and get full path
         file_path = validate_filename(file_name, config)
-        
+
         # Validate file exists and is readable
         validate_file(file_path, require_write=False)
-        
+
         # Read file content
         content = read_file(file_path, config.default_encoding)
-        
+
         # Use existing utility to check for section marker
         section_start, _ = get_section_marker_position(content, section_title)
-        
+
         return section_start != -1
-        
+
     except (OSError, IOError) as e:
         logger.error(LOG_FILE_OPERATION_ERROR.format(error=str(e)))
         raise WriterError(str(e))
 
 
 async def validate_streaming_inputs(
-    file_path: Path,
-    content: str,
-    chunk_size: Optional[int],
-    encoding_errors: str
+    file_path: Path, content: str, chunk_size: Optional[int], encoding_errors: str
 ) -> None:
     """Validate inputs for streaming operation."""
     # Validate encoding_errors parameter
-    valid_error_handlers = {'strict', 'replace', 'ignore'}
+    valid_error_handlers = {"strict", "replace", "ignore"}
     if encoding_errors not in valid_error_handlers:
         logger.error(f"Invalid encoding_errors value: {encoding_errors}")
         raise ValueError(f"encoding_errors must be one of {valid_error_handlers}")
-    
+
     # Use file_io validation utilities
     from .file_io import validate_path_permissions
+
     try:
         validate_path_permissions(file_path, require_write=True)
     except FileNotFoundError:
@@ -985,19 +1050,22 @@ async def validate_streaming_inputs(
     except PermissionError:
         logger.error(f"No write permission: {file_path}")
         raise WritePermissionError(f"No write permission for file {file_path}")
-    
+
     # Validate chunk size if provided
     if chunk_size is not None and (not isinstance(chunk_size, int) or chunk_size <= 0):
         logger.error(f"Invalid chunk size: {chunk_size}")
-        raise InvalidChunkSizeError(f"Chunk size must be a positive integer, got {chunk_size}")
+        raise InvalidChunkSizeError(
+            f"Chunk size must be a positive integer, got {chunk_size}"
+        )
 
 
 async def ensure_file_newline(file_path: Path, encoding: str) -> bool:
     """Check if file needs a newline before appending content."""
     from .file_io import read_file
+
     try:
         content = read_file(file_path, encoding)
-        return bool(content and not content.endswith('\n'))
+        return bool(content and not content.endswith("\n"))
     except (FileNotFoundError, PermissionError) as e:
         logger.error(f"Error checking file newline: {str(e)}")
         raise
@@ -1009,79 +1077,78 @@ async def stream_content(
     chunk_size: Optional[int] = None,
     ensure_newline: bool = True,
     config: Optional[WriterConfig] = None,
-    encoding_errors: str = 'strict'
+    encoding_errors: str = "strict",
 ) -> None:
     """Append content to a Markdown file in chunks."""
     try:
         config = get_config(config)
         file_path = Path(file_name)
-        
+
         # Validate inputs
         validate_file_inputs(
-            file_path,
-            config,
-            require_write=True,
-            check_extension=True
+            file_path, config, require_write=True, check_extension=True
         )
-        
+
         # Validate encoding errors parameter
-        valid_error_handlers = {'strict', 'replace', 'ignore'}
+        valid_error_handlers = {"strict", "replace", "ignore"}
         if encoding_errors not in valid_error_handlers:
             raise ValueError(f"encoding_errors must be one of {valid_error_handlers}")
-        
+
         # Skip empty content
         if not content:
             logger.info("Empty content provided, no changes made")
             return
-        
+
         # Validate markdown content
         validation_errors = validate_markdown_content(content)
         if validation_errors:
             logger.error("Markdown content validation failed")
             raise MarkdownIntegrityError("\n".join(validation_errors))
-        
+
         try:
             # Determine chunk size
             final_chunk_size = determine_chunk_size(
-                len(content.encode(config.default_encoding)), 
-                chunk_size, 
-                config
+                len(content.encode(config.default_encoding)), chunk_size, config
             )
-            
+
             # Check if newline needed
-            if ensure_newline and await ensure_file_newline(file_path, config.default_encoding):
-                async with aiofiles.open(file_path, mode='a') as f:
-                    await f.write('\n')
+            if ensure_newline and await ensure_file_newline(
+                file_path, config.default_encoding
+            ):
+                async with aiofiles.open(file_path, mode="a") as f:
+                    await f.write("\n")
                     logger.debug("Added newline before content")
-            
+
             # Stream content using new I/O function
             await stream_document_content(
                 file_path,
                 content,
                 final_chunk_size,
                 config.default_encoding,
-                encoding_errors
+                encoding_errors,
             )
-            
+
             logger.info(
                 f"Successfully streamed content to {file_name} "
                 f"using {final_chunk_size:,}-byte chunks "
                 f"(encoding_errors='{encoding_errors}')"
             )
-        
+
         except FileNotFoundError as e:
             logger.error(f"File not found: {str(e)}")
             raise
         except PermissionError as e:
             logger.error(f"Permission error: {str(e)}")
-            raise FilePermissionError(f"No write permission for file: {file_path}") from e
+            raise FilePermissionError(
+                f"No write permission for file: {file_path}"
+            ) from e
         except IOError as e:
             logger.error(f"IO error while streaming content: {str(e)}")
             raise WritePermissionError(f"Failed to write to file: {str(e)}") from e
         except Exception as e:
             logger.error(f"Unexpected error while streaming content: {str(e)}")
             raise
-            
+
     except (FileNotFoundError, FilePermissionError, WritePermissionError):
         raise
     except Exception as e:
@@ -1090,9 +1157,7 @@ async def stream_content(
 
 
 def determine_chunk_size(
-    content_size: int,
-    provided_chunk_size: Optional[int],
-    config: WriterConfig
+    content_size: int, provided_chunk_size: Optional[int], config: WriterConfig
 ) -> int:
     """Determine optimal chunk size for streaming."""
     if provided_chunk_size is not None:
@@ -1146,10 +1211,10 @@ def search_and_replace(
     replace_text: str,
     case_sensitive: bool = False,
     use_regex: bool = False,
-    config: Optional[WriterConfig] = None
+    config: Optional[WriterConfig] = None,
 ) -> int:
     """Search and replace text in a Markdown document.
-    
+
     Args:
         file_name: Name of the Markdown file to modify
         search_text: Text or pattern to search for
@@ -1157,10 +1222,10 @@ def search_and_replace(
         case_sensitive: Whether to perform case-sensitive search (default: False)
         use_regex: Whether to treat search_text as regex pattern (default: False)
         config: Optional configuration object
-        
+
     Returns:
         int: Number of replacements made
-        
+
     Raises:
         WriterError: If file validation fails or search/replace operation fails
         ValueError: If search_text is empty or invalid regex pattern
@@ -1180,7 +1245,9 @@ def search_and_replace(
         raise ValueError(ERROR_EMPTY_SEARCH_TEXT)
 
     # Prepare regex flags
-    regex_flags = REGEX_FLAGS_CASE_SENSITIVE if case_sensitive else REGEX_FLAGS_CASE_INSENSITIVE
+    regex_flags = (
+        REGEX_FLAGS_CASE_SENSITIVE if case_sensitive else REGEX_FLAGS_CASE_INSENSITIVE
+    )
 
     # Compile regex pattern if needed
     if use_regex:
@@ -1201,7 +1268,9 @@ def search_and_replace(
 
         # Write back to file if changes were made
         if replacements > 0:
-            atomic_write(file_path, new_content, config.default_encoding, Path(config.temp_dir))
+            atomic_write(
+                file_path, new_content, config.default_encoding, Path(config.temp_dir)
+            )
             logger.info(LOG_SEARCH_REPLACE_COMPLETE.format(count=replacements))
         else:
             logger.info(LOG_NO_MATCHES_FOUND)
@@ -1211,4 +1280,3 @@ def search_and_replace(
     except Exception as e:
         logger.error(ERROR_SEARCH_REPLACE_FAILED.format(error=str(e)))
         raise WriterError(ERROR_SEARCH_REPLACE_FAILED.format(error=str(e)))
-

@@ -87,6 +87,14 @@ def validate_file_inputs(
         check_exists=not create_parents
     )
 
+def validate_path_length(file_path: Path) -> Path:
+
+    if len(str(file_path)) > MAX_PATH_LENGTH:
+        logger.warning(LOG_PATH_TOO_LONG.format(path=file_path))
+        raise WriterError(ERROR_PATH_TOO_LONG.format(max_length=MAX_PATH_LENGTH, path=file_path))
+    
+    return file_path
+
 def validate_filename(file_name: str, config: WriterConfig) -> Path:
     """Validate filename and return full path."""
     if not file_name or not is_valid_filename(file_name):
