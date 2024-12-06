@@ -90,9 +90,12 @@ class TestCreateDocument:
 
     def test_create_document_adds_md_extension(self, test_config, valid_metadata):
         """Test that .md extension is added if missing."""
-        file_name = Path("test_doc")  # No extension
-        file_path = create_document(file_name, valid_metadata, test_config)
+        # Create document without extension
+        file_path = create_document(Path("test_doc"), valid_metadata, test_config)
+        
+        # Verify extension was added
         assert file_path.suffix == ".md"
+        assert file_path.exists()
 
     def test_create_document_file_exists(self, test_config, valid_metadata):
         """Test error when file already exists."""
@@ -122,7 +125,7 @@ class TestCreateDocument:
         # Temporarily set environment variable for drafts directory
         monkeypatch.setenv("WRITER_DRAFTS_DIR", str(tmp_path / "drafts"))
 
-        file_path = create_document("test_doc.md", valid_metadata)
+        file_path = create_document(Path("test_doc.md"), valid_metadata)
         assert file_path.exists()
         assert tmp_path in file_path.parents
 
@@ -1010,7 +1013,7 @@ class TestAppendSection:
 
         # Append new section
         append_section(
-            file_path=sample_document.name,  
+            file_path=Path("test_doc.md"),  
             section_title="New Section",
             content="Content for the new section.",
             config=test_config,  # Config contains the directory information
