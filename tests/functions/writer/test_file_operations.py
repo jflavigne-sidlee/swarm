@@ -1060,7 +1060,7 @@ class TestEditSection:
 
         # Edit the 'Methods' section
         new_content = "This is the methods section.\n\n"
-        edit_section(sample_document.name, "Methods", new_content, test_config)
+        edit_section(Path("test_doc.md"), "Methods", new_content, test_config)
 
         # Read the updated content
         updated_content = sample_document.read_text(encoding=test_config.default_encoding)
@@ -1320,9 +1320,9 @@ class TestSectionExists:
     @pytest.fixture
     def sample_document(self, test_config, valid_metadata):
         """Create a sample document with sections for testing."""
-        file_path = create_document("test_doc.md", valid_metadata, test_config)
-        append_section("test_doc.md", "Existing Section", "Test content", test_config)
-        append_section("test_doc.md", "Another Section", "More content", test_config)
+        file_path = create_document(Path("test_doc.md"), valid_metadata, test_config)
+        append_section(Path("test_doc.md"), "Existing Section", "Test content", test_config)
+        append_section(Path("test_doc.md"), "Another Section", "More content", test_config)
         return file_path
 
     def test_section_exists_true(self, sample_document, test_config):
