@@ -7,7 +7,6 @@ import re
 import logging
 from types import SimpleNamespace
 import aiofiles
-import warnings
 
 from .config import WriterConfig
 from .exceptions import (
@@ -51,21 +50,18 @@ from .patterns import (
     REGEX_FLAGS_CASE_INSENSITIVE,
 )
 from .errors import (
-    ERROR_DOCUMENT_NOT_EXIST,
     ERROR_DUPLICATE_SECTION_MARKER,
     ERROR_FAILED_APPEND_SECTION,
     ERROR_FILE_EXISTS,
     ERROR_FILE_WRITE,
     ERROR_HEADER_LEVEL,
     ERROR_INVALID_CONTENT,
-    ERROR_INVALID_FILENAME,
     ERROR_INVALID_HEADER_LEVEL,
     ERROR_INVALID_SECTION_TITLE,
     ERROR_MISMATCHED_SECTION_MARKER,
     ERROR_MISSING_SECTION_MARKER,
     ERROR_ORPHANED_SECTION_MARKER,
     ERROR_PERMISSION_DENIED_FILE,
-    ERROR_PERMISSION_DENIED_PATH,
     ERROR_PERMISSION_DENIED_WRITE,
     ERROR_SECTION_EXISTS,
     ERROR_SECTION_INSERT_AFTER_NOT_FOUND,
@@ -84,7 +80,6 @@ from .logs import (
     LOG_ERROR_APPENDING_SECTION,
     LOG_FILE_EXISTS,
     LOG_FILE_OPERATION_ERROR,
-    LOG_FILE_VALIDATION,
     LOG_FOUND_SECTION_BOUNDARIES,
     LOG_HEADER_LEVEL_ERROR,
     LOG_INVALID_CONTENT,
@@ -94,7 +89,6 @@ from .logs import (
     LOG_MISSING_MARKER,
     LOG_ORPHANED_MARKER,
     LOG_PERMISSION_DENIED_APPEND,
-    LOG_PERMISSION_ERROR,
     LOG_READ_SUCCESS,
     LOG_REMOVING_PARTIAL_FILE,
     LOG_SECTION_APPEND_SUCCESS,
@@ -105,16 +99,13 @@ from .logs import (
     LOG_SECTION_MARKER_VALIDATION,
     LOG_SECTION_NOT_FOUND,
     LOG_SECTION_UPDATE,
-    LOG_UNEXPECTED_ERROR,
     LOG_USING_DEFAULT_CONFIG,
     LOG_USING_HEADER_LEVEL,
     LOG_WRITING_FILE,
     LOG_YAML_SERIALIZATION,
-    LOG_VALIDATE_FILENAME,
     NO_ASSOCIATED_HEADER,
     LOG_SEARCH_REPLACE_COMPLETE,
     LOG_NO_MATCHES_FOUND,
-    LOG_ADDED_EXTENSION,
 )
 from .validation_constants import (
     SECTION_CONTENT_KEY,
@@ -124,7 +115,6 @@ from .validation_constants import (
 from .file_io import (
     read_file,
     atomic_write,
-    ensure_directory_exists,
     stream_document_content,
     resolve_path_with_config,
 )
@@ -132,10 +122,7 @@ from .validation import validate_markdown_content
 
 from .file_validation import (
     validate_file_inputs,
-    is_valid_filename,
-    validate_filename,
     validate_metadata,
-    validate_path_length,
     validate_file,
     validate_and_resolve_path,
 )
@@ -962,15 +949,16 @@ def get_section(
     except (OSError, IOError) as e:
         logger.error(LOG_FILE_OPERATION_ERROR.format(error=str(e)))
         raise FileValidationError(str(file_path), str(e))
-
-
+    
 def section_exists(
-    file_name: str, section_title: str, config: Optional[WriterConfig] = None
+    file_path: Union[Path, str],
+    section_title: str,
+    config: Optional[WriterConfig] = None
 ) -> bool:
     """Check if a section exists in the document.
 
     Args:
-        file_name: Name of the Markdown file to check
+        file_path: Path to the Markdown file (Path object or string)
         section_title: Title of the section to look for
         config: Optional configuration object
 
@@ -979,6 +967,7 @@ def section_exists(
 
     Raises:
         WriterError: If file validation fails or section title is invalid
+        FilePermissionError: If file cannot be accessed
     """
     config = get_config(config)
 
@@ -988,11 +977,15 @@ def section_exists(
         raise WriterError(ERROR_INVALID_SECTION_TITLE)
 
     try:
-        # Validate filename and get full path
-        file_path = validate_filename(file_name, config)
-
-        # Validate file exists and is readable
-        validate_file(file_path, require_write=False)
+        # Resolve and validate path
+        file_path = resolve_path_with_config(file_path, config.drafts_dir)
+        
+        try:
+            # Validate file exists and is readable
+            validate_file(file_path, require_write=False)
+        except (FileValidationError, FilePermissionError) as e:
+            # These are already the correct error types, just re-raise
+            raise
 
         # Read file content
         content = read_file(file_path, config.default_encoding)
@@ -1004,7 +997,7 @@ def section_exists(
 
     except (OSError, IOError) as e:
         logger.error(LOG_FILE_OPERATION_ERROR.format(error=str(e)))
-        raise WriterError(str(e))
+        raise FileValidationError(str(file_path), str(e))
 
 
 async def validate_streaming_inputs(

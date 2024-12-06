@@ -95,26 +95,6 @@ def validate_path_length(file_path: Path) -> Path:
     
     return file_path
 
-def validate_filename(file_name: str, config: WriterConfig) -> Path:
-    """Validate filename and return full path."""
-    if not file_name or not is_valid_filename(file_name):
-        logger.warning(LOG_VALIDATE_FILENAME.format(filename=file_name))
-        raise WriterError(ERROR_INVALID_FILENAME)
-
-    # Ensure .md extension
-    if not file_name.endswith(MD_EXTENSION):
-        file_name += MD_EXTENSION
-        logger.debug(LOG_ADDED_EXTENSION.format(filename=file_name))
-
-    # Check path length
-    full_path = config.drafts_dir / file_name
-    if len(str(full_path)) > MAX_PATH_LENGTH:
-        logger.warning(LOG_PATH_TOO_LONG.format(path=full_path))
-        raise WriterError(
-            ERROR_PATH_TOO_LONG.format(max_length=MAX_PATH_LENGTH, path=full_path)
-        )
-
-    return full_path
 
 def is_valid_filename(
     filename: Union[Path, str], 
