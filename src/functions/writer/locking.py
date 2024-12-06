@@ -74,7 +74,6 @@ from .file_operations import (
     section_exists,
     get_config,
 )
-from .file_validation import validate_filename
 
 from .file_io import validate_file_access, resolve_path_with_config
 
