@@ -405,16 +405,30 @@ def append_section(
 
 
 def append_to_existing_section(
-    file_path: Path,
+    file_path: Union[Path, str],
     section_title: str,
     new_content: str,
     existing_content: str,
     config: WriterConfig,
 ) -> None:
-    """Append content to an existing section."""
+    """Append content to an existing section.
+    
+    Args:
+        file_path: Path to the file (Path object or string)
+        section_title: Title of the section to append to
+        new_content: Content to append
+        existing_content: Current file content
+        config: Writer configuration
+        
+    Raises:
+        WriterError: If section not found or append fails
+    """
     try:
+        # Resolve path
+        file_path = resolve_path_with_config(file_path, config.drafts_dir)
+        
         # Use get_section to find the section content and validate it exists
-        section_content = get_section(file_path.name, section_title, config)
+        section_content = get_section(file_path, section_title, config)
 
         # Find section boundaries using the existing utility
         section_start, section_end = find_section_boundaries(
