@@ -1126,7 +1126,7 @@ async def stream_content(
             )
 
             logger.info(
-                f"Successfully streamed content to {file_path} "
+                f"Successfully streamed content to {file_path.name} "
                 f"using {final_chunk_size:,}-byte chunks "
                 f"(encoding_errors='{encoding_errors}')"
             )
@@ -1203,7 +1203,7 @@ def determine_chunk_size(
 
 
 def search_and_replace(
-    file_name: str,
+    file_path: Union[Path, str],
     search_text: str,
     replace_text: str,
     case_sensitive: bool = False,
@@ -1213,7 +1213,7 @@ def search_and_replace(
     """Search and replace text in a Markdown document.
 
     Args:
-        file_name: Name of the Markdown file to modify
+        file_path: Path to the file (Path object or string)
         search_text: Text or pattern to search for
         replace_text: Text to replace matches with
         case_sensitive: Whether to perform case-sensitive search (default: False)
@@ -1230,9 +1230,9 @@ def search_and_replace(
     # Use default config if none provided
     config = get_config(config)
 
-    # Validate filename and get full path
-    file_path = validate_filename(file_name, config)
-
+    # Validate and resolve path
+    file_path = resolve_path_with_config(file_path, config.drafts_dir)
+    
     # Validate file exists and is readable/writable
     validate_file(file_path, require_write=True)
 
