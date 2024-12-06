@@ -136,7 +136,8 @@ from .file_validation import (
     validate_filename,
     validate_metadata,
     validate_path_length,
-    validate_file
+    validate_file,
+    validate_and_resolve_path,
 )
 
 # Set up module logger
@@ -190,56 +191,42 @@ def write_document(
 def create_document(
     file_path: Union[Path, str],
     metadata: Dict[str, str],
-    config: Optional[WriterConfig] = None,
+    config: Optional[WriterConfig] = None
 ) -> Path:
     """Create a new Markdown document with YAML frontmatter metadata."""
     # Use default config if none provided
     config = get_config(config)
-    full_path = None  # Initialize early
+    
+    # Validate and resolve path without checking existence
+    file_path = validate_and_resolve_path(file_path, config, require_write=True, check_exists=False)
+    
+    # Now do the comprehensive validation
+    validate_file_inputs(
+        file_path,
+        config,
+        require_write=True,
+        create_parents=True,
+        check_extension=True,
+        extension=MD_EXTENSION
+    )
 
+    # Validate metadata
+    validate_metadata(metadata, config)
     try:
-        # Convert to string for initial filename validation if it's a Path
-        file_name = str(file_path) if isinstance(file_path, Path) else file_path
-        
-        # Initial filename validation before any path resolution
-        if not is_valid_filename(file_name):
-            logger.warning(LOG_VALIDATE_FILENAME.format(filename=file_name))
-            raise FileValidationError("Invalid filename")
-
-        # Resolve path and ensure .md extension
-        full_path = resolve_path_with_config(file_path, config.drafts_dir)
-        if not str(full_path).endswith(MD_EXTENSION):
-            full_path = full_path.with_suffix(MD_EXTENSION)
-            logger.debug(LOG_ADDED_EXTENSION.format(filename=full_path.name))
-
-        # Now do the comprehensive validation
-        validate_file_inputs(
-            full_path,
-            config,
-            require_write=True,
-            create_parents=True,
-            check_extension=True,
-            extension=MD_EXTENSION
-        )
-
-        # Validate metadata
-        validate_metadata(metadata, config)
-
         # Check if file exists
-        if full_path.exists():
-            logger.warning(LOG_FILE_EXISTS.format(path=full_path))
-            raise WriterError(ERROR_FILE_EXISTS.format(path=full_path))
+        if file_path.exists():
+            logger.warning(LOG_FILE_EXISTS.format(path=file_path))
+            raise WriterError(ERROR_FILE_EXISTS.format(path=file_path))
 
-        # Write document
-        write_document(full_path, metadata, config.default_encoding)
-        logger.info(LOG_DOCUMENT_CREATED.format(path=full_path))
-        return full_path
-
+        write_document(file_path, metadata, config.default_encoding)
+        logger.info(LOG_DOCUMENT_CREATED.format(path=file_path))
+        return file_path
+    
     except Exception as e:
         # Only cleanup if full_path was created
-        if full_path is not None:
-            logger.debug(LOG_CLEANUP_PARTIAL_FILE.format(path=full_path))
-            cleanup_partial_file(full_path)
+        if file_path is not None:
+            logger.debug(LOG_CLEANUP_PARTIAL_FILE.format(path=file_path))
+            cleanup_partial_file(file_path)
         raise
 
 
@@ -264,26 +251,22 @@ def append_section(
 ) -> None:
     """Append a new section to a Markdown document."""
     config = get_config(config)
-
-    # Validate inputs
-    if not content or not isinstance(content, str):
-        logger.error(LOG_INVALID_CONTENT.format(content=content))
-        raise WriterError(ERROR_INVALID_CONTENT)
-
-    if not section_title or not isinstance(section_title, str):
-        logger.error(LOG_INVALID_SECTION_TITLE.format(title=section_title))
-        raise WriterError(ERROR_INVALID_SECTION_TITLE)
-
-    # Resolve and validate file path using new approach
-    file_path = resolve_path_with_config(file_path, config.drafts_dir)
-
-    # Validate file exists and is readable/writable
-    validate_file(file_path, require_write=True)
-
-    # Create section marker
-    section_marker = INSERT_AFTER_MARKER.format(insert_after=section_title)
-
     try:
+        # Validate and resolve path
+        file_path = validate_and_resolve_path(file_path, config, require_write=True)
+        
+        # Validate inputs
+        if not content or not isinstance(content, str):
+            logger.error(LOG_INVALID_CONTENT.format(content=content))
+            raise WriterError(ERROR_INVALID_CONTENT)
+
+        if not section_title or not isinstance(section_title, str):
+            logger.error(LOG_INVALID_SECTION_TITLE.format(title=section_title))
+            raise WriterError(ERROR_INVALID_SECTION_TITLE)
+
+        # Create section marker
+        section_marker = INSERT_AFTER_MARKER.format(insert_after=section_title)
+
         # Read existing content and check for section
         with open(file_path, FILE_MODE_READ, encoding=config.default_encoding) as f:
             content_str = f.read()
@@ -698,15 +681,15 @@ def find_section(content: str, section_title: str) -> Optional[re.Match]:
 
 
 def edit_section(
-    file_name: str,
+    file_path: Union[Path, str],
     section_title: str,
     new_content: str,
     config: Optional[WriterConfig] = None,
-):
+) -> None:
     """Edit an existing section in the document.
 
     Args:
-        file_name: Name of the Markdown file
+        file_path: Path to the Markdown file (Path object or string)
         section_title: Title of the section to edit
         new_content: New content for the section
         config: Optional configuration object
@@ -715,14 +698,10 @@ def edit_section(
         WriterError: If section not found or file operations fail
     """
     config = get_config(config)
-
     try:
-        # Validate filename and get full path
-        file_path = validate_filename(file_name, config)
-
-        # Validate file exists and is readable/writable
-        validate_file(file_path, require_write=True)
-
+        # Validate and resolve path
+        file_path = validate_and_resolve_path(file_path, config, require_write=True)
+        
         # Read file content
         content = read_file(file_path, config.default_encoding)
 
@@ -1072,22 +1051,40 @@ async def ensure_file_newline(file_path: Path, encoding: str) -> bool:
 
 
 async def stream_content(
-    file_name: str,
+    file_path: Union[Path, str],
     content: str,
     chunk_size: Optional[int] = None,
     ensure_newline: bool = True,
     config: Optional[WriterConfig] = None,
     encoding_errors: str = "strict",
 ) -> None:
-    """Append content to a Markdown file in chunks."""
+    """Append content to a Markdown file in chunks.
+
+    Args:
+        file_path: Path to the file (Path object or string)
+        content: Content to append
+        chunk_size: Optional size of chunks to write
+        ensure_newline: Whether to ensure content starts on new line
+        config: Optional configuration object
+        encoding_errors: How to handle encoding errors ('strict', 'replace', 'ignore')
+
+    Raises:
+        FileNotFoundError: If file doesn't exist
+        FilePermissionError: If write permission is denied
+        WritePermissionError: If writing fails
+        MarkdownIntegrityError: If content validation fails
+        ValueError: If encoding_errors is invalid
+    """
     try:
         config = get_config(config)
-        file_path = Path(file_name)
+        # Replace direct Path conversion with resolve_path_with_config
+        file_path = resolve_path_with_config(file_path, config.drafts_dir)
 
         # Validate inputs
         validate_file_inputs(
             file_path, config, require_write=True, check_extension=True
         )
+
 
         # Validate encoding errors parameter
         valid_error_handlers = {"strict", "replace", "ignore"}
@@ -1129,7 +1126,7 @@ async def stream_content(
             )
 
             logger.info(
-                f"Successfully streamed content to {file_name} "
+                f"Successfully streamed content to {file_path} "
                 f"using {final_chunk_size:,}-byte chunks "
                 f"(encoding_errors='{encoding_errors}')"
             )

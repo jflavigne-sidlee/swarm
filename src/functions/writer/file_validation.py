@@ -11,7 +11,7 @@ from .exceptions import (
     FileValidationError,
     FilePermissionError
 )
-from .file_io import validate_file_access
+from .file_io import validate_file_access, resolve_path_with_config
 from .validation_constants import (
     MAX_FILENAME_LENGTH,
     MAX_PATH_LENGTH,
@@ -139,6 +139,10 @@ def is_valid_filename(
     if not filename or len(filename) > MAX_FILENAME_LENGTH:
         return False
 
+    # Check for path-like patterns
+    if any(pattern in filename for pattern in ["./", "../", "\\", "/"]):
+        return False
+
     # Check for forbidden characters
     if any(char in filename for char in FORBIDDEN_FILENAME_CHARS):
         return False
@@ -149,7 +153,7 @@ def is_valid_filename(
         return False
 
     # Check for special directory names
-    if filename in {".", "..", "./", "../"}:
+    if filename in {".", ".."}:
         return False
 
     # Check for trailing spaces or dots
@@ -255,4 +259,54 @@ def validate_file(file_path: Path, require_write: bool = False) -> None:
     except PermissionError:
         logger.error(LOG_PERMISSION_ERROR.format(path=file_path))
         raise FilePermissionError(str(file_path))
+
+def validate_and_resolve_path(
+    file_path: Union[Path, str],
+    config: WriterConfig,
+    require_write: bool = True,
+    check_exists: bool = True,
+) -> Path:
+    """Validate filename, resolve path, and check file permissions.
+    
+    Args:
+        file_path: Path to validate and resolve (Path object or string)
+        config: Writer configuration
+        require_write: Whether write permission is required
+        check_exists: Whether to verify file existence
+        
+    Returns:
+        Path: Resolved and validated Path object
+        
+    Raises:
+        FileValidationError: If filename is invalid
+        WriterError: If path resolution fails
+        FilePermissionError: If required permissions are not available
+    """
+    # Initial conversion to string if needed
+    file_name = str(file_path) if isinstance(file_path, Path) else file_path
+    
+    # First validate basic filename without extension check
+    if not is_valid_filename(file_name):
+        logger.warning(LOG_VALIDATE_FILENAME.format(filename=file_name))
+        raise FileValidationError("Invalid filename")
+
+    # Ensure .md extension only if filename is not empty
+    if file_name and not file_name.endswith(MD_EXTENSION):
+        file_name += MD_EXTENSION
+        logger.debug(LOG_ADDED_EXTENSION.format(filename=file_name))
+        file_path = file_name  # Update file_path with new extension
+
+    # Validate complete filename with extension
+    if not is_valid_filename(file_name, MD_EXTENSION, strict_extension=True):
+        logger.warning(LOG_VALIDATE_FILENAME.format(filename=file_name))
+        raise FileValidationError("Invalid filename")
+
+    # Resolve path
+    resolved_path = resolve_path_with_config(file_path, config.drafts_dir)
+
+    # Validate file exists and has correct permissions only if required
+    if check_exists:
+        validate_file(resolved_path, require_write=require_write)
+
+    return resolved_path
 
