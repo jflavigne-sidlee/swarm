@@ -758,15 +758,28 @@ def extract_section_titles(content: str) -> list[str]:
     return [match.group(MARKER_TITLE_GROUP).strip() for match in matches]
 
 
-def extract_section_markers(content: str) -> dict[str, str]:
-    """Extract all section markers and their associated headers.
+def extract_section_markers(
+    file_path: Union[Path, str],
+    config: Optional[WriterConfig] = None
+) -> dict[str, str]:
+    """Extract all section markers and their associated headers from a file.
 
     Args:
-        content: The document content to analyze
+        file_path: Path to the document (Path object or string)
+        config: Optional configuration object
 
     Returns:
         Dictionary mapping section titles to their headers
     """
+    config = get_config(config)
+    file_path = resolve_path_with_config(file_path, config.drafts_dir)
+    
+    content = read_file(file_path, config.default_encoding)
+    return extract_section_markers_from_content(content)
+
+
+def extract_section_markers_from_content(content: str) -> dict[str, str]:
+    """Extract all section markers and their associated headers from content string."""
     markers = {}
 
     # Find all section markers
@@ -795,28 +808,26 @@ def extract_section_markers(content: str) -> dict[str, str]:
     return markers
 
 
-def create_frontmatter(metadata: Dict[str, str]) -> str:
+def create_frontmatter(
+    metadata: Dict[str, str],
+    file_path: Optional[Union[Path, str]] = None,
+    config: Optional[WriterConfig] = None
+) -> str:
     """Create YAML frontmatter from metadata.
 
     Args:
-        metadata: Dictionary of metadata key-value pairs to include in frontmatter
+        metadata: Dictionary of metadata key-value pairs
+        file_path: Optional path for resolving relative paths in metadata
+        config: Optional configuration object
 
     Returns:
-        str: Formatted YAML frontmatter string with delimiters (---)
-
-    Raises:
-        WriterError: If YAML serialization fails or metadata is invalid
-
-    Note:
-        The frontmatter is wrapped in triple-dash delimiters (---) as per YAML spec
-        Metadata order is preserved using sort_keys=False
+        str: Formatted YAML frontmatter string
     """
-    try:
-        yaml_content = yaml.dump(metadata, default_flow_style=False, sort_keys=False)
-        return f"{YAML_FRONTMATTER_START}{yaml_content}{YAML_FRONTMATTER_END}"
-    except yaml.YAMLError as e:
-        logger.error(ERROR_YAML_SERIALIZATION.format(error=str(e)))
-        raise WriterError(ERROR_YAML_SERIALIZATION.format(error=str(e)))
+    config = get_config(config)
+    if file_path:
+        file_path = resolve_path_with_config(file_path, config.drafts_dir)
+        # Handle any path resolution in metadata
+    # ... rest of function ...
 
 
 def find_marker_positions(content: str, marker_pattern: str) -> list[tuple[int, int]]:

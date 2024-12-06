@@ -40,7 +40,7 @@ from .errors import (
 logger = logging.getLogger(__name__)
 
 def validate_file_inputs(
-    file_path: Path,
+    file_path: Union[Path, str],
     config: WriterConfig,
     require_write: bool = True,
     create_parents: bool = False,
@@ -87,7 +87,7 @@ def validate_file_inputs(
         check_exists=not create_parents
     )
 
-def validate_path_length(file_path: Path) -> Path:
+def validate_path_length(file_path: Union[Path, str]) -> Path:
 
     if len(str(file_path)) > MAX_PATH_LENGTH:
         logger.warning(LOG_PATH_TOO_LONG.format(path=file_path))
@@ -156,7 +156,7 @@ def is_valid_filename(
     return True
 
 def ensure_valid_markdown_file(
-    file_path: Path,
+    file_path: Union[Path, str],
     config: WriterConfig,
     create: bool = False
 ) -> None:
@@ -212,7 +212,7 @@ def validate_metadata(metadata: Dict[str, Any], config: WriterConfig) -> None:
             ERROR_MISSING_METADATA.format(fields=", ".join(missing_fields))
         )
 
-def validate_file(file_path: Path, require_write: bool = False) -> None:
+def validate_file(file_path: Union[Path, str], require_write: bool = False) -> None:
     """Validate that the file exists, has the correct format, and meets permission requirements.
 
     Args:
