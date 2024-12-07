@@ -102,16 +102,7 @@ def is_valid_filename(
     extension: Optional[str] = None,
     strict_extension: bool = True
 ) -> bool:
-    """Check if filename is valid and optionally validate extension.
-    
-    Args:
-        filename: Name or Path to validate
-        extension: Optional file extension to check (e.g., '.md')
-        strict_extension: If True, requires exact extension match when specified
-        
-    Returns:
-        bool: True if filename is valid and matches extension if specified
-    """
+    """Check if filename is valid and optionally validate extension."""
     # Convert Path to string if needed
     if isinstance(filename, Path):
         filename = filename.name
@@ -256,25 +247,25 @@ def validate_and_resolve_path(
         )
         file_path = Path(file_path)
     
-    # Check for path traversal attempts - only block relative traversal
+    # Check for path traversal and directory separators
     path_str = str(file_path)
-    if any(pattern in path_str for pattern in ["./", "../"]):
+    if any(pattern in path_str for pattern in ["./", "../", "/", "\\"]):
         logger.warning(LOG_VALIDATE_FILENAME.format(filename=path_str))
         raise FileValidationError("Invalid filename")
     
-    # Validate the filename part
+    # First validate basic filename without extension requirements
     file_name = file_path.name
     if not is_valid_filename(file_name):
         logger.warning(LOG_VALIDATE_FILENAME.format(filename=file_name))
         raise FileValidationError("Invalid filename")
 
-    # Ensure .md extension only if filename is not empty
-    if file_name and not file_name.endswith(MD_EXTENSION):
+    # Handle extension - add if missing
+    if file_name and not file_name.lower().endswith(MD_EXTENSION.lower()):
         file_name = file_name + MD_EXTENSION
         logger.debug(LOG_ADDED_EXTENSION.format(filename=file_name))
         file_path = file_path.with_name(file_name)
-
-    # Validate complete filename with extension
+        
+    # Final validation with strict extension check
     if not is_valid_filename(file_path.name, MD_EXTENSION, strict_extension=True):
         logger.warning(LOG_VALIDATE_FILENAME.format(filename=file_path.name))
         raise FileValidationError("Invalid filename")
