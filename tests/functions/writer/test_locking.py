@@ -111,7 +111,7 @@ class TestLockSection:
     
     def test_successful_lock(self, temp_md_file, mock_config):
         """Test successful section locking."""
-        result = lock_section("test.md", "TestSection", mock_config)
+        result = lock_section(Path("test.md"), "TestSection", mock_config)
         assert result is True
         
         # Verify lock file exists
@@ -125,33 +125,33 @@ class TestLockSection:
         
     def test_concurrent_section_locks(self, temp_md_file, mock_config):
         """Test concurrent lock attempts on the same section."""
-        assert lock_section("test.md", "TestSection", mock_config) is True
-        assert lock_section("test.md", "TestSection", mock_config) is False
+        assert lock_section(Path("test.md"), "TestSection", mock_config) is True
+        assert lock_section(Path("test.md"), "TestSection", mock_config) is False
         
     def test_multiple_sections(self, temp_md_file, mock_config):
         """Test locking different sections."""
-        assert lock_section("test.md", "TestSection", mock_config) is True
-        assert lock_section("test.md", "AnotherSection", mock_config) is True
+        assert lock_section(Path("test.md"), "TestSection", mock_config) is True
+        assert lock_section(Path("test.md"), "AnotherSection", mock_config) is True
         
     def test_nonexistent_section(self, temp_md_file, mock_config):
         """Test locking nonexistent section."""
         with pytest.raises(SectionNotFoundError):
-            lock_section("test.md", "NonexistentSection", mock_config)
+            lock_section(Path("test.md"), "NonexistentSection", mock_config)
             
     def test_invalid_file(self, mock_config):
         """Test locking section in nonexistent file."""
         with pytest.raises(FileValidationError):
-            lock_section("nonexistent.md", "TestSection", mock_config)
+            lock_section(Path("nonexistent.md"), "TestSection", mock_config)
             
     def test_lock_timeout(self, temp_md_file, mock_config):
         """Test lock acquisition timeout."""
         with patch('filelock.FileLock.acquire', side_effect=Timeout):
-            assert lock_section("test.md", "TestSection", mock_config) is False
+            assert lock_section(Path("test.md"), "TestSection", mock_config) is False
 
     def test_lock_section_with_agent(self, temp_md_file, mock_config):
         """Test lock_section function with agent identification."""
         agent_id = "test_agent_456"
-        assert lock_section("test.md", "TestSection", mock_config, agent_id=agent_id) is True
+        assert lock_section(Path("test.md"), "TestSection", mock_config, agent_id=agent_id) is True
         
         # Verify lock file exists and contains agent_id
         lock_file = temp_md_file.parent / ".TestSection.lock"
@@ -174,7 +174,7 @@ class TestLockSection:
         
         # Force cleanup by patching random
         with patch('random.random', return_value=0.0):  # Always trigger cleanup
-            lock_section("test.md", "TestSection", mock_config)
+            lock_section(Path("test.md"), "TestSection", mock_config)
             
         # Verify stale lock was cleaned up
         assert not stale_lock.exists()
@@ -185,7 +185,7 @@ class TestLockSection:
                   side_effect=Exception("Cleanup failed")):
             with patch('random.random', return_value=0.0):  # Force cleanup attempt
                 # Should still succeed despite cleanup failure
-                assert lock_section("test.md", "TestSection", mock_config) is True
+                assert lock_section(Path("test.md"), "TestSection", mock_config) is True
 
 class TestErrorHandling:
     """Test error handling scenarios."""

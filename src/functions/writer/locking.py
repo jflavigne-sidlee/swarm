@@ -337,23 +337,7 @@ def lock_section(
     agent_id: Optional[str] = None,
     acquire_timeout: Optional[float] = None
 ) -> bool:
-    """Acquire an exclusive lock on a document section.
-
-    Args:
-        file_path: Path to the file (Path object or string)
-        section_title: Section to lock
-        config: Optional configuration (uses defaults if None)
-        agent_id: Optional agent identifier
-        acquire_timeout: Optional acquisition timeout override
-        
-    Returns:
-        bool: True if lock acquired, False otherwise
-
-    Raises:
-        FileValidationError: Invalid or inaccessible file
-        SectionNotFoundError: Section doesn't exist
-        ValueError: Invalid acquire_timeout value
-    """
+    """Acquire an exclusive lock on a document section."""
     config = get_config(config)
         
     # Use config value if not explicitly provided
@@ -363,21 +347,23 @@ def lock_section(
     try:
         LockCleanupManager(config).maybe_cleanup()
         
-        # Replace direct Path conversion with resolve_path_with_config
-        file_path = resolve_path_with_config(file_path, config.drafts_dir)
+        # Resolve path early using the utility function
+        resolved_path = resolve_path_with_config(file_path, config.drafts_dir)
         
         try:
-            validate_file(file_path, require_write=True)
+            # Pass resolved Path object instead of string
+            validate_file(resolved_path, require_write=True)
         except WriterError as e:
             raise FileValidationError(str(e))
         
-        if not section_exists(file_path.name, section_title, config):
+        # Pass full Path object instead of just the name
+        if not section_exists(resolved_path, section_title, config):
             raise SectionNotFoundError(ERROR_SECTION_NOT_FOUND.format(
                 section_title=section_title
             ))
             
         lock = SectionLock(
-            file_path,
+            resolved_path,  # Pass resolved Path
             section_title,
             config.lock_timeout,
             agent_id,
