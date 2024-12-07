@@ -4,6 +4,7 @@ import logging
 import warnings
 from pathlib import Path
 from typing import Optional, Dict, Any, Union
+import os
 
 from .config import WriterConfig
 from .constants import MD_EXTENSION
@@ -103,33 +104,37 @@ def is_valid_filename(
     strict_extension: bool = True
 ) -> bool:
     """Check if filename is valid and optionally validate extension."""
+    logger.debug(f"[is_valid_filename] Input: {filename}, type: {type(filename)}")
+    
     # Convert Path to string if needed
     if isinstance(filename, Path):
         filename = filename.name
+        logger.debug(f"[is_valid_filename] Converted to name: {filename}")
     
     # Basic validation
     if not filename or len(filename) > MAX_FILENAME_LENGTH:
+        logger.debug("[is_valid_filename] Failed length validation")
         return False
 
-    # Check for path-like patterns
-    if any(pattern in filename for pattern in ["./", "../", "\\", "/"]):
+    # Check for path-like patterns and separators
+    if "/" in filename or "\\" in filename or "." == filename or ".." == filename:
+        logger.debug("[is_valid_filename] Failed path separator check")
         return False
 
     # Check for forbidden characters
     if any(char in filename for char in FORBIDDEN_FILENAME_CHARS):
+        logger.debug("[is_valid_filename] Failed forbidden chars check")
         return False
 
     # Check for reserved names
     base_name = Path(filename).stem.upper()
     if base_name in RESERVED_WINDOWS_FILENAMES:
-        return False
-
-    # Check for special directory names
-    if filename in {".", ".."}:
+        logger.debug("[is_valid_filename] Failed reserved name check")
         return False
 
     # Check for trailing spaces or dots
     if filename.endswith((" ", ".")):
+        logger.debug("[is_valid_filename] Failed trailing chars check")
         return False
 
     # Validate extension if specified
@@ -138,13 +143,16 @@ def is_valid_filename(
             extension = f'.{extension}'
             
         if strict_extension:
-            # Exact match required
-            return filename.lower().endswith(extension.lower())
+            result = filename.lower().endswith(extension.lower())
+            logger.debug(f"[is_valid_filename] Strict extension check result: {result}")
+            return result
         else:
-            # Allow additional extensions after specified one
             parts = filename.lower().split(extension.lower())
-            return len(parts) > 1 and not parts[0].endswith('.')
+            result = len(parts) > 1 and not parts[0].endswith('.')
+            logger.debug(f"[is_valid_filename] Non-strict extension check result: {result}")
+            return result
 
+    logger.debug("[is_valid_filename] All validation passed")
     return True
 
 def ensure_valid_markdown_file(
@@ -239,6 +247,8 @@ def validate_and_resolve_path(
     check_exists: bool = True,
 ) -> Path:
     """Validate filename, resolve path, and check file permissions."""
+    logger.debug(f"[validate_and_resolve_path] Input path: {file_path}, type: {type(file_path)}")
+    
     if isinstance(file_path, str):
         warnings.warn(
             f"String path '{file_path}' passed to {validate_and_resolve_path.__name__}. "
@@ -247,14 +257,19 @@ def validate_and_resolve_path(
         )
         file_path = Path(file_path)
     
-    # Check for path traversal and directory separators
+    # Check raw string for path traversal and separators
     path_str = str(file_path)
-    if any(pattern in path_str for pattern in ["./", "../", "/", "\\"]):
-        logger.warning(LOG_VALIDATE_FILENAME.format(filename=path_str))
-        raise FileValidationError("Invalid filename")
+    logger.debug(f"[validate_and_resolve_path] Raw path string: {path_str}")
+    
+    # If it's not an absolute path, treat it as a filename and validate strictly
+    if not file_path.is_absolute():
+        if "/" in path_str or "\\" in path_str or "." == path_str or ".." == path_str:
+            logger.warning(LOG_VALIDATE_FILENAME.format(filename=path_str))
+            raise FileValidationError("Invalid filename")
     
     # First validate basic filename without extension requirements
     file_name = file_path.name
+    logger.debug(f"[validate_and_resolve_path] Validating filename: {file_name}")
     if not is_valid_filename(file_name):
         logger.warning(LOG_VALIDATE_FILENAME.format(filename=file_name))
         raise FileValidationError("Invalid filename")
@@ -262,16 +277,18 @@ def validate_and_resolve_path(
     # Handle extension - add if missing
     if file_name and not file_name.lower().endswith(MD_EXTENSION.lower()):
         file_name = file_name + MD_EXTENSION
-        logger.debug(LOG_ADDED_EXTENSION.format(filename=file_name))
+        logger.debug(f"[validate_and_resolve_path] Added extension: {file_name}")
         file_path = file_path.with_name(file_name)
         
     # Final validation with strict extension check
+    logger.debug(f"[validate_and_resolve_path] Final filename validation: {file_path.name}")
     if not is_valid_filename(file_path.name, MD_EXTENSION, strict_extension=True):
         logger.warning(LOG_VALIDATE_FILENAME.format(filename=file_path.name))
         raise FileValidationError("Invalid filename")
 
     # Resolve path
     resolved_path = resolve_path_with_config(file_path, config.drafts_dir)
+    logger.debug(f"[validate_and_resolve_path] Resolved path: {resolved_path}")
 
     # Validate file exists and has correct permissions only if required
     if check_exists:
